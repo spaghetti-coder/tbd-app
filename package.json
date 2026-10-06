@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "lint:js": "node scripts/get-js.mjs index.html | npx eslint --stdin --stdin-filename=index.html",
+    "lint:css": "npx stylelint index.html",
+    "syntax": "node scripts/get-js.mjs index.html | node --input-type=module --check -"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "eslint": "^10.7.0",
+    "globals": "^17.7.0",
+    "postcss-html": "^1.8.1",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-order": "^8.1.1"
+  }
+}
