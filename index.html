@@ -523,13 +523,30 @@
       margin-top: 24px;
     }
 
-    .pager__num {
-      min-width: 56px;
-      padding: 0 8px;
+    .pager__btn {
+      min-width: 32px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: none;
       color: var(--text-2);
-      font-size: 14px;
-      text-align: center;
+      font-size: 13px;
       font-variant-numeric: tabular-nums;
+    }
+
+    .pager__btn:hover {
+      background: var(--surface-2);
+    }
+
+    .pager__btn--on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .pager__gap {
+      padding: 0 2px;
+      color: var(--text-2);
     }
 
     .empty {
@@ -614,6 +631,22 @@
       font-size: 17px;
       font-weight: 650;
       overflow-wrap: anywhere;
+    }
+
+    .modal__titlebar {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .modal__titlebar .modal__title {
+      flex: 1;
+      min-width: 0;
+      padding-right: 6px;
+    }
+
+    .modal__close {
+      margin: 4px 0 0 -4px;
     }
 
     .modal__body {
@@ -1022,21 +1055,28 @@ function applyIconFallback() {
 }
 
 function checkIconFont() {
-  const t0 = Date.now();
-  const tick = () => {
+  // document.fonts.check() returns true as soon as it *starts* loading, so it can't
+  // detect a blocked CDN. Wait for the load to settle, then look for the family.
+  const absent = () => {
+    let loaded = false;
     try {
-      if (document.fonts.check('20px "Material Symbols Outlined"')) return;
+      for (const f of document.fonts) {
+        if (f.family && f.family.includes("Material Symbols Outlined")) {
+          loaded = true;
+          break;
+        }
+      }
     } catch {
-      applyIconFallback();
-      return;
+      loaded = true; // no FontFaceSet introspection — keep the webfont path
     }
-    if (Date.now() - t0 > 2500) {
-      applyIconFallback();
-      return;
-    }
-    setTimeout(tick, 150);
+    if (!loaded) applyIconFallback();
   };
-  setTimeout(tick, 600);
+  try {
+    document.fonts.ready.then(absent);
+  } catch {
+    absent();
+  }
+  setTimeout(absent, 6000); // safety net if `ready` never settles
 }
 
 /* ============================ i18n ============================ */
@@ -1465,6 +1505,7 @@ function defaultState() {
       pageSize: 20,
       panelEdge: "right",
       panelY: null,
+      panelX: null,
     },
     checklists: [],
     archive: { checklists: [], items: [] },
@@ -1613,7 +1654,7 @@ function updateTxtMore() {
 }
 
 function openTextModal(text) {
-  openModal({ title: t("full") }).content.append(
+  openModal({ title: t("full"), closable: true }).content.append(
     (() => {
       const body = el("div", "modal__body");
       const pre = el("div", "fulltext");
@@ -1635,7 +1676,21 @@ function openModal(spec) {
   box.setAttribute("aria-modal", "true");
   box.tabIndex = -1;
   const content = el("div", "modal__content");
-  if (spec.title) content.append(el("div", "modal__title", spec.title));
+  if (spec.title) {
+    if (spec.closable) {
+      const bar = el("div", "modal__titlebar");
+      bar.append(el("div", "modal__title", spec.title));
+      const x = el("button", "icon-btn modal__close");
+      x.type = "button";
+      x.appendChild(icon("close"));
+      x.setAttribute("aria-label", t("close"));
+      x.addEventListener("click", () => entry.close());
+      bar.append(x);
+      content.append(bar);
+    } else {
+      content.append(el("div", "modal__title", spec.title));
+    }
+  }
   box.append(content);
   bd.append(box);
   const prevFocus = document.activeElement;
@@ -1675,7 +1730,7 @@ function trapTab(e, scope) {
 }
 
 function confirmModal(title, names, opts) {
-  const entry = openModal({ title });
+  const entry = openModal({ title, closable: true });
   const body = el("div", "modal__body");
   let arr = [];
   if (Array.isArray(names)) arr = names;
@@ -1715,8 +1770,10 @@ function itemName(clId, id) {
 }
 
 function openMenu(type, id, clId, name) {
+  // a menu never stacks on top of another modal — replace whatever is open
+  while (modalStack.length) modalStack[modalStack.length - 1].close();
   const label = name || t(type === "cl" ? "checklist" : "item");
-  const entry = openModal({ title: label });
+  const entry = openModal({ title: label, closable: true });
   const row = (iconName, lbl, fn, cls) => {
     const b = el("button", `modal__row${  cls ? ` ${  cls}` : ""}`);
     b.type = "button";
@@ -2077,6 +2134,7 @@ function openArchive() {
 
   function archRestoreCls() {
     let ins = 0;
+    let restored = 0;
     for (const a of [...state.archive.checklists]) {
       if (!sel.ids.has(a.id)) continue;
       state.archive.checklists.splice(state.archive.checklists.indexOf(a), 1);
@@ -2090,7 +2148,9 @@ function openArchive() {
         items: [...its, ...a.items.map((i) => ({ ...i }))],
       });
       ins += 1;
+      restored += 1;
     }
+    if (restored) ui.page = 0; // restored to the top of the list — go see them (same as creation)
     save();
   }
 
@@ -2357,6 +2417,7 @@ function startItEdit(clId, id) {
 }
 
 function addChecklist() {
+  commitPendingEdit(); // commit/cancel the open input first, or it would survive as an empty entity
   const cl = { id: uid(), title: "", collapsed: false, items: [] };
   if (state.settings.newCl === "top") {
     state.checklists.unshift(cl);
@@ -2372,6 +2433,7 @@ function addChecklist() {
 }
 
 function addItem(clId) {
+  commitPendingEdit(); // commit/cancel the open input first, or it would survive as an empty entity
   const cl = state.checklists.find((c) => c.id === clId);
   if (!cl) return;
   const it = { id: uid(), text: "", done: false };
@@ -2425,6 +2487,20 @@ function setAllCollapsed(v) {
 
 /* ============================ rendering: pager ============================ */
 
+function pageWindow(pages) {
+  const cur = ui.page;
+  const set = new Set([0, pages - 1, cur - 1, cur, cur + 1]);
+  const nums = [...set].filter((p) => p >= 0 && p < pages).sort((a, b) => a - b);
+  const out = [];
+  let prev = -1;
+  for (const p of nums) {
+    if (p - prev > 1) out.push(null); // gap → ellipsis
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
 function renderPager() {
   const size = state.settings.pageSize;
   const pages = pagesCount();
@@ -2441,13 +2517,27 @@ function renderPager() {
   prev.setAttribute("aria-label", t("prev"));
   prev.disabled = ui.page === 0;
   prev.addEventListener("click", () => goPage(ui.page - 1));
+  const nodes = [prev];
+  for (const p of pageWindow(pages)) {
+    if (p === null) {
+      nodes.push(el("span", "pager__gap", "…"));
+      continue;
+    }
+    const b = el("button", `pager__btn${  p === ui.page ? " pager__btn--on" : ""}`);
+    b.type = "button";
+    b.textContent = String(p + 1);
+    if (p === ui.page) b.setAttribute("aria-current", "page");
+    b.addEventListener("click", () => goPage(p));
+    nodes.push(b);
+  }
   const next = el("button", "icon-btn");
   next.type = "button";
   next.appendChild(icon("chevron_right"));
   next.setAttribute("aria-label", t("next"));
   next.disabled = ui.page >= pages - 1;
   next.addEventListener("click", () => goPage(ui.page + 1));
-  pagerEl.append(prev, el("span", "pager__num", `${ui.page + 1  } / ${  pages}`), next);
+  nodes.push(next);
+  pagerEl.append(...nodes);
 }
 
 function goPage(p) {
@@ -2524,7 +2614,10 @@ function layoutPanel() {
   let x;
   let y;
   if (edge === "top" || edge === "bottom") {
-    x = Math.max(8, Math.min((col.left + col.right) / 2 - pw / 2, vw - pw - 8));
+    const savedX = typeof state.settings.panelX === "number"
+      ? state.settings.panelX
+      : (col.left + col.right) / 2 - pw / 2;
+    x = Math.max(8, Math.min(savedX, vw - pw - 8));
     if (edge === "top") y = 8;
     else {
       const below = col.bottom + m;
@@ -2648,6 +2741,8 @@ window.addEventListener("pointerup", () => {
     state.settings.panelEdge = nearestEdge(r.left + r.width / 2, r.top + r.height / 2);
     if (state.settings.panelEdge === "left" || state.settings.panelEdge === "right") {
       state.settings.panelY = r.top;
+    } else {
+      state.settings.panelX = r.left;
     }
     save();
     layoutPanel();
@@ -2726,15 +2821,7 @@ function resetSwipeVisual(node) {
 function beginDrag() {
   if (!G.hit) return;
   G.mode = "drag";
-  const rect = G.dragEl.getBoundingClientRect();
-  G.ghost = G.dragEl.cloneNode(true);
-  G.ghost.classList.add("ghost");
-  G.ghost.style.width = `${rect.width}px`;
-  G.ghost.style.left = `${rect.left}px`;
-  G.ghost.style.top = `${rect.top}px`;
-  document.body.append(G.ghost);
-  G.ghostY = G.py - rect.top;
-  G.dragEl.classList.add("drag-src");
+  G.lastSig = null;
   const b = ui.bulk;
   if (G.type === "it") {
     G.group =
@@ -2745,6 +2832,29 @@ function beginDrag() {
     G.group =
       b && b.type === "cl" && b.ids.includes(G.id) ? orderByCurrent(b.ids, clIndex) : [G.id];
   }
+  const rect = G.dragEl.getBoundingClientRect();
+  if (G.group.length > 1) {
+    // bulk drag: ghost shows the whole group, in the order it will land
+    G.ghost = el("div", "ghost");
+    for (const gid of G.group) {
+      const node =
+        G.type === "cl"
+          ? listsEl.querySelector(`.cl[data-id="${  gid  }"]`)
+          : document.querySelector(`.it[data-id="${  gid  }"]`);
+      if (!node) continue;
+      G.ghost.appendChild(node.cloneNode(true));
+      node.classList.add("drag-src");
+    }
+  } else {
+    G.ghost = G.dragEl.cloneNode(true);
+    G.ghost.classList.add("ghost");
+    G.dragEl.classList.add("drag-src");
+  }
+  G.ghost.style.width = `${rect.width}px`;
+  G.ghost.style.left = `${rect.left}px`;
+  G.ghost.style.top = `${rect.top}px`;
+  document.body.append(G.ghost);
+  G.ghostY = G.py - rect.top;
   suppressClicks(listsEl, 500);
   if (navigator.vibrate) navigator.vibrate(15);
   positionGhost();
@@ -2822,7 +2932,9 @@ function recomputeTarget() {
     container = sec.querySelector(".cl__items");
     before = nextBefore(container.querySelectorAll(":scope > .it"), G.py);
   }
-  const sig = `${scopeId  }|${  before ? before.dataset.flipId : "end"}`;
+  // .cl sections carry data-id; .it rows carry data-flip-id — the key must exist on both
+  const key = before ? (before.dataset.flipId || `s:${  before.dataset.id  }`) : "end";
+  const sig = `${scopeId  }|${  key}`;
   if (sig === G.lastSig) return;
   G.lastSig = sig;
   flipMove(container, before);
@@ -2848,7 +2960,21 @@ function commitClDrag() {
   const pageCl = [...listsEl.querySelectorAll(".cl")]
     .map((n) => byId.get(n.dataset.id))
     .filter(Boolean);
-  state.checklists.splice(start, pageCl.length, ...pageCl);
+  // in bulk mode the whole group lands where the dragged card dropped;
+  // only the on-page part of the group can follow (the rest stays put)
+  const pageIds = new Set(pageCl.map((c) => c.id));
+  const group = G.group.map((id) => byId.get(id)).filter((c) => c && pageIds.has(c.id));
+  const groupIds = new Set(group.map((c) => c.id));
+  const rest = pageCl.filter((c) => !groupIds.has(c.id));
+  const dragIdx = pageCl.findIndex((c) => c.id === G.id);
+  const pIdx = dragIdx < 0 ? rest.length : pageCl.slice(0, dragIdx).filter((c) => !groupIds.has(c.id)).length;
+  state.checklists.splice(
+    start,
+    pageCl.length,
+    ...rest.slice(0, pIdx),
+    ...group,
+    ...rest.slice(pIdx)
+  );
   save();
   renderAll();
 }
