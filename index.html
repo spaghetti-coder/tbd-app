@@ -1,0 +1,3255 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TBD — checklists that stay with you.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f4f5f7" id="theme-color">
+  <title>TBD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --surface: #fff;
+      --surface-2: #edeff2;
+      --text: #1c2027;
+      --text-2: #67707f;
+      --border: #e4e7ec;
+      --border-2: #c9cfd8;
+      --accent: #4f46e5;
+      --accent-soft: rgb(79 70 229 / 0.07);
+      --accent-contrast: #fff;
+      --danger: #dc2626;
+      --radius: 14px;
+      --header-h: 56px;
+      --col-w: 720px;
+      --shadow: 0 1px 2px rgb(16 18 24 / 0.06);
+      --shadow-lg: 0 12px 32px -8px rgb(16 18 24 / 0.22);
+
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f1115;
+      --surface: #171a20;
+      --surface-2: #21252e;
+      --text: #e6e9ef;
+      --text-2: #8b93a3;
+      --border: #262b35;
+      --border-2: #39404e;
+      --accent: #818cf8;
+      --accent-soft: rgb(129 140 248 / 0.12);
+      --accent-contrast: #101223;
+      --danger: #ef5b5b;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+      --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.45;
+      overscroll-behavior-y: none;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .icon {
+      display: inline-block;
+      flex: none;
+      font-family: "Material Symbols Outlined", sans-serif;
+      font-size: 20px;
+      font-style: normal;
+      font-weight: normal;
+      font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      white-space: nowrap;
+      direction: ltr;
+      user-select: none;
+    }
+
+    [data-iconfb="1"] .icon {
+      font-family: inherit;
+      font-variation-settings: normal;
+    }
+
+    .icon-btn {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--text-2);
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.94);
+    }
+
+    .icon-btn:disabled {
+      opacity: 0.35;
+    }
+
+    .app-bar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: color-mix(in oklab, var(--surface) 88%, transparent);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .app-bar__in {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      max-width: var(--col-w);
+      height: var(--header-h);
+      margin-inline: auto;
+      padding-inline: 16px;
+    }
+
+    .app-bar__title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .app-bar__actions {
+      display: flex;
+      gap: 2px;
+    }
+
+    .content {
+      max-width: var(--col-w);
+      margin-inline: auto;
+      padding: 16px 16px 120px;
+    }
+
+    .lists {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .cl {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .cl--sel {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .cl__sentinel {
+      height: 1px;
+    }
+
+    .cl__head {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-height: 52px;
+      padding: 6px 8px 6px 4px;
+      border-radius: inherit;
+      touch-action: pan-y;
+      user-select: none;
+    }
+
+    .cl--open .cl__head {
+      position: sticky;
+      top: var(--header-h);
+      z-index: 30;
+      background: var(--surface);
+    }
+
+    .cl__head--pinned {
+      box-shadow: 0 6px 12px -8px rgb(16 18 24 / 0.35);
+    }
+
+    .cl__title {
+      position: relative;
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      align-self: stretch;
+    }
+
+    .cl__title-btn {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      align-items: center;
+      padding: 8px 4px;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      text-align: left;
+    }
+
+    .cl__title-btn:hover {
+      background: var(--surface-2);
+    }
+
+    .cl--done .cl__title-btn .txt__in {
+      color: var(--text-2);
+    }
+
+    .cl__tools {
+      display: flex;
+      gap: 2px;
+    }
+
+    .cl__body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 0fr;
+      transition: grid-template-rows 0.22s ease;
+    }
+
+    .cl--open .cl__body {
+      grid-template-rows: 1fr;
+    }
+
+    .cl__items {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+      min-height: 0;
+      overflow: hidden;
+      padding: 0 8px 8px;
+    }
+
+    .it {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 46px;
+      padding: 2px 8px 2px 4px;
+      border-radius: 10px;
+      touch-action: pan-y;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+
+    .it:hover {
+      background: var(--surface-2);
+    }
+
+    .it--sel {
+      background: var(--accent-soft);
+    }
+
+    .it:last-child {
+      border-radius: 0 0 10px 10px;
+    }
+
+    .it__check {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 26px;
+      height: 26px;
+      margin: 0 8px 0 4px;
+      padding: 0;
+      border: 2px solid var(--border-2);
+      border-radius: 8px;
+      background: transparent;
+      color: transparent;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .it__check .icon {
+      font-size: 18px;
+    }
+
+    .it--done .it__check {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .it--done .it__text .txt__in {
+      color: var(--text-2);
+    }
+
+    .selbox {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 26px;
+      height: 26px;
+      margin: 0 8px 0 4px;
+      padding: 0;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      background: transparent;
+      color: transparent;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .selbox[aria-checked="true"] {
+      background: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .txt {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .txt__in {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .txt__more {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 2.4em;
+      height: 2.4em;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      color: transparent;
+      transform: translateY(-50%);
+    }
+
+    .it__text {
+      padding-left: 8px;
+    }
+
+    .input {
+      flex: 1;
+      min-width: 0;
+      min-height: 40px;
+      margin: 4px 0;
+      padding: 8px 12px;
+      border: 1px solid var(--accent);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    .input::placeholder {
+      color: var(--text-2);
+    }
+
+    .swipe-hint {
+      position: absolute;
+      top: 50%;
+      z-index: 0;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      color: var(--text-2);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+
+    .swipe-hint--l {
+      left: 10px;
+    }
+
+    .swipe-hint--r {
+      right: 10px;
+    }
+
+    .ghost {
+      position: fixed;
+      z-index: 70;
+      margin: 0;
+      max-height: 220px;
+      overflow: hidden;
+      pointer-events: none;
+      opacity: 0.96;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .it.ghost {
+      max-height: none;
+      border-radius: 10px;
+    }
+
+    .drag-src {
+      opacity: 0.35;
+    }
+
+    .panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      user-select: none;
+      touch-action: none;
+      will-change: transform;
+      transition: transform 0.24s cubic-bezier(0.25, 0.8, 0.3, 1);
+    }
+
+    .panel[data-edge="top"],
+    .panel[data-edge="bottom"] {
+      flex-direction: row;
+    }
+
+    .panel--drag {
+      z-index: 75;
+      transition: none;
+    }
+
+    .panel__grip {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 16px;
+      margin: 2px auto 0;
+      color: var(--border-2);
+    }
+
+    .panel__grip .icon {
+      font-size: 14px;
+    }
+
+    .panel[data-edge="top"] .panel__grip,
+    .panel[data-edge="bottom"] .panel__grip {
+      width: 16px;
+      height: 28px;
+      margin: auto 0;
+    }
+
+    .panel__sep {
+      flex: none;
+      width: auto;
+      height: 1px;
+      margin: 3px 6px;
+      background: var(--border);
+    }
+
+    .panel[data-edge="top"] .panel__sep,
+    .panel[data-edge="bottom"] .panel__sep {
+      width: 1px;
+      height: auto;
+      margin: 6px 3px;
+    }
+
+    .drop-hint {
+      position: fixed;
+      z-index: 55;
+      pointer-events: none;
+      opacity: 0.55;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 24px;
+    }
+
+    .pager__num {
+      min-width: 56px;
+      padding: 0 8px;
+      color: var(--text-2);
+      font-size: 14px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .empty {
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      padding: 72px 16px;
+      text-align: center;
+      color: var(--text-2);
+    }
+
+    .empty .icon {
+      margin-bottom: 8px;
+      color: var(--border-2);
+      font-size: 40px;
+    }
+
+    .empty__title {
+      margin: 0;
+      color: var(--text);
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .empty__hint {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .empty--sm {
+      padding: 32px 16px;
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      background: rgb(10 12 16 / 0.45);
+      animation: fade 0.15s ease;
+    }
+
+    .backdrop--full {
+      padding: 0;
+    }
+
+    .modal {
+      display: flex;
+      flex-direction: column;
+      width: min(420px, 100%);
+      max-height: calc(100dvh - 32px);
+      background: var(--surface);
+      border-radius: 18px;
+      box-shadow: var(--shadow-lg);
+      animation: pop 0.18s cubic-bezier(0.25, 0.8, 0.3, 1);
+    }
+
+    .modal--full {
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      border-radius: 0;
+    }
+
+    .modal__content {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 8px;
+      overflow-y: auto;
+    }
+
+    .modal--full .modal__content {
+      flex: 1;
+      padding: 0;
+    }
+
+    .modal__title {
+      padding: 12px 14px 6px;
+      font-size: 17px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .modal__body {
+      padding: 4px 14px 10px;
+      color: var(--text-2);
+      overflow-wrap: anywhere;
+    }
+
+    .modal__row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      padding: 12px 14px;
+      border: 0;
+      border-radius: 12px;
+      background: none;
+      color: var(--text);
+      font-size: 15px;
+      text-align: left;
+    }
+
+    .modal__row:hover {
+      background: var(--surface-2);
+    }
+
+    .modal__row .icon {
+      font-size: 22px;
+    }
+
+    .modal__row--danger {
+      color: var(--danger);
+    }
+
+    .modal__row-label {
+      flex: 1;
+      overflow-wrap: anywhere;
+    }
+
+    .sep {
+      height: 1px;
+      margin: 4px 10px;
+      background: var(--border);
+    }
+
+    .modal__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 8px 10px 6px;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      font-weight: 550;
+    }
+
+    .btn:hover {
+      background: var(--surface-2);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+    }
+
+    .btn--accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .btn--accent:hover {
+      background: var(--accent);
+      filter: brightness(1.08);
+    }
+
+    .btn--danger {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    .btn--danger:hover {
+      background: var(--danger);
+      filter: brightness(1.08);
+    }
+
+    .fulltext {
+      padding: 14px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .cf__name {
+      margin: 6px 0;
+      color: var(--text);
+      font-weight: 500;
+      overflow-wrap: anywhere;
+    }
+
+    .cf__name--more {
+      color: var(--text-2);
+      font-weight: 400;
+    }
+
+    .help__body p {
+      margin: 10px 0;
+      font-size: 15px;
+    }
+
+    .dd {
+      position: fixed;
+      z-index: 50;
+      width: 300px;
+      max-height: calc(100dvh - 16px);
+      padding: 10px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-lg);
+      animation: pop 0.16s cubic-bezier(0.25, 0.8, 0.3, 1);
+    }
+
+    .dd__label {
+      padding: 12px 12px 6px;
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+
+    .dd__opt {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 10px;
+      background: none;
+      color: var(--text);
+      text-align: left;
+    }
+
+    .dd__opt:hover {
+      background: var(--surface-2);
+    }
+
+    .dd__opt-mark {
+      display: grid;
+      place-items: center;
+      width: 20px;
+      color: var(--accent);
+    }
+
+    .dd__opt-mark .icon {
+      font-size: 18px;
+    }
+
+    .dd__select {
+      display: block;
+      width: calc(100% - 24px);
+      margin: 0 12px 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .dd__pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 2px 12px 8px;
+    }
+
+    .pill {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: none;
+      color: var(--text-2);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pill:hover {
+      background: var(--surface-2);
+    }
+
+    .pill--on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-contrast);
+    }
+
+    .dd__archive {
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .arch__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 0;
+    }
+
+    .arch__title {
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-top: 10px;
+      padding: 0 14px;
+    }
+
+    .tab {
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 10px;
+      background: none;
+      color: var(--text-2);
+      font-weight: 550;
+    }
+
+    .tab--on {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    .arch__list {
+      flex: 1;
+      min-height: 0;
+      padding: 8px;
+      overflow-y: auto;
+    }
+
+    .arch-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 44px;
+      padding: 4px 8px 4px 4px;
+      border-radius: 10px;
+    }
+
+    .arch-row:hover {
+      background: var(--surface-2);
+    }
+
+    .arch-row .selbox {
+      margin-left: 0;
+    }
+
+    .arch-row .txt {
+      padding-left: 8px;
+    }
+
+    .arch__actions {
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes pop {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(8px);
+      }
+    }
+
+    @media (width <= 480px) {
+      .app-bar__title {
+        font-size: 17px;
+      }
+
+      .modal {
+        border-radius: 14px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-bar">
+    <div class="app-bar__in">
+      <h1 class="app-bar__title">TBD</h1>
+      <div class="app-bar__actions">
+        <button id="btn-add" type="button" class="icon-btn"></button>
+        <button id="btn-settings" type="button" class="icon-btn"></button>
+        <button id="btn-help" type="button" class="icon-btn"></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="lists" id="lists"></div>
+    <nav class="pager" id="pager" aria-label="Pages" hidden></nav>
+  </main>
+
+  <div class="panel" id="panel"></div>
+  <div class="drop-hint" id="drop-hint" hidden></div>
+  <div id="dd-root"></div>
+  <div id="modal-root"></div>
+
+  <noscript>
+    <div style="position:fixed;inset:auto 0 0;padding:16px;text-align:center;background:#dc2626;color:#fff">
+      TBD requires JavaScript.
+    </div>
+  </noscript>
+
+  <script type="module">
+
+/* ============================ helpers ============================ */
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+const $ = (s) => document.querySelector(s);
+
+function uid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return `id-${  Date.now().toString(36)  }${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const reducedMotion = () =>
+  window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ============================ icons ============================ */
+
+const ICON_FB = {
+  add: "＋",
+  close: "✕",
+  help: "ⓘ",
+  settings: "⚙",
+  chevron_right: "›",
+  chevron_left: "‹",
+  expand_less: "⌄",
+  expand_more: "⌃",
+  expand_all: "⊞",
+  collapse_all: "⊟",
+  edit: "✎",
+  check: "✓",
+  more_vert: "⋮",
+  archive: "▣",
+  delete: "🗑",
+  arrow_upward: "↑",
+  arrow_downward: "↓",
+  restore: "↺",
+  check_box: "☑",
+  drag_indicator: "⋮",
+  checklist: "☰",
+};
+
+let iconFallback = false;
+
+function icon(name) {
+  const s = el("span", "icon");
+  s.dataset.fb = ICON_FB[name] || name;
+  s.setAttribute("aria-hidden", "true");
+  s.textContent = iconFallback ? ICON_FB[name] || name : name;
+  return s;
+}
+
+function applyIconFallback() {
+  iconFallback = true;
+  document.documentElement.dataset.iconfb = "1";
+  for (const n of document.querySelectorAll(".icon")) {
+    if (n.dataset.fb) n.textContent = n.dataset.fb;
+  }
+}
+
+function checkIconFont() {
+  const t0 = Date.now();
+  const tick = () => {
+    try {
+      if (document.fonts.check('20px "Material Symbols Outlined"')) return;
+    } catch {
+      applyIconFallback();
+      return;
+    }
+    if (Date.now() - t0 > 2500) {
+      applyIconFallback();
+      return;
+    }
+    setTimeout(tick, 150);
+  };
+  setTimeout(tick, 600);
+}
+
+/* ============================ i18n ============================ */
+
+const I18N = {
+  en: {
+    add_checklist: "New checklist", settings: "Settings", help: "Help",
+    expand_all: "Expand all", collapse_all: "Collapse all", expand: "Expand", collapse: "Collapse",
+    checklist: "Checklist", item: "Item",
+    checklist_ph: "Checklist name", item_ph: "Item",
+    theme: "Theme", theme_system: "System", theme_dark: "Dark", theme_light: "Light",
+    language: "Language", lang_auto: "Auto",
+    new_cl: "New checklist", new_cl_top: "On top", new_cl_bottom: "At the bottom",
+    new_it: "New item", new_it_top: "On top", new_it_bottom: "At the bottom",
+    pagination: "Pagination", page_all: "All",
+    archive: "Archive", menu: "Menu", add_item: "Add item",
+    menu_archive: "Archive", menu_delete: "Delete", to_top: "To top", to_bottom: "To bottom",
+    bulk: "Bulk mode",
+    cf_archive_cl: "Archive checklist?", cf_delete_cl: "Delete checklist?",
+    cf_archive_it: "Archive item?", cf_delete_it: "Delete item?",
+    cf_archive_cls: "Archive selected checklists?", cf_delete_cls: "Delete selected checklists?",
+    cf_archive_its: "Archive selected items?", cf_delete_its: "Delete selected items?",
+    cancel: "Cancel", ok: "Confirm",
+    tab_checklists: "Checklists", tab_items: "Items",
+    restore: "Restore", delete: "Delete",
+    archive_empty: "Archive is empty",
+    list_empty: "No checklists yet", list_empty_hint: "Tap + in the header to create one.",
+    prev: "Previous page", next: "Next page",
+    save: "Save", edit: "Edit", full: "Full text", done: "Done", not_done: "Not done", close: "Close",
+    help_title: "Help",
+    help_1: "Tap + in the header to add a checklist.",
+    help_2: "Tap a checklist title to expand or collapse it.",
+    help_3: "Swipe an item right to edit it, left to archive it.",
+    help_4: "Double-tap an item, or use the edit icon, to edit.",
+    help_5: "Long-press, then drag, to reorder. The mini-panel can be dragged too.",
+    help_6: "The ⋮ menu has archive, delete, move and bulk actions.",
+    help_7: "Archived items and checklists can be restored or deleted in the archive.",
+    and_more: "and {n} more",
+  },
+  ru: {
+    add_checklist: "Новый чеклист", settings: "Настройки", help: "Справка",
+    expand_all: "Развернуть все", collapse_all: "Свернуть все", expand: "Развернуть", collapse: "Свернуть",
+    checklist: "Чеклист", item: "Пункт",
+    checklist_ph: "Название чеклиста", item_ph: "Пункт",
+    theme: "Тема", theme_system: "Система", theme_dark: "Тёмная", theme_light: "Светлая",
+    language: "Язык", lang_auto: "Авто",
+    new_cl: "Новый чеклист", new_cl_top: "Над всеми", new_cl_bottom: "Под всеми",
+    new_it: "Новый пункт", new_it_top: "Над всеми", new_it_bottom: "Под всеми",
+    pagination: "Пагинация", page_all: "Все",
+    archive: "Архив", menu: "Меню", add_item: "Добавить пункт",
+    menu_archive: "Архивировать", menu_delete: "Удалить", to_top: "Наверх", to_bottom: "Вниз",
+    bulk: "Массовый режим",
+    cf_archive_cl: "Архивировать чеклист?", cf_delete_cl: "Удалить чеклист?",
+    cf_archive_it: "Архивировать пункт?", cf_delete_it: "Удалить пункт?",
+    cf_archive_cls: "Архивировать выбранные чеклисты?", cf_delete_cls: "Удалить выбранные чеклисты?",
+    cf_archive_its: "Архивировать выбранные пункты?", cf_delete_its: "Удалить выбранные пункты?",
+    cancel: "Отмена", ok: "Подтвердить",
+    tab_checklists: "Чеклисты", tab_items: "Пункты",
+    restore: "Восстановить", delete: "Удалить",
+    archive_empty: "Архив пуст",
+    list_empty: "Пока нет чеклистов", list_empty_hint: "Нажмите + в шапке, чтобы создать.",
+    prev: "Предыдущая страница", next: "Следующая страница",
+    save: "Сохранить", edit: "Редактировать", full: "Полный текст", done: "Готово", not_done: "Не готово", close: "Закрыть",
+    help_title: "Справка",
+    help_1: "Нажмите + в шапке, чтобы добавить чеклист.",
+    help_2: "Клик по названию чеклиста сворачивает и разворачивает его.",
+    help_3: "Свайп пунктом вправо — редактирование, влево — в архив.",
+    help_4: "Двойной тап по пункту или иконка карандаша — редактирование.",
+    help_5: "Зажмите и перетащите, чтобы изменить порядок. Минипанель тоже перетаскивается.",
+    help_6: "Меню ⋮ — архив, удаление, перемещение и массовые действия.",
+    help_7: "Архивированное можно восстановить или удалить в архиве.",
+    and_more: "и ещё {n}",
+  },
+  bg: {
+    add_checklist: "Нов чеклист", settings: "Настройки", help: "Помощ",
+    expand_all: "Разгъни всички", collapse_all: "Свий всички", expand: "Разгъни", collapse: "Свий",
+    checklist: "Чеклист", item: "Пункт",
+    checklist_ph: "Име на чеклиста", item_ph: "Пункт",
+    theme: "Тема", theme_system: "Система", theme_dark: "Тъмна", theme_light: "Светла",
+    language: "Език", lang_auto: "Автоматично",
+    new_cl: "Нов чеклист", new_cl_top: "Отгоре", new_cl_bottom: "Отдолу",
+    new_it: "Нов пункт", new_it_top: "Отгоре", new_it_bottom: "Отдолу",
+    pagination: "Пагинация", page_all: "Всички",
+    archive: "Архив", menu: "Меню", add_item: "Добави пункт",
+    menu_archive: "Архивирай", menu_delete: "Изтрий", to_top: "Надгоре", to_bottom: "Надолу",
+    bulk: "Масов режим",
+    cf_archive_cl: "Архивирай ли чеклиста?", cf_delete_cl: "Изтрий ли чеклиста?",
+    cf_archive_it: "Архивирай ли пункта?", cf_delete_it: "Изтрий ли пункта?",
+    cf_archive_cls: "Архивирай ли избраните чеклисти?", cf_delete_cls: "Изтрий ли избраните чеклисти?",
+    cf_archive_its: "Архивирай ли избраните пунктове?", cf_delete_its: "Изтрий ли избраните пунктове?",
+    cancel: "Отказ", ok: "Потвърди",
+    tab_checklists: "Чеклисти", tab_items: "Пунктове",
+    restore: "Възстанови", delete: "Изтрий",
+    archive_empty: "Архивът е празен",
+    list_empty: "Всега няма чеклисти", list_empty_hint: "Натисни + в заглавието, за да създадеш.",
+    prev: "Предишна страница", next: "Следваща страница",
+    save: "Запази", edit: "Редактирай", full: "Пълен текст", done: "Готово", not_done: "Не е готово", close: "Затвори",
+    help_title: "Помощ",
+    help_1: "Натисни + в заглавието, за да добавиш чеклист.",
+    help_2: "Клик върху името на чеклиста го свива и разгъва.",
+    help_3: "Плъзгане на пункт надясно — редакция, наляво — архив.",
+    help_4: "Двоен тап по пункт или иконката за редакция.",
+    help_5: "Задръжи и плъзни, за да промениш реда. Минипанелът също се плъзга.",
+    help_6: "Менюто ⋮ — архив, изтриване, преместване и масови действия.",
+    help_7: "Архивираното може да се възстанови или изтрие от архива.",
+    and_more: "и още {n}",
+  },
+  fr: {
+    add_checklist: "Nouvelle liste", settings: "Réglages", help: "Aide",
+    expand_all: "Tout déplier", collapse_all: "Tout replier", expand: "Déplier", collapse: "Replier",
+    checklist: "Liste", item: "Élément",
+    checklist_ph: "Nom de la liste", item_ph: "Élément",
+    theme: "Thème", theme_system: "Système", theme_dark: "Sombre", theme_light: "Clair",
+    language: "Langue", lang_auto: "Automatique",
+    new_cl: "Nouvelle liste", new_cl_top: "En haut", new_cl_bottom: "En bas",
+    new_it: "Nouvel élément", new_it_top: "En haut", new_it_bottom: "En bas",
+    pagination: "Pagination", page_all: "Tout",
+    archive: "Archive", menu: "Menu", add_item: "Ajouter un élément",
+    menu_archive: "Archiver", menu_delete: "Supprimer", to_top: "En haut", to_bottom: "En bas",
+    bulk: "Mode groupé",
+    cf_archive_cl: "Archiver la liste ?", cf_delete_cl: "Supprimer la liste ?",
+    cf_archive_it: "Archiver l'élément ?", cf_delete_it: "Supprimer l'élément ?",
+    cf_archive_cls: "Archiver les listes sélectionnées ?", cf_delete_cls: "Supprimer les listes sélectionnées ?",
+    cf_archive_its: "Archiver les éléments sélectionnés ?", cf_delete_its: "Supprimer les éléments sélectionnés ?",
+    cancel: "Annuler", ok: "Confirmer",
+    tab_checklists: "Listes", tab_items: "Éléments",
+    restore: "Restaurer", delete: "Supprimer",
+    archive_empty: "L'archive est vide",
+    list_empty: "Aucune liste pour le moment", list_empty_hint: "Touchez + dans l'en-tête pour en créer une.",
+    prev: "Page précédente", next: "Page suivante",
+    save: "Enregistrer", edit: "Modifier", full: "Texte complet", done: "Terminé", not_done: "Non terminé", close: "Fermer",
+    help_title: "Aide",
+    help_1: "Touchez + dans l'en-tête pour ajouter une liste.",
+    help_2: "Touchez le titre d'une liste pour la déplier ou la replier.",
+    help_3: "Balayez un élément vers la droite pour le modifier, vers la gauche pour l'archiver.",
+    help_4: "Double-touchez un élément, ou utilisez l'icône de modification.",
+    help_5: "Appuyez longuement puis faites glisser pour réordonner. Le mini-panneau se déplace aussi.",
+    help_6: "Le menu ⋮ : archiver, supprimer, déplacer, actions groupées.",
+    help_7: "L'archivé peut être restauré ou supprimé dans l'archive.",
+    and_more: "et {n} de plus",
+  },
+  es: {
+    add_checklist: "Nueva lista", settings: "Ajustes", help: "Ayuda",
+    expand_all: "Expandir todo", collapse_all: "Contraer todo", expand: "Expandir", collapse: "Contraer",
+    checklist: "Lista", item: "Elemento",
+    checklist_ph: "Nombre de la lista", item_ph: "Elemento",
+    theme: "Tema", theme_system: "Sistema", theme_dark: "Oscuro", theme_light: "Claro",
+    language: "Idioma", lang_auto: "Automático",
+    new_cl: "Nueva lista", new_cl_top: "Arriba", new_cl_bottom: "Abajo",
+    new_it: "Nuevo elemento", new_it_top: "Arriba", new_it_bottom: "Abajo",
+    pagination: "Paginación", page_all: "Todo",
+    archive: "Archivo", menu: "Menú", add_item: "Añadir elemento",
+    menu_archive: "Archivar", menu_delete: "Eliminar", to_top: "Al inicio", to_bottom: "Al final",
+    bulk: "Modo múltiple",
+    cf_archive_cl: "¿Archivar la lista?", cf_delete_cl: "¿Eliminar la lista?",
+    cf_archive_it: "¿Archivar el elemento?", cf_delete_it: "¿Eliminar el elemento?",
+    cf_archive_cls: "¿Archivar las listas seleccionadas?", cf_delete_cls: "¿Eliminar las listas seleccionadas?",
+    cf_archive_its: "¿Archivar los elementos seleccionados?", cf_delete_its: "¿Eliminar los elementos seleccionados?",
+    cancel: "Cancelar", ok: "Confirmar",
+    tab_checklists: "Listas", tab_items: "Elementos",
+    restore: "Restaurar", delete: "Eliminar",
+    archive_empty: "El archivo está vacío",
+    list_empty: "Todavía no hay listas", list_empty_hint: "Toca + en la cabecera para crear una.",
+    prev: "Página anterior", next: "Página siguiente",
+    save: "Guardar", edit: "Editar", full: "Texto completo", done: "Hecho", not_done: "Pendiente", close: "Cerrar",
+    help_title: "Ayuda",
+    help_1: "Toca + en la cabecera para añadir una lista.",
+    help_2: "Toca el título de una lista para expandirla o contraerla.",
+    help_3: "Desliza un elemento a la derecha para editarlo y a la izquierda para archivarlo.",
+    help_4: "Toque doble en un elemento, o usa el icono de editar.",
+    help_5: "Mantén pulsado y arrastra para reordenar. El mini panel también se arrastra.",
+    help_6: "El menú ⋮: archivar, eliminar, mover y acciones en grupo.",
+    help_7: "Lo archivado puede restaurarse o eliminarse en el archivo.",
+    and_more: "y {n} más",
+  },
+  ro: {
+    add_checklist: "Listă nouă", settings: "Setări", help: "Ajutor",
+    expand_all: "Desfășoară tot", collapse_all: "Restrânge tot", expand: "Desfășoară", collapse: "Restrânge",
+    checklist: "Listă", item: "Element",
+    checklist_ph: "Numele listei", item_ph: "Element",
+    theme: "Temă", theme_system: "Sistem", theme_dark: "Întunecată", theme_light: "Luminată",
+    language: "Limbă", lang_auto: "Automat",
+    new_cl: "Listă nouă", new_cl_top: "Deasupra", new_cl_bottom: "Dedesubt",
+    new_it: "Element nou", new_it_top: "Deasupra", new_it_bottom: "Dedesubt",
+    pagination: "Paginare", page_all: "Toate",
+    archive: "Arhivă", menu: "Meniu", add_item: "Adaugă element",
+    menu_archive: "Arhivează", menu_delete: "Șterge", to_top: "La început", to_bottom: "La sfârșit",
+    bulk: "Mod multiplu",
+    cf_archive_cl: "Se arhivează lista?", cf_delete_cl: "Se șterge lista?",
+    cf_archive_it: "Se arhivează elementul?", cf_delete_it: "Se șterge elementul?",
+    cf_archive_cls: "Se arhivează listele selectate?", cf_delete_cls: "Se șterg listele selectate?",
+    cf_archive_its: "Se arhivează elementele selectate?", cf_delete_its: "Se șterg elementele selectate?",
+    cancel: "Anulează", ok: "Confirmă",
+    tab_checklists: "Liste", tab_items: "Elemente",
+    restore: "Restaurează", delete: "Șterge",
+    archive_empty: "Arhiva este goală",
+    list_empty: "Nu există încă liste", list_empty_hint: "Apasă + din antet pentru a crea una.",
+    prev: "Pagina anterioară", next: "Pagina următoare",
+    save: "Salvează", edit: "Editează", full: "Text complet", done: "Finalizat", not_done: "Nefinalizat", close: "Închide",
+    help_title: "Ajutor",
+    help_1: "Apasă + din antet pentru a adăuga o listă.",
+    help_2: "Apasă titlul unei liste pentru a o desfășura sau restrânge.",
+    help_3: "Glisează un element spre dreapta pentru a-l edita, spre stânga pentru a-l arhiva.",
+    help_4: "Apăsare dublă pe un element, sau folosește pictograma de editare.",
+    help_5: "Ține apăsat și trage pentru a reordona. Mini-panoul se poate și el trage.",
+    help_6: "Meniul ⋮: arhivare, ștergere, mutare, acțiuni în grup.",
+    help_7: "Ce a fost arhivat poate fi restaurat sau șters din arhivă.",
+    and_more: "și încă {n}",
+  },
+  zh: {
+    add_checklist: "新建清单", settings: "设置", help: "帮助",
+    expand_all: "全部展开", collapse_all: "全部收起", expand: "展开", collapse: "收起",
+    checklist: "清单", item: "条目",
+    checklist_ph: "清单名称", item_ph: "条目",
+    theme: "主题", theme_system: "跟随系统", theme_dark: "深色", theme_light: "浅色",
+    language: "语言", lang_auto: "自动",
+    new_cl: "新清单", new_cl_top: "置于顶部", new_cl_bottom: "置于底部",
+    new_it: "新条目", new_it_top: "置于顶部", new_it_bottom: "置于底部",
+    pagination: "分页", page_all: "全部",
+    archive: "归档", menu: "菜单", add_item: "添加条目",
+    menu_archive: "归档", menu_delete: "删除", to_top: "移到顶部", to_bottom: "移到底部",
+    bulk: "批量模式",
+    cf_archive_cl: "归档此清单？", cf_delete_cl: "删除此清单？",
+    cf_archive_it: "归档此条目？", cf_delete_it: "删除此条目？",
+    cf_archive_cls: "归档所选清单？", cf_delete_cls: "删除所选清单？",
+    cf_archive_its: "归档所选条目？", cf_delete_its: "删除所选条目？",
+    cancel: "取消", ok: "确认",
+    tab_checklists: "清单", tab_items: "条目",
+    restore: "恢复", delete: "删除",
+    archive_empty: "归档为空",
+    list_empty: "还没有清单", list_empty_hint: "点击顶部的 + 创建一个。",
+    prev: "上一页", next: "下一页",
+    save: "保存", edit: "编辑", full: "完整文本", done: "已完成", not_done: "未完成", close: "关闭",
+    help_title: "帮助",
+    help_1: "点击顶部的 + 添加清单。",
+    help_2: "点击清单标题可展开或收起。",
+    help_3: "右滑条目编辑，左滑条目归档。",
+    help_4: "双击条目或使用编辑图标编辑。",
+    help_5: "长按后拖拽可重新排序。小面板也可以拖动。",
+    help_6: "⋮ 菜单提供归档、删除、移动和批量操作。",
+    help_7: "已归档的内容可在归档中恢复或删除。",
+    and_more: "等共 {n} 项",
+  },
+  ja: {
+    add_checklist: "新しいリスト", settings: "設定", help: "ヘルプ",
+    expand_all: "すべて展開", collapse_all: "すべて閉じる", expand: "展開", collapse: "折りたたむ",
+    checklist: "チェックリスト", item: "項目",
+    checklist_ph: "リスト名", item_ph: "項目",
+    theme: "テーマ", theme_system: "システム", theme_dark: "ダーク", theme_light: "ライト",
+    language: "言語", lang_auto: "自動",
+    new_cl: "新しいリスト", new_cl_top: "上に追加", new_cl_bottom: "下に追加",
+    new_it: "新しい項目", new_it_top: "上に追加", new_it_bottom: "下に追加",
+    pagination: "ページング", page_all: "すべて",
+    archive: "アーカイブ", menu: "メニュー", add_item: "項目を追加",
+    menu_archive: "アーカイブ", menu_delete: "削除", to_top: "先頭に移動", to_bottom: "末尾に移動",
+    bulk: "一括モード",
+    cf_archive_cl: "リストをアーカイブしますか？", cf_delete_cl: "リストを削除しますか？",
+    cf_archive_it: "項目をアーカイブしますか？", cf_delete_it: "項目を削除しますか？",
+    cf_archive_cls: "選択したリストをアーカイブしますか？", cf_delete_cls: "選択したリストを削除しますか？",
+    cf_archive_its: "選択した項目をアーカイブしますか？", cf_delete_its: "選択した項目を削除しますか？",
+    cancel: "キャンセル", ok: "確認",
+    tab_checklists: "リスト", tab_items: "項目",
+    restore: "復元", delete: "削除",
+    archive_empty: "アーカイブは空です",
+    list_empty: "まだリストがありません", list_empty_hint: "ヘッダーの + をタップして作成。",
+    prev: "前のページ", next: "次のページ",
+    save: "保存", edit: "編集", full: "全文", done: "完了", not_done: "未完了", close: "閉じる",
+    help_title: "ヘルプ",
+    help_1: "ヘッダーの + をタップしてリストを追加。",
+    help_2: "タイトルをタップして展開/折りたたみ。",
+    help_3: "項目を右スワイプで編集、左スワイプでアーカイブ。",
+    help_4: "項目をダブルタップ、または編集アイコンで編集。",
+    help_5: "長押ししてドラッグで並び替え。ミニパネルもドラッグ可能。",
+    help_6: "⋮ メニューからアーカイブ、削除、移動、一括操作。",
+    help_7: "アーカイブした項目は、アーカイブから復元または削除できます。",
+    and_more: "ほか {n} 件",
+  },
+  eo: {
+    add_checklist: "Nova taskolisto", settings: "Agordoj", help: "Helpo",
+    expand_all: "Malfermi ĉiujn", collapse_all: "Fermi ĉiujn", expand: "Malfermi", collapse: "Fermi",
+    checklist: "Taskolisto", item: "Punkto",
+    checklist_ph: "Nomo de la taskolisto", item_ph: "Punkto",
+    theme: "Temo", theme_system: "Sistema", theme_dark: "Malhela", theme_light: "Hela",
+    language: "Lingvo", lang_auto: "Aŭtomata",
+    new_cl: "Nova taskolisto", new_cl_top: "Supre", new_cl_bottom: "Sube",
+    new_it: "Nova punkto", new_it_top: "Supre", new_it_bottom: "Sube",
+    pagination: "Paĝigo", page_all: "Ĉio",
+    archive: "Arkivo", menu: "Menuo", add_item: "Aldoni punkton",
+    menu_archive: "Arkivi", menu_delete: "Forigi", to_top: "Supren", to_bottom: "Malsupren",
+    bulk: "Masa reĝimo",
+    cf_archive_cl: "Ĉu arkivi la taskoliston?", cf_delete_cl: "Ĉu forigi la taskoliston?",
+    cf_archive_it: "Ĉu arkivi la punkton?", cf_delete_it: "Ĉu forigi la punkton?",
+    cf_archive_cls: "Ĉu arkivi la elektitajn taskolistojojn?", cf_delete_cls: "Ĉu forigi la elektitajn taskolistojojn?",
+    cf_archive_its: "Ĉu arkivi la elektitajn punktojn?", cf_delete_its: "Ĉu forigi la elektitajn punktojn?",
+    cancel: "Nuligi", ok: "Konfirmi",
+    tab_checklists: "Taskolistoj", tab_items: "Punktoj",
+    restore: "Restarigi", delete: "Forigi",
+    archive_empty: "La arkivo estas malplena",
+    list_empty: "Ankoraŭ neniu taskolisto", list_empty_hint: "Klaku + en la kapo por krei unu.",
+    prev: "Antaŭa paĝo", next: "Sekva paĝo",
+    save: "Konservi", edit: "Redakti", full: "Plena teksto", done: "Finita", not_done: "Nefinita", close: "Fermi",
+    help_title: "Helpo",
+    help_1: "Klaku + en la kapo por aldoni taskoliston.",
+    help_2: "Klaku la titolon por malfermi aŭ fermi taskoliston.",
+    help_3: "Baldaŭu punkton dekstren por redakti, maldekstren por arkivi.",
+    help_4: "Duoble klaku punkton aŭ uzu la redaktan piktogramon.",
+    help_5: "Premu longe kaj trenu por reordigi. La minipanelon eblas ankaŭ treni.",
+    help_6: "La menuo ⋮: arkivi, forigi, movi, masaj agoj.",
+    help_7: "Arkivitan eblas restarigi aŭ forigi el la arkivo.",
+    and_more: "kaj {n} pliaj",
+  },
+  ia: {
+    add_checklist: "Nove lista de controlo", settings: "Configuration", help: "Auxilio",
+    expand_all: "Deployar tote", collapse_all: "Pliciar tote", expand: "Deployar", collapse: "Pliciar",
+    checklist: "Lista de controlo", item: "Elemento",
+    checklist_ph: "Nomine del lista", item_ph: "Elemento",
+    theme: "Thema", theme_system: "Systema", theme_dark: "Obscur", theme_light: "Clar",
+    language: "Lingua", lang_auto: "Automatic",
+    new_cl: "Nove lista", new_cl_top: "Super", new_cl_bottom: "Sub",
+    new_it: "Nove elemento", new_it_top: "Super", new_it_bottom: "Sub",
+    pagination: "Pagination", page_all: "Tote",
+    archive: "Archiva", menu: "Menu", add_item: "Adder elemento",
+    menu_archive: "Archivar", menu_delete: "Delerar", to_top: "Al le initio", to_bottom: "Al le fin",
+    bulk: "Modo multiple",
+    cf_archive_cl: "Archivar le lista de controlo?", cf_delete_cl: "Delerar le lista de controlo?",
+    cf_archive_it: "Archivar le elemento?", cf_delete_it: "Delerar le elemento?",
+    cf_archive_cls: "Archivar le listas seligite?", cf_delete_cls: "Delerar le listas seligite?",
+    cf_archive_its: "Archivar le elementos seligite?", cf_delete_its: "Delerar le elementos seligite?",
+    cancel: "Cancellar", ok: "Confirmar",
+    tab_checklists: "Listas de controlo", tab_items: "Elementos",
+    restore: "Restaurar", delete: "Delerar",
+    archive_empty: "Le archiva es vacue",
+    list_empty: "Non ancora listas de controlo", list_empty_hint: "Tange + in le capite pro crear un.",
+    prev: "Pagina precedente", next: "Pagina sequente",
+    save: "Salvar", edit: "Modificar", full: "Texto complete", done: "Finite", not_done: "Non finite", close: "Clauder",
+    help_title: "Auxilio",
+    help_1: "Tange + in le capite pro adder un lista de controlo.",
+    help_2: "Tange le titulo pro deployar o pliciar un lista.",
+    help_3: "Balla un elemento a dextre pro modificar, a sinistra pro archivar.",
+    help_4: "Duple tacto super un elemento, o usa le pictogramma de modification.",
+    help_5: "Ten pressite e traina pro reordinar. Le minipannello se pote anque trainar.",
+    help_6: "Le menu ⋮: archivar, delerar, mover, actiones in gruppo.",
+    help_7: "Le archivate se pote restaurar o delerar in le archiva.",
+    and_more: "e {n} plus",
+  },
+  tok: {
+    add_checklist: "lipu sin", settings: "ilo pona", help: "sona",
+    expand_all: "open ale", collapse_all: "pini ale", expand: "open", collapse: "pini",
+    checklist: "lipu", item: "ijo",
+    checklist_ph: "nimi lipu", item_ph: "ijo",
+    theme: "kule", theme_system: "siste", theme_dark: "pimeja", theme_light: "suno",
+    language: "toki", lang_auto: "toki mi",
+    new_cl: "lipu sin", new_cl_top: "lon poka suli", new_cl_bottom: "lon poka lili",
+    new_it: "ijo sin", new_it_top: "lon poka suli", new_it_bottom: "lon poka lili",
+    pagination: "nanpa lipu", page_all: "ale",
+    archive: "poki", menu: "nasin", add_item: "o pana e ijo",
+    menu_archive: "o poki e ona", menu_delete: "o weka e ona", to_top: "tawa suli", to_bottom: "tawa lili",
+    bulk: "nasin suli",
+    cf_archive_cl: "sina wile e poki lipu?", cf_delete_cl: "sina wile e weka lipu?",
+    cf_archive_it: "sina wile e poki ijo?", cf_delete_it: "sina wile e weka ijo?",
+    cf_archive_cls: "sina wile e poki lipu ale?", cf_delete_cls: "sina wile e weka lipu ale?",
+    cf_archive_its: "sina wile e poki ijo ale?", cf_delete_its: "sina wile e weka ijo ale?",
+    cancel: "ante", ok: "pona",
+    tab_checklists: "lipu", tab_items: "ijo",
+    restore: "kama kin", delete: "weka",
+    archive_empty: "poki li weka ale",
+    list_empty: "lipu li weka ale", list_empty_hint: "o pana e + tawa jo e lipu sin.",
+    prev: "lipu weka", next: "lipu kama",
+    save: "lon", edit: "ante", full: "sitelen ale", done: "pini", not_done: "open", close: "pini",
+    help_title: "sona",
+    help_1: "o pana e +. o jo e lipu sin.",
+    help_2: "o pali e nimi lipu tawa open wan pini ona.",
+    help_3: "o tawa e ijo: tawa soweli li ante. tawa mama li poki.",
+    help_4: "o pali tu tawa ijo tawa ante ona.",
+    help_5: "o awen e ijo lon tenpo lili, o tawa e ona. pannelo lili li tawa kin.",
+    help_6: "o kepeken ⋮. ona li poki, weka, tawa, en nasin suli.",
+    help_7: "ijo poki li kama kin. ona li weka kin.",
+    and_more: "en {n} kin",
+  },
+};
+
+const LANGS = ["ru", "bg", "en", "fr", "es", "ro", "zh", "ja", "eo", "ia", "tok"];
+const LANG_NAMES = {
+  ru: "Русский", bg: "Български", en: "English", fr: "Français", es: "Español",
+  ro: "Română", zh: "中文", ja: "日本語", eo: "Esperanto", ia: "Interlingua", tok: "toki pona",
+};
+
+let curLang = "en";
+
+function detectLang() {
+  const nav = navigator.languages && navigator.languages.length
+    ? navigator.languages[0]
+    : navigator.language || "en";
+  const sub = String(nav).toLowerCase().split("-")[0];
+  return I18N[sub] ? sub : "en";
+}
+
+function curLangCode() {
+  const s = state.settings.lang;
+  return s && s !== "auto" && I18N[s] ? s : detectLang();
+}
+
+function t(key, vars) {
+  let s = (I18N[curLang] && I18N[curLang][key]) || I18N.en[key] || key;
+  if (vars) {
+    for (const k of Object.keys(vars)) s = s.replace(`{${  k  }}`, vars[k]);
+  }
+  return s;
+}
+
+/* ============================ state ============================ */
+
+const LS_KEY = "tbd.v1";
+const PAGE_SIZES = [0, 10, 20, 30, 50, 80, 130, 210];
+
+let state = null;
+
+function defaultState() {
+  return {
+    v: 1,
+    settings: {
+      theme: "system",
+      lang: "auto",
+      newCl: "top",
+      newIt: "bottom",
+      pageSize: 20,
+      panelEdge: "right",
+      panelY: null,
+    },
+    checklists: [],
+    archive: { checklists: [], items: [] },
+  };
+}
+
+function normItem(i) {
+  return {
+    id: String(i.id || uid()),
+    text: typeof i.text === "string" ? i.text : "",
+    done: Boolean(i.done),
+  };
+}
+
+function normChecklist(c) {
+  return {
+    id: String(c.id || uid()),
+    title: typeof c.title === "string" ? c.title : "",
+    collapsed: Boolean(c.collapsed),
+    items: (c.items || []).filter((i) => i && typeof i === "object").map(normItem),
+  };
+}
+
+function loadState() {
+  const base = defaultState();
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return base;
+    const d = JSON.parse(raw);
+    if (
+      !d || d.v !== 1 ||
+          !Array.isArray(d.checklists) ||
+          !d.archive || !Array.isArray(d.archive.checklists) || !Array.isArray(d.archive.items)
+    ) {
+      return base;
+    }
+    const s = d.settings || {};
+    base.settings = { ...base.settings, ...s };
+    base.checklists = d.checklists
+      .filter((c) => c && typeof c === "object")
+      .map(normChecklist)
+      .filter((c) => c.title || c.items.length);
+    base.archive.checklists = d.archive.checklists
+      .filter((c) => c && typeof c === "object")
+      .map((c) => {
+        const n = normChecklist(c);
+        n.at = Number(c.at) || Date.now();
+        return n;
+      });
+    base.archive.items = d.archive.items
+      .filter((i) => i && typeof i === "object")
+      .map((i) => ({
+        id: String(i.id || uid()),
+        text: typeof i.text === "string" ? i.text : "",
+        done: Boolean(i.done),
+        clId: String(i.clId || ""),
+        at: Number(i.at) || Date.now(),
+      }));
+    return base;
+  } catch {
+    return base;
+  }
+}
+
+let saveTimer = 0;
+let storageOk = true;
+
+function flushSave() {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  if (!storageOk || !state) return;
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  } catch {
+    storageOk = false;
+  }
+}
+
+function save() {
+  if (!storageOk) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 200);
+}
+
+const ui = {
+  page: 0,
+  bulk: null, // { type: "cl" | "it", clId, ids: [] }
+  editing: null, // { type, id, clId, fresh }
+};
+
+/* ============================ dom refs ============================ */
+
+const listsEl = $("#lists");
+const pagerEl = $("#pager");
+const panelEl = $("#panel");
+const hintEl = $("#drop-hint");
+const ddRoot = $("#dd-root");
+const modalRoot = $("#modal-root");
+const btnAdd = $("#btn-add");
+const btnSettings = $("#btn-settings");
+const btnHelp = $("#btn-help");
+
+/* ============================ theme ============================ */
+
+function applyTheme() {
+  let dark;
+  const s = state.settings.theme;
+  if (s === "dark") dark = true;
+  else if (s === "light") dark = false;
+  else {
+    try {
+      dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    } catch {
+      dark = true; // dark is the fallback
+    }
+  }
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  const meta = $("#theme-color");
+  if (meta) meta.content = dark ? "#0f1115" : "#f4f5f7";
+}
+
+/* ============================ text (ellipsis + modal) ============================ */
+
+function moreBtn(text) {
+  const b = el("button", "txt__more");
+  b.type = "button";
+  b.hidden = true;
+  b.textContent = "…";
+  b.setAttribute("aria-label", t("full"));
+  b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openTextModal(text);
+  });
+  return b;
+}
+
+function updateTxtMore() {
+  for (const wrap of document.querySelectorAll(".txt")) {
+    const inEl = wrap.querySelector(":scope > .txt__in");
+    const more =
+          wrap.querySelector(":scope > .txt__more") ||
+          (wrap.parentElement ? wrap.parentElement.querySelector(":scope > .txt__more") : null);
+    if (!inEl || !more) continue;
+    more.hidden = inEl.scrollWidth <= inEl.clientWidth + 1;
+  }
+}
+
+function openTextModal(text) {
+  openModal({ title: t("full") }).content.append(
+    (() => {
+      const body = el("div", "modal__body");
+      const pre = el("div", "fulltext");
+      pre.textContent = text;
+      body.append(pre);
+      return body;
+    })()
+  );
+}
+
+/* ============================ modals ============================ */
+
+const modalStack = [];
+
+function openModal(spec) {
+  const bd = el("div", `backdrop${  spec.full ? " backdrop--full" : ""}`);
+  const box = el("div", `modal${  spec.full ? " modal--full" : ""}`);
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  box.tabIndex = -1;
+  const content = el("div", "modal__content");
+  if (spec.title) content.append(el("div", "modal__title", spec.title));
+  box.append(content);
+  bd.append(box);
+  const prevFocus = document.activeElement;
+  modalRoot.append(bd);
+  const entry = {
+    bd,
+    content,
+    close() {
+      bd.remove();
+      const i = modalStack.indexOf(entry);
+      if (i >= 0) modalStack.splice(i, 1);
+      if (prevFocus && document.contains(prevFocus)) prevFocus.focus();
+    },
+  };
+  bd.addEventListener("pointerdown", (e) => {
+    if (e.target === bd) entry.close();
+  });
+  modalStack.push(entry);
+  const first = box.querySelector("button, input, select");
+  (first || box).focus();
+  return entry;
+}
+
+function trapTab(e, scope) {
+  const f = [...scope.querySelectorAll("button, [href], input, select")]
+    .filter((n) => !n.disabled && n.tabIndex !== -1 && n.offsetParent !== null);
+  if (!f.length) return;
+  const first = f[0];
+  const last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+function confirmModal(title, names, opts) {
+  const entry = openModal({ title });
+  const body = el("div", "modal__body");
+  let arr = [];
+  if (Array.isArray(names)) arr = names;
+  else if (names) arr = [names];
+  for (const n of arr.slice(0, 3)) body.append(el("div", "cf__name", n));
+  if (arr.length > 3) {
+    body.append(el("div", "cf__name cf__name--more", t("and_more", { n: arr.length - 3 })));
+  }
+  entry.content.append(body);
+  const actions = el("div", "modal__actions");
+  const cancelB = el("button", "btn", t("cancel"));
+  cancelB.type = "button";
+  cancelB.addEventListener("click", () => entry.close());
+  const yesB = el("button", `btn ${  opts.danger ? "btn--danger" : "btn--accent"}`, t("ok"));
+  yesB.type = "button";
+  yesB.addEventListener("click", () => {
+    entry.close();
+    opts.onYes();
+  });
+  actions.append(cancelB, yesB);
+  entry.content.append(actions);
+  return entry;
+}
+
+/* ============================ menu / archive / delete ============================ */
+
+function clName(id) {
+  const cl = state.checklists.find((c) => c.id === id) ||
+        state.archive.checklists.find((c) => c.id === id);
+  return cl ? cl.title : "";
+}
+
+function itemName(clId, id) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  const it = cl && cl.items.find((i) => i.id === id);
+  return it ? it.text : "";
+}
+
+function openMenu(type, id, clId, name) {
+  const label = name || t(type === "cl" ? "checklist" : "item");
+  const entry = openModal({ title: label });
+  const row = (iconName, lbl, fn, cls) => {
+    const b = el("button", `modal__row${  cls ? ` ${  cls}` : ""}`);
+    b.type = "button";
+    b.append(icon(iconName), el("span", "modal__row-label", lbl));
+    b.addEventListener("click", fn);
+    return b;
+  };
+  entry.content.append(
+    row("archive", t("menu_archive"), () => {
+      entry.close();
+      askArchive(type, id, clId, name);
+    }),
+    row("delete", t("menu_delete"), () => {
+      entry.close();
+      askDelete(type, id, clId, name);
+    }, "modal__row--danger"),
+    el("div", "sep"),
+    row("arrow_upward", t("to_top"), () => {
+      entry.close();
+      toTop(type, id, clId);
+    }),
+    row("arrow_downward", t("to_bottom"), () => {
+      entry.close();
+      toBottom(type, id, clId);
+    }),
+    el("div", "sep"),
+    row("check_box", t("bulk"), () => {
+      entry.close();
+      enterBulk(type, id, clId);
+    })
+  );
+}
+
+function askArchive(type, id, clId, name) {
+  confirmModal(t(type === "cl" ? "cf_archive_cl" : "cf_archive_it"), name, {
+    onYes: () => (type === "cl" ? archiveChecklist(id) : archiveItem(clId, id)),
+  });
+}
+
+function askDelete(type, id, clId, name) {
+  confirmModal(t(type === "cl" ? "cf_delete_cl" : "cf_delete_it"), name, {
+    danger: true,
+    onYes: () => (type === "cl" ? deleteChecklist(id) : deleteItem(clId, id)),
+  });
+}
+
+function removeFromBulk(id) {
+  if (!ui.bulk) return;
+  const i = ui.bulk.ids.indexOf(id);
+  if (i >= 0) ui.bulk.ids.splice(i, 1);
+}
+
+function archiveItem(clId, id) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  if (!cl) return;
+  const idx = cl.items.findIndex((i) => i.id === id);
+  if (idx < 0) return;
+  const [it] = cl.items.splice(idx, 1);
+  state.archive.items.unshift({ id: it.id, text: it.text, done: it.done, clId, at: Date.now() });
+  removeFromBulk(id);
+  save();
+  renderAll();
+}
+
+function archiveChecklist(id) {
+  const idx = state.checklists.findIndex((c) => c.id === id);
+  if (idx < 0) return;
+  const [cl] = state.checklists.splice(idx, 1);
+  state.archive.checklists.unshift({ id: cl.id, title: cl.title, items: cl.items, at: Date.now() });
+  removeFromBulk(id);
+  save();
+  renderAll();
+}
+
+function deleteItem(clId, id) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  if (!cl) return;
+  cl.items = cl.items.filter((i) => i.id !== id);
+  removeFromBulk(id);
+  save();
+  renderAll();
+}
+
+function deleteChecklist(id) {
+  state.checklists = state.checklists.filter((c) => c.id !== id);
+  state.archive.items = state.archive.items.filter((a) => a.clId !== id);
+  removeFromBulk(id);
+  save();
+  renderAll();
+}
+
+/* ============================ ordering ============================ */
+
+function moveGroupTo(arr, ids, pos) {
+  const sel = arr.filter((x) => ids.includes(x.id));
+  if (!sel.length) return;
+  const rest = arr.filter((x) => !ids.includes(x.id));
+  const p = Math.max(0, Math.min(pos, rest.length));
+  arr.splice(0, arr.length, ...rest.slice(0, p), ...sel, ...rest.slice(p));
+}
+
+function bulkIdsFor(type, id, clId) {
+  const b = ui.bulk;
+  if (!b) return [id];
+  if (type === "cl" && b.type === "cl" && b.ids.includes(id)) return b.ids;
+  if (type === "it" && b.type === "it" && b.clId === clId && b.ids.includes(id)) return b.ids;
+  return [id];
+}
+
+function toTop(type, id, clId) {
+  if (type === "cl") {
+    moveGroupTo(state.checklists, bulkIdsFor(type, id, clId), 0);
+    ui.page = 0;
+  } else {
+    const cl = state.checklists.find((c) => c.id === clId);
+    if (!cl) return;
+    moveGroupTo(cl.items, bulkIdsFor(type, id, clId), 0);
+  }
+  save();
+  renderAll();
+}
+
+function toBottom(type, id, clId) {
+  if (type === "cl") {
+    moveGroupTo(state.checklists, bulkIdsFor(type, id, clId), state.checklists.length);
+  } else {
+    const cl = state.checklists.find((c) => c.id === clId);
+    if (!cl) return;
+    moveGroupTo(cl.items, bulkIdsFor(type, id, clId), cl.items.length);
+  }
+  save();
+  renderAll();
+}
+
+/* ============================ bulk mode ============================ */
+
+function enterBulk(type, id, clId) {
+  ui.bulk = { type, clId: type === "it" ? clId : null, ids: [id] };
+  renderAll();
+}
+
+function toggleBulk(id) {
+  if (!ui.bulk) return;
+  const i = ui.bulk.ids.indexOf(id);
+  if (i >= 0) ui.bulk.ids.splice(i, 1);
+  else ui.bulk.ids.push(id);
+  renderList();
+  renderPanel();
+}
+
+function bulkNames(type, ids, clId) {
+  const out = [];
+  for (const id of ids) {
+    const n = type === "cl" ? clName(id) : itemName(clId, id);
+    if (n) out.push(n);
+  }
+  return out;
+}
+
+function bulkAction(action) {
+  const b = ui.bulk;
+  if (!b) return;
+  if (action === "cancel") {
+    ui.bulk = null;
+    renderAll();
+    return;
+  }
+  if (!b.ids.length) return;
+  if (b.type === "cl") bulkActionCl(b, action);
+  else bulkActionIt(b, action);
+}
+
+function bulkActionCl(b, action) {
+  const names = bulkNames("cl", b.ids, null);
+  if (action === "delete") {
+    confirmModal(t("cf_delete_cls"), names, {
+      danger: true,
+      onYes: () => {
+        for (const id of [...b.ids]) deleteChecklist(id);
+        ui.bulk = null;
+        renderAll();
+      },
+    });
+  } else if (action === "archive") {
+    confirmModal(t("cf_archive_cls"), names, {
+      onYes: () => {
+        for (const id of [...b.ids]) archiveChecklist(id);
+        ui.bulk = null;
+        renderAll();
+      },
+    });
+  } else if (action === "top") {
+    moveGroupTo(state.checklists, b.ids, 0);
+    ui.page = 0;
+    save();
+    renderAll();
+  } else {
+    moveGroupTo(state.checklists, b.ids, state.checklists.length);
+    save();
+    renderAll();
+  }
+}
+
+function bulkActionIt(b, action) {
+  const names = bulkNames("it", b.ids, b.clId);
+  if (action === "delete") {
+    confirmModal(t("cf_delete_its"), names, {
+      danger: true,
+      onYes: () => {
+        for (const id of [...b.ids]) deleteItem(b.clId, id);
+        ui.bulk = null;
+        renderAll();
+      },
+    });
+  } else if (action === "archive") {
+    confirmModal(t("cf_archive_its"), names, {
+      onYes: () => {
+        for (const id of [...b.ids]) archiveItem(b.clId, id);
+        ui.bulk = null;
+        renderAll();
+      },
+    });
+  } else if (action === "top") {
+    const cl = state.checklists.find((c) => c.id === b.clId);
+    if (!cl) return;
+    moveGroupTo(cl.items, b.ids, 0);
+    save();
+    renderAll();
+  } else {
+    const cl = state.checklists.find((c) => c.id === b.clId);
+    if (!cl) return;
+    moveGroupTo(cl.items, b.ids, cl.items.length);
+    save();
+    renderAll();
+  }
+}
+
+/* ============================ archive overlay ============================ */
+
+function openArchive() {
+  closeDropdown();
+  const sel = { tab: "checklists", ids: new Set() };
+  const entry = openModal({ full: true });
+  const head = el("div", "arch__head");
+  head.append(el("div", "arch__title", t("archive")));
+  const closeB = el("button", "icon-btn");
+  closeB.type = "button";
+  closeB.appendChild(icon("close"));
+  closeB.setAttribute("aria-label", t("close"));
+  closeB.addEventListener("click", () => entry.close());
+  head.append(closeB);
+  entry.content.append(head);
+
+  const tabs = el("div", "tabs");
+  const tabCl = el("button", "tab", t("tab_checklists"));
+  const tabIt = el("button", "tab", t("tab_items"));
+  tabCl.type = "button";
+  tabIt.type = "button";
+  tabs.append(tabCl, tabIt);
+  entry.content.append(tabs);
+
+  const list = el("div", "arch__list");
+  entry.content.append(list);
+
+  const actions = el("div", "modal__actions arch__actions");
+  const restoreB = el("button", "btn", t("restore"));
+  const delB = el("button", "btn btn--danger", t("delete"));
+  restoreB.type = "button";
+  delB.type = "button";
+  actions.append(restoreB, delB);
+  entry.content.append(actions);
+
+  function source() {
+    if (sel.tab === "checklists") {
+      return state.archive.checklists.map((a) => ({ id: a.id, text: a.title }));
+    }
+    const active = new Set(state.checklists.map((c) => c.id));
+    return state.archive.items
+      .filter((a) => active.has(a.clId))
+      .map((a) => ({ id: a.id, text: a.text }));
+  }
+
+  function renderArchList() {
+    sel.ids.clear();
+    list.replaceChildren();
+    const rows = source();
+    if (!rows.length) {
+      list.append(el("div", "empty empty--sm", t("archive_empty")));
+    } else {
+      for (const r of rows) {
+        const row = el("div", "arch-row");
+        const cb = el("button", "selbox");
+        cb.type = "button";
+        cb.setAttribute("role", "checkbox");
+        cb.setAttribute("aria-checked", "false");
+        cb.setAttribute("aria-label", t("restore"));
+        cb.addEventListener("click", () => {
+          if (sel.ids.has(r.id)) sel.ids.delete(r.id);
+          else sel.ids.add(r.id);
+          cb.setAttribute("aria-checked", String(sel.ids.has(r.id)));
+          restoreB.disabled = !sel.ids.size;
+          delB.disabled = !sel.ids.size;
+        });
+        row.append(cb);
+        const txt = el("span", "txt");
+        txt.append(el("span", "txt__in", r.text), moreBtn(r.text));
+        row.append(txt);
+        list.append(row);
+      }
+    }
+    restoreB.disabled = true;
+    delB.disabled = true;
+    requestAnimationFrame(updateTxtMore);
+  }
+
+  function selectTab(tab) {
+    sel.tab = tab;
+    tabCl.classList.toggle("tab--on", tab === "checklists");
+    tabIt.classList.toggle("tab--on", tab === "items");
+    renderArchList();
+  }
+
+  tabCl.addEventListener("click", () => selectTab("checklists"));
+  tabIt.addEventListener("click", () => selectTab("items"));
+
+  restoreB.addEventListener("click", () => {
+    if (sel.tab === "checklists") archRestoreCls();
+    else archRestoreIts();
+    renderList();
+    renderPanel();
+    renderArchList();
+  });
+
+  delB.addEventListener("click", () => {
+    const names = source().filter((r) => sel.ids.has(r.id)).map((r) => r.text);
+    confirmModal(
+      t(sel.tab === "checklists" ? "cf_delete_cls" : "cf_delete_its"),
+      names,
+      {
+        danger: true,
+        onYes: () => {
+          if (sel.tab === "checklists") {
+            for (const id of [...sel.ids]) {
+              const i = state.archive.checklists.findIndex((a) => a.id === id);
+              if (i >= 0) state.archive.checklists.splice(i, 1);
+              state.archive.items = state.archive.items.filter((x) => x.clId !== id);
+            }
+          } else {
+            state.archive.items = state.archive.items.filter((a) => !sel.ids.has(a.id));
+          }
+          save();
+          renderList();
+          renderArchList();
+        },
+      }
+    );
+  });
+
+  function archRestoreCls() {
+    let ins = 0;
+    for (const a of [...state.archive.checklists]) {
+      if (!sel.ids.has(a.id)) continue;
+      state.archive.checklists.splice(state.archive.checklists.indexOf(a), 1);
+      const absorbed = state.archive.items.filter((x) => x.clId === a.id);
+      state.archive.items = state.archive.items.filter((x) => x.clId !== a.id);
+      const its = absorbed.map((x) => ({ id: x.id, text: x.text, done: x.done }));
+      state.checklists.splice(ins, 0, {
+        id: a.id,
+        title: a.title,
+        collapsed: false,
+        items: [...its, ...a.items.map((i) => ({ ...i }))],
+      });
+      ins += 1;
+    }
+    save();
+  }
+
+  function archRestoreIts() {
+    const clMap = new Map(state.checklists.map((c) => [c.id, c]));
+    for (const a of [...state.archive.items]) {
+      if (!sel.ids.has(a.id)) continue;
+      state.archive.items.splice(state.archive.items.indexOf(a), 1);
+      const cl = clMap.get(a.clId);
+      if (cl) cl.items.unshift({ id: a.id, text: a.text, done: a.done });
+    }
+    save();
+  }
+
+  selectTab("checklists");
+}
+
+/* ============================ rendering: list ============================ */
+
+function isEditing(type, id) {
+  return ui.editing && ui.editing.type === type && ui.editing.id === id;
+}
+
+function pagesCount() {
+  const size = state.settings.pageSize;
+  return size ? Math.max(1, Math.ceil(state.checklists.length / size)) : 1;
+}
+
+function renderList() {
+  commitPendingEdit();
+  const size = state.settings.pageSize;
+  const pages = pagesCount();
+  ui.page = Math.max(0, Math.min(ui.page, pages - 1));
+  const start = ui.page * (size || 0);
+  const slice = size ? state.checklists.slice(start, start + size) : state.checklists;
+  listsEl.replaceChildren();
+  if (!state.checklists.length) {
+    const e = el("div", "empty");
+    e.append(icon("checklist"));
+    e.append(el("p", "empty__title", t("list_empty")));
+    e.append(el("p", "empty__hint", t("list_empty_hint")));
+    listsEl.append(e);
+  } else {
+    for (const cl of slice) listsEl.append(buildCl(cl));
+  }
+  renderPager();
+  requestAnimationFrame(updateTxtMore);
+  observeSentinels();
+}
+
+function buildCl(cl) {
+  const sec = el("section", `cl${  cl.collapsed ? "" : " cl--open"}`);
+  sec.dataset.id = cl.id;
+  sec.append(el("div", "cl__sentinel"), buildClHead(cl));
+  const body = el("div", "cl__body");
+  const items = el("div", "cl__items");
+  for (const it of cl.items) items.append(buildIt(cl, it));
+  body.append(items);
+  sec.append(body);
+  if (cl.items.length && cl.items.every((i) => i.done)) sec.classList.add("cl--done");
+  if (ui.bulk && ui.bulk.type === "cl" && ui.bulk.ids.includes(cl.id)) {
+    sec.classList.add("cl--sel");
+  }
+  return sec;
+}
+
+function selBox(id, label) {
+  const b = el("button", "selbox");
+  b.type = "button";
+  b.setAttribute("role", "checkbox");
+  b.setAttribute("aria-checked", String(ui.bulk.ids.includes(id)));
+  b.setAttribute("aria-label", label);
+  b.appendChild(icon("check"));
+  b.addEventListener("click", () => toggleBulk(id));
+  return b;
+}
+
+function buildClHead(cl) {
+  const head = el("div", "cl__head");
+  head.dataset.drag = "cl";
+  head.dataset.id = cl.id;
+  head.dataset.flipId = `c:${  cl.id}`;
+  if (ui.bulk && ui.bulk.type === "cl") {
+    head.append(selBox(cl.id, t("checklist")));
+  } else {
+    const chev = el("button", "icon-btn");
+    chev.type = "button";
+    chev.appendChild(icon(cl.collapsed ? "chevron_right" : "expand_less"));
+    chev.setAttribute("aria-label", t(cl.collapsed ? "expand" : "collapse"));
+    chev.addEventListener("click", () => toggleCl(cl.id));
+    head.append(chev);
+  }
+  const titleWrap = el("span", "cl__title");
+  if (isEditing("cl", cl.id)) {
+    titleWrap.append(editInput(cl.title, t("checklist_ph"), (v) => commitClEdit(cl, v)));
+  } else {
+    const btn = el("button", "txt cl__title-btn");
+    btn.type = "button";
+    btn.appendChild(el("span", "txt__in", cl.title));
+    btn.addEventListener("click", () => toggleCl(cl.id));
+    titleWrap.append(btn, moreBtn(cl.title));
+  }
+  head.append(titleWrap);
+  if (isEditing("cl", cl.id)) {
+    head.append(saveBtn());
+  } else {
+    const tools = el("div", "cl__tools");
+    const editB = el("button", "icon-btn");
+    editB.type = "button";
+    editB.appendChild(icon("edit"));
+    editB.setAttribute("aria-label", t("edit"));
+    editB.title = t("edit");
+    editB.addEventListener("click", () => startClEdit(cl.id));
+    tools.append(editB);
+    if (!cl.collapsed) {
+      const addB = el("button", "icon-btn");
+      addB.type = "button";
+      addB.appendChild(icon("add"));
+      addB.setAttribute("aria-label", t("add_item"));
+      addB.title = t("add_item");
+      addB.addEventListener("click", () => addItem(cl.id));
+      tools.append(addB);
+    }
+    const menuB = el("button", "icon-btn");
+    menuB.type = "button";
+    menuB.appendChild(icon("more_vert"));
+    menuB.setAttribute("aria-label", t("menu"));
+    menuB.title = t("menu");
+    menuB.addEventListener("click", () => openMenu("cl", cl.id, null, cl.title));
+    tools.append(menuB);
+    head.append(tools);
+  }
+  return head;
+}
+
+function buildIt(cl, it) {
+  const row = el("div", `it${  it.done ? " it--done" : ""}`);
+  row.dataset.drag = "it";
+  row.dataset.id = it.id;
+  row.dataset.cl = cl.id;
+  row.dataset.flipId = `i:${  it.id}`;
+  const bulkIt = ui.bulk && ui.bulk.type === "it" && ui.bulk.clId === cl.id;
+  if (bulkIt) {
+    row.append(selBox(it.id, t("item")));
+  } else {
+    const check = el("button", "it__check");
+    check.type = "button";
+    check.setAttribute("role", "checkbox");
+    check.setAttribute("aria-checked", String(it.done));
+    check.setAttribute("aria-label", t(it.done ? "not_done" : "done"));
+    check.appendChild(icon("check"));
+    check.addEventListener("click", () => toggleItemDone(cl.id, it.id));
+    row.append(check);
+  }
+  if (isEditing("it", it.id)) {
+    row.append(editInput(it.text, t("item_ph"), (v) => commitItEdit(cl, it, v)));
+    row.append(saveBtn());
+  } else {
+    const txt = el("span", "it__text txt");
+    txt.append(el("span", "txt__in", it.text), moreBtn(it.text));
+    row.append(txt);
+    const menuB = el("button", "icon-btn");
+    menuB.type = "button";
+    menuB.appendChild(icon("more_vert"));
+    menuB.setAttribute("aria-label", t("menu"));
+    menuB.title = t("menu");
+    menuB.addEventListener("click", () => openMenu("it", it.id, cl.id, it.text));
+    row.append(menuB);
+  }
+  if (bulkIt && ui.bulk.ids.includes(it.id)) row.classList.add("it--sel");
+  return row;
+}
+
+function editInput(value, placeholder, onDone) {
+  const input = el("input", "input");
+  input.value = value;
+  input.placeholder = placeholder;
+  input.setAttribute("aria-label", placeholder);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      finishEdit(true);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      finishEdit(false);
+    }
+  });
+  input.addEventListener("blur", () => finishEdit(true));
+  const finishEdit = (keep) => {
+    if (!ui.editing) return;
+    onDone(keep ? input.value : null);
+  };
+  setTimeout(() => {
+    input.focus();
+    input.select();
+  }, 0);
+  return input;
+}
+
+function saveBtn() {
+  const b = el("button", "icon-btn");
+  b.type = "button";
+  b.appendChild(icon("check"));
+  b.setAttribute("aria-label", t("save"));
+  b.title = t("save");
+  return b;
+}
+
+function commitPendingEdit() {
+  if (!ui.editing) return;
+  const input = listsEl.querySelector(".input");
+  // no input in DOM yet: the entity was just created, its input renders in this pass
+  if (!input) return;
+  commitEdit(input.value);
+}
+
+function commitEdit(value) {
+  const ed = ui.editing;
+  if (!ed) return;
+  ui.editing = null;
+  const v = value === null ? null : String(value).trim();
+  if (ed.type === "cl") {
+    const cl = state.checklists.find((c) => c.id === ed.id);
+    if (!cl) {
+      save();
+      renderAll();
+      return;
+    }
+    if (ed.fresh && !v) state.checklists.splice(state.checklists.indexOf(cl), 1);
+    else if (v) cl.title = v;
+  } else {
+    const cl = state.checklists.find((c) => c.id === ed.clId);
+    const idx = cl ? cl.items.findIndex((i) => i.id === ed.id) : -1;
+    if (!cl || idx < 0) {
+      save();
+      renderAll();
+      return;
+    }
+    if (ed.fresh && !v) cl.items.splice(idx, 1);
+    else if (v) cl.items[idx].text = v;
+  }
+  save();
+  renderAll();
+}
+
+function commitClEdit(cl, value) {
+  commitEdit(value);
+}
+
+function commitItEdit(cl, it, value) {
+  commitEdit(value);
+}
+
+function startClEdit(id) {
+  ui.editing = { type: "cl", id, clId: null, fresh: false };
+  renderList();
+}
+
+function startItEdit(clId, id) {
+  ui.editing = { type: "it", id, clId, fresh: false };
+  renderList();
+  const row = listsEl.querySelector(`.it[data-id="${  id  }"]`);
+  if (row) row.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+}
+
+function addChecklist() {
+  const cl = { id: uid(), title: "", collapsed: false, items: [] };
+  if (state.settings.newCl === "top") {
+    state.checklists.unshift(cl);
+    ui.page = 0;
+  } else {
+    state.checklists.push(cl);
+    const size = state.settings.pageSize;
+    ui.page = size ? Math.max(0, Math.ceil(state.checklists.length / size) - 1) : 0;
+  }
+  ui.editing = { type: "cl", id: cl.id, clId: null, fresh: true };
+  save();
+  renderAll();
+}
+
+function addItem(clId) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  if (!cl) return;
+  const it = { id: uid(), text: "", done: false };
+  if (state.settings.newIt === "top") cl.items.unshift(it);
+  else cl.items.push(it);
+  ui.editing = { type: "it", id: it.id, clId, fresh: true };
+  save();
+  renderList();
+  const row = listsEl.querySelector(`.it[data-id="${  it.id  }"]`);
+  if (row) row.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
+}
+
+function toggleCl(id) {
+  const cl = state.checklists.find((c) => c.id === id);
+  if (!cl) return;
+  if (ui.editing && ui.editing.type === "cl" && ui.editing.id === id) commitEdit(null);
+  cl.collapsed = !cl.collapsed;
+  save();
+  renderList();
+  renderPanel();
+}
+
+function toggleItemDone(clId, id) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  if (!cl) return;
+  const it = cl.items.find((i) => i.id === id);
+  if (!it) return;
+  it.done = !it.done;
+  save();
+  const row = listsEl.querySelector(`.it[data-id="${  id  }"]`);
+  if (row) {
+    row.classList.toggle("it--done", it.done);
+    const check = row.querySelector(".it__check");
+    if (check) {
+      check.setAttribute("aria-checked", String(it.done));
+      check.setAttribute("aria-label", t(it.done ? "not_done" : "done"));
+    }
+  }
+  const sec = listsEl.querySelector(`.cl[data-id="${  clId  }"]`);
+  if (sec) {
+    sec.classList.toggle("cl--done", Boolean(cl.items.length) && cl.items.every((i) => i.done));
+  }
+}
+
+function setAllCollapsed(v) {
+  for (const c of state.checklists) c.collapsed = v;
+  save();
+  renderList();
+  renderPanel();
+}
+
+/* ============================ rendering: pager ============================ */
+
+function renderPager() {
+  const size = state.settings.pageSize;
+  const pages = pagesCount();
+  if (!size || pages <= 1) {
+    pagerEl.hidden = true;
+    pagerEl.replaceChildren();
+    return;
+  }
+  pagerEl.hidden = false;
+  pagerEl.replaceChildren();
+  const prev = el("button", "icon-btn");
+  prev.type = "button";
+  prev.appendChild(icon("chevron_left"));
+  prev.setAttribute("aria-label", t("prev"));
+  prev.disabled = ui.page === 0;
+  prev.addEventListener("click", () => goPage(ui.page - 1));
+  const next = el("button", "icon-btn");
+  next.type = "button";
+  next.appendChild(icon("chevron_right"));
+  next.setAttribute("aria-label", t("next"));
+  next.disabled = ui.page >= pages - 1;
+  next.addEventListener("click", () => goPage(ui.page + 1));
+  pagerEl.append(prev, el("span", "pager__num", `${ui.page + 1  } / ${  pages}`), next);
+}
+
+function goPage(p) {
+  ui.page = Math.max(0, Math.min(p, pagesCount() - 1));
+  renderList();
+  window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+}
+
+/* ============================ rendering: header / panel ============================ */
+
+function setIconBtn(b, name, label) {
+  b.replaceChildren(icon(name));
+  b.setAttribute("aria-label", label);
+  b.title = label;
+}
+
+function renderHeader() {
+  setIconBtn(btnAdd, "add", t("add_checklist"));
+  setIconBtn(btnSettings, "settings", t("settings"));
+  setIconBtn(btnHelp, "help", t("help"));
+}
+
+function panelBtn(iconName, label, fn, disabled) {
+  const b = el("button", "icon-btn");
+  b.type = "button";
+  b.appendChild(icon(iconName));
+  b.setAttribute("aria-label", label);
+  b.title = label;
+  b.disabled = Boolean(disabled);
+  b.addEventListener("click", fn);
+  return b;
+}
+
+function renderPanel() {
+  panelEl.replaceChildren();
+  const grip = el("div", "panel__grip");
+  grip.appendChild(icon("drag_indicator"));
+  panelEl.append(grip);
+  if (ui.bulk) {
+    const n = ui.bulk.ids.length;
+    panelEl.append(el("div", "panel__sep"));
+    panelEl.append(panelBtn("delete", t("delete"), () => bulkAction("delete"), n === 0));
+    panelEl.append(panelBtn("archive", t("archive"), () => bulkAction("archive"), n === 0));
+    panelEl.append(panelBtn("arrow_upward", t("to_top"), () => bulkAction("top"), n === 0));
+    panelEl.append(panelBtn("arrow_downward", t("to_bottom"), () => bulkAction("bottom"), n === 0));
+    panelEl.append(panelBtn("close", t("cancel"), () => bulkAction("cancel")));
+  } else {
+    const cls = state.checklists;
+    const allOpen = cls.length > 0 && cls.every((c) => !c.collapsed);
+    const allClosed = cls.length > 0 && cls.every((c) => c.collapsed);
+    panelEl.append(panelBtn("expand_all", t("expand_all"), () => setAllCollapsed(false), !cls.length || allOpen));
+    panelEl.append(panelBtn("collapse_all", t("collapse_all"), () => setAllCollapsed(true), !cls.length || allClosed));
+  }
+  layoutPanel();
+}
+
+/* ============================ panel layout & drag ============================ */
+
+function columnRect() {
+  const r = listsEl.getBoundingClientRect();
+  return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+}
+
+function layoutPanel() {
+  const p = panelEl;
+  const edge = state.settings.panelEdge;
+  p.dataset.edge = edge;
+  const col = columnRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const pw = p.offsetWidth;
+  const ph = p.offsetHeight;
+  const m = 12;
+  let x;
+  let y;
+  if (edge === "top" || edge === "bottom") {
+    x = Math.max(8, Math.min((col.left + col.right) / 2 - pw / 2, vw - pw - 8));
+    if (edge === "top") y = 8;
+    else {
+      const below = col.bottom + m;
+      y = below + ph <= vh - 8 ? below : vh - ph - 8;
+    }
+  } else {
+    const roomR = col.right + m + pw <= vw - 8;
+    const roomL = col.left - m - pw >= 8;
+    if (edge === "right") x = roomR ? col.right + m : vw - pw - 8;
+    else x = roomL ? col.left - m - pw : 8;
+    const saved = typeof state.settings.panelY === "number" ? state.settings.panelY : (vh - ph) / 2;
+    y = Math.max(8, Math.min(saved, vh - ph - 8));
+  }
+  p.style.transform = `translate(${  x  }px, ${  y  }px)`;
+}
+
+function sameAxis(a, b) {
+  const h = (e) => e === "top" || e === "bottom";
+  return h(a) === h(b);
+}
+
+function nearestEdge(cx, cy) {
+  const col = columnRect();
+  const d = [
+    ["right", Math.abs(cx - col.right)],
+    ["left", Math.abs(cx - col.left)],
+    ["bottom", Math.abs(cy - col.bottom)],
+    ["top", Math.abs(cy - col.top)],
+  ];
+  d.sort((a, b) => a[1] - b[1]);
+  let edge = d[0][0];
+  const cur = state.settings.panelEdge;
+  if (d[1][1] - d[0][1] < 24 && !sameAxis(d[0][0], cur) && sameAxis(d[1][0], cur)) {
+    edge = d[1][0];
+  }
+  return edge;
+}
+
+function showEdgeHint(edge) {
+  const col = columnRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  hintEl.hidden = false;
+  if (edge === "left" || edge === "right") {
+    const x = Math.max(0, Math.min(edge === "right" ? col.right : col.left, vw));
+    hintEl.style.left = `${x  }px`;
+    hintEl.style.top = "0px";
+    hintEl.style.width = "3px";
+    hintEl.style.height = `${vh  }px`;
+  } else {
+    const y = Math.max(0, Math.min(edge === "bottom" ? col.bottom : col.top, vh));
+    hintEl.style.top = `${y  }px`;
+    hintEl.style.left = "0px";
+    hintEl.style.height = "3px";
+    hintEl.style.width = `${vw  }px`;
+  }
+}
+
+function suppressClicks(node, ms) {
+  const h = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  node.addEventListener("click", h, true);
+  setTimeout(() => node.removeEventListener("click", h, true), ms);
+}
+
+let panelDrag = null;
+
+function beginPanelDrag(st) {
+  st.active = true;
+  const rect = panelEl.getBoundingClientRect();
+  st.dx = st.x - rect.left;
+  st.dy = st.y - rect.top;
+  panelEl.classList.add("panel--drag");
+  suppressClicks(panelEl, 400);
+  if (navigator.vibrate) navigator.vibrate(10);
+}
+
+function dragPanelTo(cx, cy, st) {
+  const pw = panelEl.offsetWidth;
+  const ph = panelEl.offsetHeight;
+  const x = Math.max(4, Math.min(cx - st.dx, window.innerWidth - pw - 4));
+  const y = Math.max(4, Math.min(cy - st.dy, window.innerHeight - ph - 4));
+  panelEl.style.transform = `translate(${  x  }px, ${  y  }px)`;
+  showEdgeHint(nearestEdge(x + pw / 2, y + ph / 2));
+}
+
+panelEl.addEventListener("pointerdown", (e) => {
+  if (panelDrag) return;
+  if (e.button !== 0 && e.pointerType === "mouse") return;
+  const st = { x: e.clientX, y: e.clientY, timer: 0, active: false, dx: 0, dy: 0 };
+  panelDrag = st;
+  st.timer = setTimeout(() => {
+    if (panelDrag === st) beginPanelDrag(st);
+  }, 320);
+});
+
+window.addEventListener("pointermove", (e) => {
+  const st = panelDrag;
+  if (!st) return;
+  if (!st.active) {
+    if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 10) {
+      clearTimeout(st.timer);
+      panelDrag = null;
+    }
+    return;
+  }
+  dragPanelTo(e.clientX, e.clientY, st);
+});
+
+window.addEventListener("pointerup", () => {
+  const st = panelDrag;
+  if (!st) return;
+  clearTimeout(st.timer);
+  panelDrag = null;
+  if (st.active) {
+    panelEl.classList.remove("panel--drag");
+    hintEl.hidden = true;
+    const r = panelEl.getBoundingClientRect();
+    state.settings.panelEdge = nearestEdge(r.left + r.width / 2, r.top + r.height / 2);
+    if (state.settings.panelEdge === "left" || state.settings.panelEdge === "right") {
+      state.settings.panelY = r.top;
+    }
+    save();
+    layoutPanel();
+  }
+});
+
+window.addEventListener("pointercancel", () => {
+  const st = panelDrag;
+  if (!st) return;
+  clearTimeout(st.timer);
+  panelDrag = null;
+  if (st.active) {
+    panelEl.classList.remove("panel--drag");
+    hintEl.hidden = true;
+    layoutPanel();
+  }
+});
+
+/* ============================ gestures: swipe + drag ============================ */
+
+const G = {
+  mode: "none",
+  hit: null,
+  dragEl: null,
+  type: "",
+  id: "",
+  clId: "",
+  x0: 0,
+  y0: 0,
+  t0: 0,
+  px: 0,
+  py: 0,
+  dx: 0,
+  dir: 0,
+  timer: 0,
+  ghost: null,
+  ghostY: 0,
+  group: null,
+  lastSig: null,
+  lastTap: { id: "", t: 0 },
+};
+
+let suppressUntil = 0;
+
+function suppressNextClick() {
+  suppressUntil = Date.now() + 400;
+}
+
+listsEl.addEventListener("click", (e) => {
+  if (Date.now() < suppressUntil) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+function addSwipeHint() {
+  let h = G.hit.querySelector(".swipe-hint");
+  if (!h) {
+    h = el("div", "swipe-hint");
+    G.hit.append(h);
+  }
+  h.className = `swipe-hint ${  G.dir > 0 ? "swipe-hint--l" : "swipe-hint--r"}`;
+  h.replaceChildren(icon(G.dir > 0 ? "edit" : "archive"));
+}
+
+function resetSwipeVisual(node) {
+  node.style.transition = "transform 0.18s ease";
+  node.style.transform = "";
+  const h = node.querySelector(".swipe-hint");
+  if (h) h.style.opacity = "0";
+  setTimeout(() => {
+    node.style.transition = "";
+  }, 220);
+}
+
+function beginDrag() {
+  if (!G.hit) return;
+  G.mode = "drag";
+  const rect = G.dragEl.getBoundingClientRect();
+  G.ghost = G.dragEl.cloneNode(true);
+  G.ghost.classList.add("ghost");
+  G.ghost.style.width = `${rect.width}px`;
+  G.ghost.style.left = `${rect.left}px`;
+  G.ghost.style.top = `${rect.top}px`;
+  document.body.append(G.ghost);
+  G.ghostY = G.py - rect.top;
+  G.dragEl.classList.add("drag-src");
+  const b = ui.bulk;
+  if (G.type === "it") {
+    G.group =
+      b && b.type === "it" && b.clId === G.clId && b.ids.includes(G.id)
+        ? orderByCurrent(b.ids, (id) => itemIndex(G.clId, id))
+        : [G.id];
+  } else {
+    G.group =
+      b && b.type === "cl" && b.ids.includes(G.id) ? orderByCurrent(b.ids, clIndex) : [G.id];
+  }
+  suppressClicks(listsEl, 500);
+  if (navigator.vibrate) navigator.vibrate(15);
+  positionGhost();
+  dragRaf();
+}
+
+function clIndex(id) {
+  return state.checklists.findIndex((c) => c.id === id);
+}
+
+function itemIndex(clId, id) {
+  const cl = state.checklists.find((c) => c.id === clId);
+  return cl ? cl.items.findIndex((i) => i.id === id) : -1;
+}
+
+// selection order is arbitrary; the group must move in current list order
+function orderByCurrent(ids, idxOf) {
+  return ids.slice().sort((a, b2) => idxOf(a) - idxOf(b2));
+}
+
+function positionGhost() {
+  if (!G.ghost) return;
+  G.ghost.style.top = `${G.py - G.ghostY  }px`;
+}
+
+function nextBefore(nodes, y) {
+  for (const n of nodes) {
+    if (n === G.dragEl) continue;
+    const r = n.getBoundingClientRect();
+    if (y < r.top + r.height / 2) return n;
+  }
+  return null;
+}
+
+function sectionAt(y) {
+  for (const s of listsEl.querySelectorAll(".cl")) {
+    const r = s.getBoundingClientRect();
+    if (y >= r.top && y <= r.bottom) return s;
+  }
+  return null;
+}
+
+function flipMove(container, before) {
+  const rows = [...listsEl.querySelectorAll("[data-flip-id]")];
+  const tops = new Map(rows.map((r) => [r.dataset.flipId, r.getBoundingClientRect().top]));
+  if (before) container.insertBefore(G.dragEl, before);
+  else container.append(G.dragEl);
+  if (reducedMotion()) return;
+  for (const r of rows) {
+    if (r === G.dragEl) continue;
+    const b = tops.get(r.dataset.flipId);
+    if (b === undefined) continue;
+    const d = b - r.getBoundingClientRect().top;
+    if (Math.abs(d) < 2) continue;
+    r.style.transition = "none";
+    r.style.transform = `translateY(${  d  }px)`;
+    void r.offsetHeight;
+    r.style.transition = "transform 0.18s ease";
+    r.style.transform = "";
+  }
+}
+
+function recomputeTarget() {
+  let container;
+  let before;
+  let scopeId;
+  if (G.type === "cl") {
+    container = listsEl;
+    scopeId = "page";
+    before = nextBefore(listsEl.querySelectorAll(":scope > .cl"), G.py);
+  } else {
+    const sec = sectionAt(G.py);
+    if (!sec) return;
+    scopeId = sec.dataset.id;
+    container = sec.querySelector(".cl__items");
+    before = nextBefore(container.querySelectorAll(":scope > .it"), G.py);
+  }
+  const sig = `${scopeId  }|${  before ? before.dataset.flipId : "end"}`;
+  if (sig === G.lastSig) return;
+  G.lastSig = sig;
+  flipMove(container, before);
+}
+
+function dragRaf() {
+  if (G.mode !== "drag") return;
+  const m = 70;
+  let v = 0;
+  if (G.py < m) v = -(m - G.py) * 0.35;
+  else if (G.py > window.innerHeight - m) v = (G.py - (window.innerHeight - m)) * 0.35;
+  if (v) {
+    window.scrollBy(0, v);
+    recomputeTarget();
+  }
+  requestAnimationFrame(dragRaf);
+}
+
+function commitClDrag() {
+  const size = state.settings.pageSize;
+  const start = size ? ui.page * size : 0;
+  const byId = new Map(state.checklists.map((c) => [c.id, c]));
+  const pageCl = [...listsEl.querySelectorAll(".cl")]
+    .map((n) => byId.get(n.dataset.id))
+    .filter(Boolean);
+  state.checklists.splice(start, pageCl.length, ...pageCl);
+  save();
+  renderAll();
+}
+
+function commitItDrag(rowEl, group) {
+  const sec = rowEl.closest(".cl");
+  if (!sec) return;
+  const target = state.checklists.find((c) => c.id === sec.dataset.id);
+  const source = state.checklists.find((c) => c.id === G.clId);
+  if (!target || !source) return;
+  const groupItems = [];
+  const pool = source === target ? source.items : [...source.items, ...target.items];
+  for (const gid of group) {
+    const it = pool.find((i) => i.id === gid);
+    if (it) groupItems.push(it);
+  }
+  source.items = source.items.filter((i) => !group.includes(i.id));
+  const map = new Map(target.items.map((i) => [i.id, i]));
+  const order = [...sec.querySelectorAll(":scope > .cl__body > .cl__items > .it")].map((n) => n.dataset.id);
+  const rawIdx = order.indexOf(rowEl.dataset.id);
+  const pIdx = rawIdx < 0
+    ? order.length
+    : order.slice(0, rawIdx).filter((x) => !group.includes(x)).length;
+  const rest = order.filter((x) => !group.includes(x) && map.has(x)).map((x) => map.get(x));
+  target.items = [...rest.slice(0, pIdx), ...groupItems, ...rest.slice(pIdx)];
+  if (target !== source) target.collapsed = false; // reveal the drop result
+  save();
+  renderAll();
+}
+
+function finishDrag() {
+  const rowEl = G.dragEl;
+  const ghost = G.ghost;
+  const type = G.type;
+  const group = G.group;
+  G.ghost = null;
+  G.dragEl = null;
+  G.hit = null;
+  G.lastSig = null;
+  if (ghost) ghost.remove();
+  suppressNextClick();
+  if (!rowEl) return;
+  if (type === "cl") commitClDrag();
+  else commitItDrag(rowEl, group);
+}
+
+function cancelDrag() {
+  if (G.ghost) G.ghost.remove();
+  G.ghost = null;
+  G.dragEl = null;
+  G.hit = null;
+  G.lastSig = null;
+  renderAll();
+}
+
+function handleTap() {
+  const now = Date.now();
+  if (G.type === "it" && G.lastTap.id === G.id && now - G.lastTap.t < 350) {
+    startItEdit(G.clId, G.id);
+    G.lastTap = { id: "", t: 0 };
+  } else {
+    G.lastTap = { id: G.id, t: now };
+  }
+}
+
+listsEl.addEventListener("pointerdown", (e) => {
+  if (G.mode !== "none") return;
+  if (e.button !== 0 && e.pointerType === "mouse") return;
+  if (modalStack.length) return;
+  const target = e.target;
+  if (target.closest("input") || target.closest(".txt__more")) return;
+  const hit = target.closest("[data-drag]");
+  if (!hit || !listsEl.contains(hit)) return;
+  G.hit = hit;
+  G.dragEl = hit.dataset.drag === "cl" ? hit.closest(".cl") : hit;
+  G.type = hit.dataset.drag;
+  G.id = hit.dataset.id;
+  G.clId = hit.dataset.drag === "it" ? hit.dataset.cl : hit.dataset.id;
+  G.x0 = e.clientX;
+  G.y0 = e.clientY;
+  G.px = e.clientX;
+  G.py = e.clientY;
+  G.t0 = Date.now();
+  G.dx = 0;
+  G.dir = 0;
+  G.mode = "press";
+  G.timer = setTimeout(
+    () => {
+      if (G.mode === "press") beginDrag();
+    },
+    e.pointerType === "mouse" ? 260 : 450
+  );
+});
+
+window.addEventListener("pointermove", (e) => {
+  if (G.mode === "press") {
+    const dx = e.clientX - G.x0;
+    const dy = e.clientY - G.y0;
+    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      clearTimeout(G.timer);
+      G.mode = "swipe";
+      G.dir = dx > 0 ? 1 : -1;
+      G.swipeX0 = e.clientX;
+      addSwipeHint();
+    } else if (Math.hypot(dx, dy) > 14) {
+      clearTimeout(G.timer);
+      G.mode = "none";
+    }
+    return;
+  }
+  if (G.mode === "swipe") {
+    G.dx = Math.max(0, (e.clientX - G.swipeX0) * G.dir);
+    const t = Math.min(G.dx, 72) * 0.45;
+    G.hit.style.transform = `translateX(${  t * G.dir  }px)`;
+    const h = G.hit.querySelector(".swipe-hint");
+    if (h) {
+      h.style.transform = `translate(${  -t * G.dir  }px, -50%)`;
+      h.style.opacity = String(Math.min(G.dx / 72, 1));
+    }
+    return;
+  }
+  if (G.mode === "drag") {
+    G.px = e.clientX;
+    G.py = e.clientY;
+    positionGhost();
+    recomputeTarget();
+  }
+});
+
+window.addEventListener("pointerup", (e) => {
+  if (G.mode === "press") {
+    clearTimeout(G.timer);
+    const quick = Date.now() - G.t0 < 300 && Math.hypot(e.clientX - G.x0, e.clientY - G.y0) < 12;
+    if (quick && e.pointerType === "touch") handleTap();
+    G.mode = "none";
+    G.hit = null;
+    G.dragEl = null;
+    return;
+  }
+  if (G.mode === "swipe") {
+    clearTimeout(G.timer);
+    const fired = G.dx >= 56;
+    const dir = G.dir;
+    const hit = G.hit;
+    const type = G.type;
+    const id = G.id;
+    const clId = G.clId;
+    G.mode = "none";
+    G.hit = null;
+    G.dragEl = null;
+    if (hit) resetSwipeVisual(hit);
+    if (fired) {
+      suppressNextClick();
+      const name = type === "it" ? itemName(clId, id) : clName(id);
+      if (dir > 0) {
+        if (type === "it") startItEdit(clId, id);
+        else startClEdit(id);
+      } else {
+        askArchive(type, id, clId, name);
+      }
+    }
+    return;
+  }
+  if (G.mode === "drag") {
+    G.mode = "none";
+    finishDrag();
+  }
+});
+
+window.addEventListener("pointercancel", () => {
+  if (G.mode === "swipe" && G.hit) resetSwipeVisual(G.hit);
+  if (G.mode === "drag") cancelDrag();
+  clearTimeout(G.timer);
+  G.mode = "none";
+  G.hit = null;
+  G.dragEl = null;
+});
+
+listsEl.addEventListener("dblclick", (e) => {
+  const row = e.target.closest(".it");
+  if (!row) return;
+  if (e.target.closest("button") || e.target.closest("input")) return;
+  startItEdit(row.dataset.cl, row.dataset.id);
+});
+
+if ("ontouchstart" in window) {
+  listsEl.addEventListener("contextmenu", (e) => {
+    if (e.target.closest("[data-drag]")) e.preventDefault();
+  });
+  panelEl.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+/* ============================ sticky header shadow ============================ */
+
+let observedSentinels = [];
+
+const sentinelIO = new IntersectionObserver((entries) => {
+  for (const en of entries) {
+    const head = en.target.nextElementSibling;
+    if (head) head.classList.toggle("cl__head--pinned", !en.isIntersecting);
+  }
+});
+
+function observeSentinels() {
+  for (const s of observedSentinels) sentinelIO.unobserve(s);
+  observedSentinels = [...listsEl.querySelectorAll(".cl__sentinel")];
+  for (const s of observedSentinels) sentinelIO.observe(s);
+}
+
+/* ============================ settings dropdown ============================ */
+
+let ddEl = null;
+
+function closeDropdown() {
+  if (ddEl) {
+    ddEl.remove();
+    ddEl = null;
+  }
+}
+
+function openDropdown() {
+  if (ddEl) {
+    closeDropdown();
+    return;
+  }
+  ddEl = el("div", "dd");
+  ddRoot.append(ddEl);
+  buildDropdown();
+  positionDropdown();
+}
+
+function positionDropdown() {
+  if (!ddEl) return;
+  const r = btnSettings.getBoundingClientRect();
+  const w = ddEl.offsetWidth;
+  const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+  const top = Math.min(r.bottom + 8, window.innerHeight - ddEl.offsetHeight - 8);
+  ddEl.style.left = `${left  }px`;
+  ddEl.style.top = `${top  }px`;
+}
+
+function sectionLabel(label) {
+  return el("div", "dd__label", label);
+}
+
+function optRow(label, active, fn) {
+  const b = el("button", "dd__opt");
+  b.type = "button";
+  b.append(el("span", null, label));
+  const mark = el("span", "dd__opt-mark");
+  if (active) mark.appendChild(icon("check"));
+  b.append(mark);
+  b.addEventListener("click", fn);
+  return b;
+}
+
+function buildDropdown() {
+  ddEl.replaceChildren();
+  const s = state.settings;
+  ddEl.append(
+    sectionLabel(t("theme")),
+    optRow(t("theme_system"), s.theme === "system", () => setSetting("theme", "system")),
+    optRow(t("theme_dark"), s.theme === "dark", () => setSetting("theme", "dark")),
+    optRow(t("theme_light"), s.theme === "light", () => setSetting("theme", "light"))
+  );
+  ddEl.append(sectionLabel(t("language")), langSelect());
+  ddEl.append(
+    sectionLabel(t("new_cl")),
+    optRow(t("new_cl_top"), s.newCl === "top", () => setSetting("newCl", "top")),
+    optRow(t("new_cl_bottom"), s.newCl === "bottom", () => setSetting("newCl", "bottom"))
+  );
+  ddEl.append(
+    sectionLabel(t("new_it")),
+    optRow(t("new_it_top"), s.newIt === "top", () => setSetting("newIt", "top")),
+    optRow(t("new_it_bottom"), s.newIt === "bottom", () => setSetting("newIt", "bottom"))
+  );
+  ddEl.append(sectionLabel(t("pagination")), pills());
+  const archB = el("button", "btn dd__archive", t("archive"));
+  archB.type = "button";
+  archB.addEventListener("click", () => {
+    closeDropdown();
+    openArchive();
+  });
+  ddEl.append(archB);
+}
+
+function langSelect() {
+  const sel = el("select", "dd__select");
+  const addOpt = (val, label) => {
+    const o = el("option", null, label);
+    o.value = val;
+    return o;
+  };
+  sel.append(addOpt("auto", t("lang_auto")));
+  for (const l of LANGS) sel.append(addOpt(l, LANG_NAMES[l]));
+  sel.value = state.settings.lang;
+  sel.addEventListener("change", () => setSetting("lang", sel.value));
+  return sel;
+}
+
+function pills() {
+  const wrap = el("div", "dd__pills");
+  for (const n of PAGE_SIZES) {
+    const b = el("button", `pill${  state.settings.pageSize === n ? " pill--on" : ""}`);
+    b.type = "button";
+    b.textContent = n === 0 ? t("page_all") : String(n);
+    b.addEventListener("click", () => setSetting("pageSize", n));
+    wrap.append(b);
+  }
+  return wrap;
+}
+
+function setSetting(key, value) {
+  state.settings[key] = value;
+  save();
+  if (key === "pageSize") ui.page = 0;
+  renderAll();
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (!ddEl) return;
+  if (ddEl.contains(e.target) || btnSettings.contains(e.target)) return;
+  closeDropdown();
+});
+
+/* ============================ help ============================ */
+
+function openHelp() {
+  const entry = openModal({ title: t("help_title") });
+  const body = el("div", "modal__body help__body");
+  for (const k of ["help_1", "help_2", "help_3", "help_4", "help_5", "help_6", "help_7"]) {
+    body.append(el("p", null, t(k)));
+  }
+  entry.content.append(body);
+}
+
+/* ============================ render all ============================ */
+
+function renderAll() {
+  curLang = curLangCode();
+  document.documentElement.lang = curLang;
+  applyTheme();
+  renderHeader();
+  renderList();
+  renderPanel();
+  if (ddEl) buildDropdown();
+}
+
+/* ============================ global events ============================ */
+
+btnAdd.addEventListener("click", addChecklist);
+btnSettings.addEventListener("click", openDropdown);
+btnHelp.addEventListener("click", openHelp);
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const top = modalStack[modalStack.length - 1];
+    if (top) {
+      e.preventDefault();
+      top.close();
+    } else if (ddEl) {
+      closeDropdown();
+    }
+  } else if (e.key === "Tab" && modalStack.length) {
+    trapTab(e, modalStack[modalStack.length - 1].bd);
+  }
+});
+
+let panelTick = false;
+
+window.addEventListener("scroll", () => {
+  if (panelTick) return;
+  panelTick = true;
+  requestAnimationFrame(() => {
+    panelTick = false;
+    if (!(panelDrag && panelDrag.active)) layoutPanel();
+  });
+}, { passive: true });
+
+window.addEventListener("resize", () => {
+  layoutPanel();
+  updateTxtMore();
+  if (ddEl) closeDropdown();
+});
+
+window.addEventListener("pagehide", flushSave);
+
+if (window.matchMedia) {
+  const mq = matchMedia("(prefers-color-scheme: dark)");
+  const onChange = () => {
+    if (state && state.settings.theme === "system") applyTheme();
+  };
+  if (mq.addEventListener) mq.addEventListener("change", onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+}
+
+/* ============================ init ============================ */
+
+state = loadState();
+renderAll();
+checkIconFont();
+  </script>
+</body>
+</html>
