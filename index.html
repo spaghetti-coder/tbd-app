@@ -1,0 +1,1290 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TBD</title>
+<meta name="description" content="TBD — checklists and to-do items, stored on this device.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f6f8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1015">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='2' width='28' height='28' rx='8' fill='%234f46e5'/><path d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+
+<!-- Icons: external webfont (never inline svg). jsDelivr, then unpkg, then no glyphs at all —
+     every icon button also carries a text label, so the app stays usable if both CDNs fail. -->
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+  onerror="this.onerror=null;this.href='https://unpkg.com/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css'"
+>
+
+<script>
+// Theme before first paint, so a dark system never flashes white.
+// Mirrors settings.theme + applyTheme() below; keep the two in sync.
+document.documentElement.dataset.theme = (() => {
+  let mode = "system";
+  try {
+    mode = JSON.parse(localStorage.getItem("tbd.settings") || "{}").theme || "system";
+  } catch (_error) {
+    mode = "system";
+  }
+  if (mode === "dark") return "dark";
+  if (mode === "light") return "light";
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+})();
+</script>
+
+<style>
+/* ===== tokens ===== */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #fff;
+  --surface-2: #ebedf2;
+  --text: #14161a;
+  --muted: #667080;
+  --border: #dfe2e9;
+  --accent: #4f46e5;
+  --accent-contrast: #fff;
+  --ring: rgb(79 70 229 / 0.35);
+  --shadow-1: 0 1px 2px rgb(14 18 27 / 0.06);
+  --shadow-2: 0 12px 32px rgb(14 18 27 / 0.16);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --gutter: clamp(12px, 4vw, 24px);
+  --col: 720px;
+  --pad: 10px;
+  --tap: 40px;
+  --panel-w: 44px;
+  --panel-gap: 14px;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #0e1015;
+  --surface: #171a21;
+  --surface-2: #21262f;
+  --text: #e8eaf0;
+  --muted: #949fb1;
+  --border: #2a3038;
+  --accent: #8079ff;
+  --accent-contrast: #0e1015;
+  --ring: rgb(128 121 255 / 0.4);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 12px 32px rgb(0 0 0 / 0.55);
+
+  color-scheme: dark;
+}
+
+/* ===== base ===== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: rgb(0 0 0 / 0);
+}
+
+h1,
+h2,
+p,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: fixed;
+  inset-block-start: var(--gutter);
+  inset-inline-start: var(--gutter);
+  z-index: 60;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--text);
+  transform: translateY(-200%);
+  transition: transform 120ms ease, opacity 120ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.skip-link:focus {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== header ===== */
+
+.topbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 30;
+  padding-block: max(6px, env(safe-area-inset-top)) 6px;
+  /* Solid first, then the translucent layer: without color-mix (old Safari) the header stays solid instead of transparent. */
+  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(160%);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: min(100% - var(--gutter) * 2, var(--col));
+  margin-inline: auto;
+  padding-block: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.menu-anchor {
+  position: relative;
+}
+
+/* ===== icon buttons ===== */
+
+.iconbtn {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--tap);
+  block-size: var(--tap);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.iconbtn:active {
+  transform: scale(0.95);
+}
+
+.iconbtn[disabled] {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.iconbtn .bi {
+  font-size: 18px;
+}
+
+@media (hover: hover) {
+  .iconbtn:hover {
+    background: var(--surface-2);
+  }
+}
+
+/* ===== settings dropdown ===== */
+
+.menu {
+  position: absolute;
+  inset-block-start: calc(100% + 8px);
+  inset-inline-end: 0;
+  z-index: 40;
+  width: min(330px, calc(100vw - var(--gutter) * 2));
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.field-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.field select {
+  min-inline-size: 132px;
+  max-inline-size: 160px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+}
+
+.sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: start;
+}
+
+@media (hover: hover) {
+  .menu-item:hover {
+    background: var(--surface-2);
+  }
+}
+
+/* ===== lists ===== */
+
+.main {
+  width: min(100% - var(--gutter) * 2, var(--col));
+  margin-inline: auto;
+  padding: 12px 0 calc(28px + env(safe-area-inset-bottom));
+}
+
+.cl {
+  margin-block-end: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.cl-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 4px;
+}
+
+.cl-heading {
+  flex: 1;
+  min-width: 0;
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.cl-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  text-align: start;
+}
+
+.cl-toggle .bi {
+  flex: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cl-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.is-muted {
+  color: var(--muted);
+}
+
+.items {
+  list-style: none;
+  padding: 0 var(--pad) 8px;
+}
+
+.item {
+  min-height: 42px;
+  padding-inline: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding-inline: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.item-row input[type="checkbox"] {
+  inline-size: 19px;
+  block-size: 19px;
+  flex: none;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.item.is-done .item-text {
+  color: var(--muted);
+}
+
+@media (hover: hover) {
+  .cl-toggle:hover,
+  .item-row:hover {
+    background: var(--surface-2);
+  }
+}
+
+.cl-empty,
+.empty-hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cl-empty {
+  padding: 0 calc(var(--pad) + 8px) 12px;
+}
+
+.empty {
+  padding: 40px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.empty-title {
+  font-weight: 600;
+}
+
+.empty-hint {
+  margin-block-start: 4px;
+}
+
+.noscript {
+  width: min(100% - var(--gutter) * 2, var(--col));
+  margin: 16px auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* ===== inline editor ===== */
+
+.editor {
+  flex: 1;
+  min-width: 0;
+  inline-size: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.editor:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ===== mini panel ===== */
+
+.panel {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  padding-inline-end: max(var(--gutter), env(safe-area-inset-right));
+  pointer-events: none;
+}
+
+.panel .iconbtn {
+  pointer-events: auto;
+  inline-size: var(--panel-w);
+  block-size: var(--panel-w);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+@media (width >= 840px) {
+  /* Past the lists on wide screens: 720px column + room for the panel. */
+  .panel {
+    padding-inline-end: max(var(--panel-gap), calc((100vw - var(--col)) / 2 - var(--panel-w) - var(--panel-gap)));
+  }
+}
+
+/* ===== dialogs ===== */
+
+dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(440px, calc(100vw - var(--gutter) * 2));
+  max-height: 80vh;
+  max-height: 80svh;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  box-shadow: var(--shadow-2);
+}
+
+dialog::backdrop {
+  background: rgb(8 10 14 / 0.55);
+}
+
+.dialog-title {
+  margin-block-end: 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.dialog-body {
+  white-space: pre-line;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-block-start: 16px;
+}
+
+.btn {
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.btn--accent {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#lists">Skip to lists</a>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1 class="brand">TBD</h1>
+    <div class="topbar-actions">
+      <button id="btn-add" class="iconbtn" type="button" aria-label="Add checklist" title="Add checklist"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+      <div class="menu-anchor">
+        <button id="btn-settings" class="iconbtn" type="button" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings" title="Settings"><i class="bi bi-gear" aria-hidden="true"></i></button>
+        <div id="settings" class="menu" role="dialog" aria-label="Settings" hidden>
+          <label class="field" for="set-theme">
+            <span class="field-label">Theme</span>
+            <select id="set-theme">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+          <label class="field" for="set-language">
+            <span class="field-label">Language</span>
+            <select id="set-language">
+              <option value="auto">Auto</option>
+              <option value="ru">Русский</option>
+              <option value="bg">Български</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="es">Español</option>
+              <option value="ro">Română</option>
+              <option value="zh">中文</option>
+              <option value="ja">日本語</option>
+              <option value="eo">Esperanto</option>
+              <option value="ia">Interlingua</option>
+              <option value="tok">toki pona</option>
+            </select>
+          </label>
+          <div class="sep"></div>
+          <label class="field" for="set-checklist">
+            <span class="field-label">New checklist</span>
+            <select id="set-checklist">
+              <option value="top">Above all</option>
+              <option value="bottom">Below all</option>
+            </select>
+          </label>
+          <label class="field" for="set-item">
+            <span class="field-label">New item</span>
+            <select id="set-item">
+              <option value="top">Above all</option>
+              <option value="bottom">Below all</option>
+            </select>
+          </label>
+          <label class="field" for="set-page-size">
+            <span class="field-label">Per page</span>
+            <select id="set-page-size">
+              <option value="all">All</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+              <option value="80">80</option>
+              <option value="130">130</option>
+              <option value="210">210</option>
+            </select>
+          </label>
+          <div class="sep"></div>
+          <button id="btn-archive" class="menu-item" type="button"><i class="bi bi-archive" aria-hidden="true"></i><span>Archive</span></button>
+        </div>
+      </div>
+      <button id="btn-help" class="iconbtn" type="button" aria-label="Help" title="Help"><i class="bi bi-question-lg" aria-hidden="true"></i></button>
+    </div>
+  </div>
+</header>
+
+<noscript><p class="noscript">TBD needs JavaScript to run.</p></noscript>
+
+<main id="lists" class="main" tabindex="-1" aria-label="Checklists"></main>
+
+<aside class="panel" role="toolbar" aria-label="Lists" aria-orientation="vertical">
+  <button id="btn-expand-all" class="iconbtn" type="button" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-chevron-bar-expand" aria-hidden="true"></i></button>
+  <button id="btn-collapse-all" class="iconbtn" type="button" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-chevron-bar-contract" aria-hidden="true"></i></button>
+</aside>
+
+<dialog id="dlg-note" aria-labelledby="note-title">
+  <h2 id="note-title" class="dialog-title"></h2>
+  <p id="note-body" class="dialog-body"></p>
+  <form method="dialog" class="dialog-actions">
+    <button class="btn btn--accent" type="submit">Close</button>
+  </form>
+</dialog>
+
+<script>
+/* ===========================================================================
+   TBD — one-file todo app. docs/spec.md
+   1. utils  2. storage + store  3. data model  4. settings  5. render
+   6. actions  7. wiring
+   UI strings are English literals; task 2 replaces them with the i18n engine.
+   =========================================================================== */
+(() => {
+  "use strict";
+
+  const doc = document;
+  const root = doc.documentElement;
+  const $ = (selector, scope = doc) => scope.querySelector(selector);
+
+  /* ---------------------------------------------------------------- utils */
+
+  /* Every node is built in code and every piece of user text goes through
+     textContent — user data can never become markup. */
+  function setProp(node, key, value) {
+    if (key === "class") {
+      node.className = [value].flat(1).filter(Boolean).join(" ");
+      return;
+    }
+    if (key === "text") {
+      node.textContent = String(value);
+      return;
+    }
+    if (key === "value" || key === "checked" || key === "disabled") {
+      node[key] = value;
+      return;
+    }
+    node.setAttribute(key, value === true ? "" : String(value));
+  }
+
+  function el(tag, props, ...kids) {
+    const node = doc.createElement(tag);
+    for (const [key, value] of Object.entries(props || {})) {
+      if (value !== null && value !== undefined && value !== false) setProp(node, key, value);
+    }
+    node.append(...kids.flat(9).filter((kid) => kid !== null && kid !== undefined && kid !== false)
+      .map((kid) => (kid instanceof Node ? kid : doc.createTextNode(String(kid)))));
+    return node;
+  }
+
+  const icon = (name) => el("i", { class: `bi bi-${name}`, "aria-hidden": "true" });
+
+  function uid() {
+    if (window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    return `x${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function asText(value) {
+    if (typeof value === "string") return value;
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+    return "";
+  }
+
+  function asStamp(value) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+  }
+
+  /* ---------------------------------------------------- storage + store */
+
+  const KEYS = { data: "tbd.data", settings: "tbd.settings", probe: "tbd.probe" };
+  const SCHEMA = 1;
+
+  /* Safari private mode and some file:// contexts throw on localStorage. */
+  const memory = new Map();
+  const memoryStorage = {
+    getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+    setItem: (key, value) => { memory.set(key, String(value)); },
+    removeItem: (key) => { memory.delete(key); },
+  };
+
+  const storage = (() => {
+    try {
+      const { localStorage } = window;
+      localStorage.setItem(KEYS.probe, "1");
+      localStorage.removeItem(KEYS.probe);
+      return localStorage;
+    } catch (error) {
+      console.warn("TBD: storage is blocked, this session is kept in memory only.", error);
+      return memoryStorage;
+    }
+  })();
+
+  /* Data schema bumps, oldest first. Settings never run these. */
+  const DATA_MIGRATIONS = {
+    /* 2: (db) => { db.checklists.forEach((cl) => { cl.pinned = false; }); return db; }, */
+  };
+
+  function migrate(raw, blank, migrations) {
+    if (raw === null || typeof raw !== "object") return blank();
+    const from = Number.isFinite(raw.schema) ? raw.schema : 0;
+    if (from > SCHEMA) {
+      console.warn("TBD: data comes from a newer version, keeping it as is.");
+      return raw;
+    }
+    let db = raw;
+    for (let version = from + 1; version <= SCHEMA; version += 1) {
+      const step = migrations[version];
+      if (step) db = step(db) || db;
+    }
+    db.schema = SCHEMA;
+    return db;
+  }
+
+  /* Reactive wrapper over storage: read with get(), write with update()/patch(). */
+  function createStore(key, blank, normalize, migrations) {
+    const listeners = new Set();
+    let readOnly = false;
+    let db = boot();
+
+    function boot() {
+      let raw = null;
+      try {
+        raw = JSON.parse(storage.getItem(key));
+      } catch (error) {
+        console.warn(`TBD: unreadable ${key}, starting from an empty store.`, error);
+      }
+      /* Written by a newer build: usable in memory, never written back by this one. */
+      readOnly = raw !== null && typeof raw === "object" && raw.schema > SCHEMA;
+      try {
+        return normalize(migrate(raw, blank, migrations));
+      } catch (error) {
+        console.warn(`TBD: ${key} could not be repaired, starting from an empty store.`, error);
+        return normalize(blank());
+      }
+    }
+
+    function persist() {
+      if (readOnly) return; // never downgrade newer data
+      try {
+        storage.setItem(key, JSON.stringify(db));
+      } catch (error) {
+        console.warn("TBD: could not write to storage, changes stay in this session.", error);
+      }
+    }
+
+    function commit() {
+      persist();
+      for (const listener of listeners) listener(db);
+    }
+
+    return {
+      get: () => db,
+      update(mutate) {
+        mutate(db);
+        commit();
+      },
+      patch(values) {
+        Object.assign(db, values);
+        commit();
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      reload() {
+        db = boot();
+        for (const listener of listeners) listener(db);
+      },
+    };
+  }
+
+  /* --------------------------------------------------------- data model */
+
+  /* archivedAt === null means active. An item is hidden while its checklist is
+     archived (whole list hidden); items archived before their checklist keep a
+     lower archivedAt, so they return only with the checklist (task 5). */
+  function blankDB() {
+    return { schema: SCHEMA, checklists: [] };
+  }
+
+  function makeChecklist() {
+    return { id: uid(), title: "", open: true, createdAt: Date.now(), updatedAt: null, archivedAt: null, items: [] };
+  }
+
+  function makeItem() {
+    return { id: uid(), text: "", done: false, createdAt: Date.now(), updatedAt: null, archivedAt: null };
+  }
+
+  function validId(value, ids) {
+    const id = asText(value);
+    if (id && !ids.has(id)) return id;
+    return uid();
+  }
+
+  function normalizeItem(raw, ids) {
+    if (raw === null || typeof raw !== "object") return null;
+    const id = validId(raw.id, ids);
+    ids.add(id);
+    return {
+      id,
+      text: asText(raw.text),
+      done: raw.done === true,
+      createdAt: asStamp(raw.createdAt),
+      updatedAt: asStamp(raw.updatedAt),
+      archivedAt: asStamp(raw.archivedAt),
+    };
+  }
+
+  function normalizeChecklist(raw, ids) {
+    if (raw === null || typeof raw !== "object") return null;
+    const id = validId(raw.id, ids);
+    ids.add(id);
+    const checklist = {
+      id,
+      title: asText(raw.title),
+      open: raw.open !== false,
+      createdAt: asStamp(raw.createdAt),
+      updatedAt: asStamp(raw.updatedAt),
+      archivedAt: asStamp(raw.archivedAt),
+      items: [],
+    };
+    if (Array.isArray(raw.items)) {
+      for (const rawItem of raw.items) {
+        const item = normalizeItem(rawItem, ids);
+        if (item) checklist.items.push(item);
+      }
+    }
+    return checklist;
+  }
+
+  /* Stored data is untrusted: rebuild the shape, drop what is not an entity. */
+  function normalizeDB(raw) {
+    const db = blankDB();
+    const ids = new Set();
+    if (raw !== null && typeof raw === "object" && Array.isArray(raw.checklists)) {
+      for (const rawChecklist of raw.checklists) {
+        const checklist = normalizeChecklist(rawChecklist, ids);
+        if (checklist) db.checklists.push(checklist);
+      }
+    }
+    return db;
+  }
+
+  /* ----------------------------------------------------------- settings */
+
+  const LANGS = ["ru", "bg", "en", "fr", "es", "ro", "zh", "ja", "eo", "ia", "tok"];
+  const SETTING_SPECS = {
+    theme: { default: "system", values: ["system", "dark", "light"] },
+    language: { default: "auto", values: ["auto", ...LANGS] },
+    checklistPosition: { default: "top", values: ["top", "bottom"] },
+    itemPosition: { default: "bottom", values: ["top", "bottom"] },
+    // shortcut: pageSize is stored but not applied yet, task 2 adds pagination.
+    pageSize: { default: 20, numeric: true, values: ["all", 10, 20, 30, 50, 80, 130, 210] },
+  };
+
+  function castSetting(name, value) {
+    const spec = SETTING_SPECS[name];
+    if (!spec) return value;
+    let next = asText(value);
+    if (spec.numeric && next !== "all") next = Number(value);
+    if (spec.values.includes(next)) return next;
+    return spec.default;
+  }
+
+  function blankSettings() {
+    const out = { schema: SCHEMA };
+    for (const name of Object.keys(SETTING_SPECS)) out[name] = SETTING_SPECS[name].default;
+    return out;
+  }
+
+  function normalizeSettings(raw) {
+    const source = raw !== null && typeof raw === "object" ? raw : {};
+    const out = { schema: SCHEMA };
+    for (const name of Object.keys(SETTING_SPECS)) out[name] = castSetting(name, source[name]);
+    return out;
+  }
+
+  const data = createStore(KEYS.data, blankDB, normalizeDB, DATA_MIGRATIONS);
+  const settingsStore = createStore(KEYS.settings, blankSettings, normalizeSettings, {});
+
+  const db = () => data.get();
+  const settings = () => settingsStore.get();
+  const activeChecklists = () => db().checklists.filter((checklist) => checklist.archivedAt === null);
+
+  /* Transient UI state, never persisted. */
+  const ui = { editing: null, focusEditor: false, settingsOpen: false };
+
+  /* ------------------------------------------------------- dom handles */
+
+  const listsEl = $("#lists");
+  const settingsBtn = $("#btn-settings");
+  const settingsMenu = $("#settings");
+  const noteDialog = $("#dlg-note");
+  const selects = {
+    theme: $("#set-theme"),
+    language: $("#set-language"),
+    checklistPosition: $("#set-checklist"),
+    itemPosition: $("#set-item"),
+    pageSize: $("#set-page-size"),
+  };
+  const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const THEME_COLOR = { light: "#f5f6f8", dark: "#0e1015" };
+
+  /* ----------------------------------------------------------- render */
+
+  const UNTITLED = "Untitled";
+
+  function editorNode(value, label, onEnd) {
+    const input = el("input", { class: "editor", type: "text", value, maxlength: "4000", "aria-label": label });
+    let closed = false;
+    const finish = (text, discard) => {
+      if (closed) return;
+      closed = true;
+      onEnd(text, discard);
+    };
+    input.addEventListener("keydown", (event) => {
+      if (event.isComposing) return; // Enter commits an IME candidate (zh/ja), not the text
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(input.value, false);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish("", true);
+      }
+    });
+    input.addEventListener("blur", () => finish(input.value, false));
+    return input;
+  }
+
+  const isEditing = (kind, id) => Boolean(ui.editing) && ui.editing.kind === kind && ui.editing.id === id;
+
+  function checklistHeading(checklist) {
+    if (isEditing("checklist", checklist.id)) {
+      return editorNode(checklist.title, "Checklist title", (value, discard) => endEdit(value, discard));
+    }
+    const muted = checklist.items.length > 0 && checklist.items.every((item) => item.done);
+    const chevron = el("i", { class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true" });
+    const title = el("span", { class: ["cl-title", muted && "is-muted"], text: checklist.title || UNTITLED });
+    return el("button", {
+      class: "cl-toggle",
+      type: "button",
+      "data-act": "toggle",
+      "aria-expanded": checklist.open ? "true" : "false",
+      title: checklist.title || UNTITLED,
+    }, chevron, title);
+  }
+
+  function itemRow(checklist, item) {
+    if (isEditing("item", item.id)) {
+      const editor = editorNode(item.text, "Item text", (value, discard) => endEdit(value, discard));
+      return el("li", { class: "item", "data-id": item.id }, editor);
+    }
+    const box = el("input", { type: "checkbox", checked: item.done, "aria-label": item.text || UNTITLED });
+    const text = el("span", { class: "item-text", title: item.text || UNTITLED, text: item.text || UNTITLED });
+    return el("li", { class: ["item", item.done && "is-done"], "data-id": item.id },
+      el("label", { class: "item-row" }, box, text));
+  }
+
+  function checklistBody(checklist) {
+    const items = checklist.items.filter((item) => item.archivedAt === null);
+    if (!items.length) return el("p", { class: "cl-empty", text: "No items yet." });
+    return el("ul", { class: "items" }, items.map((item) => itemRow(checklist, item)));
+  }
+
+  function checklistNode(checklist) {
+    const addBtn = checklist.open
+      ? el("button", { class: "iconbtn", type: "button", "data-act": "add-item", "aria-label": "Add item", title: "Add item" }, icon("plus-lg"))
+      : null;
+    const head = el("div", { class: "cl-head" }, el("h2", { class: "cl-heading" }, checklistHeading(checklist)), addBtn);
+    return el("section", { class: "cl", "data-id": checklist.id }, head, checklist.open ? checklistBody(checklist) : null);
+  }
+
+  function emptyState() {
+    const title = el("p", { class: "empty-title", text: "Nothing here yet" });
+    const hint = el("p", { class: "empty-hint", text: "Press + in the header to create your first checklist." });
+    return el("div", { class: "empty" }, title, hint);
+  }
+
+  /* Re-rendering swaps nodes, so remember what had focus and put it back. */
+  function captureFocus() {
+    const active = doc.activeElement;
+    const holder = active && active.closest("[data-id]");
+    if (!holder || !listsEl.contains(holder)) return null;
+    return { id: holder.dataset.id, checkbox: active.matches('input[type="checkbox"]') };
+  }
+
+  function restoreFocus(target) {
+    if (!target) return;
+    const holder = listsEl.querySelector(`[data-id="${CSS.escape(target.id)}"]`);
+    if (!holder) return;
+    const node = target.checkbox ? holder.querySelector('input[type="checkbox"]') : holder.querySelector("button, input");
+    if (node) node.focus();
+  }
+
+  function renderLists() {
+    const previous = captureFocus();
+    const checklists = activeChecklists();
+    listsEl.replaceChildren(...(checklists.length ? checklists.map(checklistNode) : [emptyState()]));
+    if (ui.focusEditor) {
+      ui.focusEditor = false;
+      const input = $(".editor", listsEl);
+      if (input) {
+        input.focus();
+        input.select();
+        return;
+      }
+    }
+    restoreFocus(previous);
+  }
+
+  function renderToolbar() {
+    const checklists = activeChecklists();
+    const open = checklists.filter((checklist) => checklist.open).length;
+    $("#btn-expand-all").disabled = open === checklists.length;
+    $("#btn-collapse-all").disabled = open === 0;
+  }
+
+  function syncSettingsForm() {
+    for (const [name, select] of Object.entries(selects)) select.value = String(settings()[name]);
+  }
+
+  function render() {
+    renderLists();
+    renderToolbar();
+    syncSettingsForm();
+  }
+
+  /* --------------------------------------------------------- appearance */
+
+  function applyTheme() {
+    const mode = settings().theme;
+    let dark;
+    if (mode === "dark") dark = true;
+    else if (mode === "light") dark = false;
+    else dark = darkQuery.matches;
+    root.dataset.theme = dark ? "dark" : "light";
+    $('meta[name="theme-color"]').content = dark ? THEME_COLOR.dark : THEME_COLOR.light;
+  }
+
+  function applyLanguage() {
+    const wanted = settings().language;
+    if (wanted !== "auto") {
+      root.lang = wanted;
+      return;
+    }
+    const tags = (window.navigator.languages || []).concat(window.navigator.language || []);
+    for (const tag of tags) {
+      const code = String(tag).toLowerCase().split("-")[0];
+      if (LANGS.includes(code)) {
+        root.lang = code;
+        return;
+      }
+    }
+    root.lang = "en";
+  }
+
+  /* ----------------------------------------------------------- actions */
+
+  function addChecklist() {
+    const checklist = makeChecklist();
+    ui.editing = { kind: "checklist", id: checklist.id, fresh: true };
+    ui.focusEditor = true;
+    data.update((store) => {
+      if (settings().checklistPosition === "bottom") store.checklists.push(checklist);
+      else store.checklists.unshift(checklist);
+    });
+  }
+
+  function addItem(checklistId) {
+    data.update((store) => {
+      const checklist = store.checklists.find((row) => row.id === checklistId);
+      if (!checklist) return;
+      const item = makeItem();
+      if (settings().itemPosition === "top") checklist.items.unshift(item);
+      else checklist.items.push(item);
+      ui.editing = { kind: "item", id: item.id, fresh: true };
+      ui.focusEditor = true;
+    });
+  }
+
+  function toggleChecklist(checklistId) {
+    data.update((store) => {
+      const checklist = store.checklists.find((row) => row.id === checklistId);
+      if (!checklist) return;
+      checklist.open = !checklist.open;
+      checklist.updatedAt = Date.now();
+    });
+  }
+
+  function toggleItem(itemId) {
+    data.update((store) => {
+      for (const checklist of store.checklists) {
+        const item = checklist.items.find((row) => row.id === itemId);
+        if (item) {
+          item.done = !item.done;
+          item.updatedAt = Date.now();
+          return;
+        }
+      }
+    });
+  }
+
+  function setAllOpen(open) {
+    data.update((store) => {
+      const stamp = Date.now();
+      for (const checklist of store.checklists) {
+        if (checklist.archivedAt !== null || checklist.open === open) continue;
+        checklist.open = open;
+        checklist.updatedAt = stamp;
+      }
+    });
+  }
+
+  function locate(store, edit) {
+    if (edit.kind === "checklist") {
+      return { list: store.checklists, index: store.checklists.findIndex((row) => row.id === edit.id) };
+    }
+    for (const checklist of store.checklists) {
+      const index = checklist.items.findIndex((row) => row.id === edit.id);
+      if (index !== -1) return { list: checklist.items, index };
+    }
+    return { list: null, index: -1 };
+  }
+
+  /* Enter/blur save, Escape discards; an unsaved brand-new entity disappears. */
+  function endEdit(value, discard) {
+    const edit = ui.editing;
+    if (!edit) return;
+    ui.editing = null;
+    const text = discard ? "" : value.trim();
+    if (!text) {
+      if (edit.fresh) {
+        data.update((store) => {
+          const { list, index } = locate(store, edit);
+          if (list && index !== -1) list.splice(index, 1);
+        });
+      } else {
+        render(); // nothing changed in the store, but the editor must close
+      }
+      return;
+    }
+    data.update((store) => {
+      const { list, index } = locate(store, edit);
+      if (!list || index === -1) return;
+      const entity = list[index];
+      entity[edit.kind === "checklist" ? "title" : "text"] = text;
+      entity.updatedAt = Date.now();
+    });
+  }
+
+  /* ------------------------------------------------------------ dialogs */
+
+  function showDialog(dialog) {
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+      return;
+    }
+    dialog.setAttribute("open", ""); // old Safari: visible, non-modal
+    dialog.scrollIntoView({ block: "center" });
+  }
+
+  function openNote(title, body) {
+    $("#note-title").textContent = title;
+    $("#note-body").textContent = body;
+    showDialog(noteDialog);
+  }
+
+  const HELP_TEXT = [
+    "TBD keeps your lists in this browser — nothing is uploaded anywhere.",
+    "Press + in the header to add a checklist, then type its name and press Enter.",
+    "Press the + at the right of an open checklist to add items.",
+    "Tick an item when it is done; finished things turn grey.",
+    "Use the buttons on the right to open or close every checklist at once.",
+    "The gear holds theme, language, where new things are added, and page size.",
+  ].join("\n");
+
+  /* ------------------------------------------------------------ wiring */
+
+  function setSettingsOpen(open) {
+    ui.settingsOpen = open;
+    settingsMenu.hidden = !open;
+    settingsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function bindHeader() {
+    $("#btn-add").addEventListener("click", () => addChecklist());
+    settingsBtn.addEventListener("click", () => setSettingsOpen(!ui.settingsOpen));
+    $("#btn-help").addEventListener("click", () => openNote("How to use TBD", HELP_TEXT));
+    $("#btn-archive").addEventListener("click", () => {
+      setSettingsOpen(false);
+      // shortcut: the archive screen is task 5; until then the button says so.
+      openNote("Archive", "The archive is not in this build yet. It comes with the next step of TBD.");
+    });
+    doc.addEventListener("click", (event) => {
+      if (!ui.settingsOpen || event.target.closest("#settings, #btn-settings")) return;
+      setSettingsOpen(false);
+    });
+    doc.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !ui.settingsOpen) return;
+      setSettingsOpen(false);
+      settingsBtn.focus();
+    });
+  }
+
+  function bindToolbar() {
+    $("#btn-expand-all").addEventListener("click", () => setAllOpen(true));
+    $("#btn-collapse-all").addEventListener("click", () => setAllOpen(false));
+  }
+
+  function bindLists() {
+    listsEl.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-act]");
+      if (!trigger) return;
+      const holder = trigger.closest("[data-id]");
+      if (!holder) return;
+      if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
+      else if (trigger.dataset.act === "add-item") addItem(holder.dataset.id);
+    });
+    listsEl.addEventListener("change", (event) => {
+      const box = event.target.closest('input[type="checkbox"]');
+      if (!box) return;
+      const holder = box.closest("[data-id]");
+      if (holder) toggleItem(holder.dataset.id);
+    });
+  }
+
+  function bindSettings() {
+    for (const [name, select] of Object.entries(selects)) {
+      select.addEventListener("change", () => settingsStore.patch({ [name]: castSetting(name, select.value) }));
+    }
+  }
+
+  function init() {
+    bindHeader();
+    bindToolbar();
+    bindLists();
+    bindSettings();
+    settingsStore.subscribe(() => {
+      applyTheme();
+      applyLanguage();
+      syncSettingsForm();
+    });
+    data.subscribe(render);
+    darkQuery.addEventListener("change", () => {
+      if (settings().theme === "system") applyTheme();
+    });
+    /* Keep two open tabs in sync (fires for the other tabs only). */
+    window.addEventListener("storage", (event) => {
+      if (event.key === KEYS.data) data.reload();
+      else if (event.key === KEYS.settings) settingsStore.reload();
+    });
+    applyTheme();
+    applyLanguage();
+    render();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
