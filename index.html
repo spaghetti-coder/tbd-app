@@ -430,6 +430,15 @@ button {
   background: var(--surface);
 }
 
+.notice {
+  margin-block-end: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
 /* ===== inline editor ===== */
 
 .editor {
@@ -552,7 +561,7 @@ dialog::backdrop {
     <div class="topbar-actions">
       <button id="btn-add" class="iconbtn" type="button" aria-label="Add checklist" title="Add checklist"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
       <div class="menu-anchor">
-        <button id="btn-settings" class="iconbtn" type="button" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings" title="Settings"><i class="bi bi-gear" aria-hidden="true"></i></button>
+        <button id="btn-settings" class="iconbtn" type="button" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" title="Settings"><i class="bi bi-gear" aria-hidden="true"></i></button>
         <div id="settings" class="menu" role="dialog" aria-label="Settings" hidden>
           <label class="field" for="set-theme">
             <span class="field-label">Theme</span>
@@ -618,12 +627,14 @@ dialog::backdrop {
 
 <noscript><p class="noscript">TBD needs JavaScript to run.</p></noscript>
 
-<main id="lists" class="main" tabindex="-1" aria-label="Checklists"></main>
-
-<aside class="panel" role="toolbar" aria-label="Lists" aria-orientation="vertical">
-  <button id="btn-expand-all" class="iconbtn" type="button" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-chevron-bar-expand" aria-hidden="true"></i></button>
-  <button id="btn-collapse-all" class="iconbtn" type="button" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-chevron-bar-contract" aria-hidden="true"></i></button>
-</aside>
+<main id="lists" class="main" tabindex="-1" aria-label="Checklists">
+  <p id="storage-warning" class="notice" role="status" hidden></p>
+  <div id="list-items"></div>
+  <div class="panel" role="toolbar" aria-label="Lists" aria-orientation="vertical">
+    <button id="btn-expand-all" class="iconbtn" type="button" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
+    <button id="btn-collapse-all" class="iconbtn" type="button" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
+  </div>
+</main>
 
 <dialog id="dlg-note" aria-labelledby="note-title">
   <h2 id="note-title" class="dialog-title"></h2>
@@ -719,6 +730,8 @@ dialog::backdrop {
     }
   })();
 
+  const memoryOnly = storage === memoryStorage;
+
   /* Data schema bumps, oldest first. Settings never run these. */
   const DATA_MIGRATIONS = {
     /* 2: (db) => { db.checklists.forEach((cl) => { cl.pinned = false; }); return db; }, */
@@ -744,6 +757,7 @@ dialog::backdrop {
   function createStore(key, blank, normalize, migrations) {
     const listeners = new Set();
     let readOnly = false;
+    let writeFailed = false;
     let db = boot();
 
     function boot() {
@@ -768,6 +782,7 @@ dialog::backdrop {
       try {
         storage.setItem(key, JSON.stringify(db));
       } catch (error) {
+        writeFailed = true;
         console.warn("TBD: could not write to storage, changes stay in this session.", error);
       }
     }
@@ -779,6 +794,8 @@ dialog::backdrop {
 
     return {
       get: () => db,
+      readOnly: () => readOnly,
+      blocked: () => writeFailed,
       update(mutate) {
         mutate(db);
         commit();
@@ -916,7 +933,8 @@ dialog::backdrop {
 
   /* ------------------------------------------------------- dom handles */
 
-  const listsEl = $("#lists");
+  const listsEl = $("#list-items");
+  const storageWarnEl = $("#storage-warning");
   const settingsBtn = $("#btn-settings");
   const settingsMenu = $("#settings");
   const noteDialog = $("#dlg-note");
@@ -934,34 +952,38 @@ dialog::backdrop {
 
   const UNTITLED = "Untitled";
 
-  function editorNode(value, label, onEnd) {
+  function editorNode(edit, value, label) {
     const input = el("input", { class: "editor", type: "text", value, maxlength: "4000", "aria-label": label });
     let closed = false;
-    const finish = (text, discard) => {
+    const finish = (text, discard, keep) => {
       if (closed) return;
       closed = true;
-      onEnd(text, discard);
+      endEdit(edit, text, discard, keep);
     };
     input.addEventListener("keydown", (event) => {
       if (event.isComposing) return; // Enter commits an IME candidate (zh/ja), not the text
       if (event.key === "Enter") {
         event.preventDefault();
-        finish(input.value, false);
+        finish(input.value, false, true);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        finish("", true);
+        finish("", true, false);
       }
     });
-    input.addEventListener("blur", () => finish(input.value, false));
+    /* The click that moved focus away was aimed at the DOM from before the save.
+       Committing after it has landed keeps that click from missing its button. */
+    input.addEventListener("blur", () => {
+      doc.addEventListener("click", () => finish(input.value, false, false), { capture: true, once: true });
+      setTimeout(() => finish(input.value, false, false), 600); // blur without a click (Tab, re-render); slack for a slow synthesized tap
+    });
     return input;
   }
 
-  const isEditing = (kind, id) => Boolean(ui.editing) && ui.editing.kind === kind && ui.editing.id === id;
+  const editingFor = (kind, id) => (ui.editing && ui.editing.kind === kind && ui.editing.id === id ? ui.editing : null);
 
   function checklistHeading(checklist) {
-    if (isEditing("checklist", checklist.id)) {
-      return editorNode(checklist.title, "Checklist title", (value, discard) => endEdit(value, discard));
-    }
+    const edit = editingFor("checklist", checklist.id);
+    if (edit) return editorNode(edit, checklist.title, "Checklist title");
     const muted = checklist.items.length > 0 && checklist.items.every((item) => item.done);
     const chevron = el("i", { class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true" });
     const title = el("span", { class: ["cl-title", muted && "is-muted"], text: checklist.title || UNTITLED });
@@ -975,18 +997,27 @@ dialog::backdrop {
   }
 
   function itemRow(checklist, item) {
-    if (isEditing("item", item.id)) {
-      const editor = editorNode(item.text, "Item text", (value, discard) => endEdit(value, discard));
-      return el("li", { class: "item", "data-id": item.id }, editor);
-    }
+    const edit = editingFor("item", item.id);
+    if (edit) return el("li", { class: "item", "data-id": item.id }, editorNode(edit, item.text, "Item text"));
     const box = el("input", { type: "checkbox", checked: item.done, "aria-label": item.text || UNTITLED });
     const text = el("span", { class: "item-text", title: item.text || UNTITLED, text: item.text || UNTITLED });
     return el("li", { class: ["item", item.done && "is-done"], "data-id": item.id },
       el("label", { class: "item-row" }, box, text));
   }
 
-  function checklistBody(checklist) {
+  /* A brand-new item shows here as an editor row before it exists in the store. */
+  function visibleItems(checklist) {
     const items = checklist.items.filter((item) => item.archivedAt === null);
+    const edit = ui.editing;
+    if (edit && edit.kind === "item" && edit.parentId === checklist.id) {
+      if (settings().itemPosition === "top") items.unshift(edit.entity);
+      else items.push(edit.entity);
+    }
+    return items;
+  }
+
+  function checklistBody(checklist) {
+    const items = visibleItems(checklist);
     if (!items.length) return el("p", { class: "cl-empty", text: "No items yet." });
     return el("ul", { class: "items" }, items.map((item) => itemRow(checklist, item)));
   }
@@ -1024,6 +1055,12 @@ dialog::backdrop {
   function renderLists() {
     const previous = captureFocus();
     const checklists = activeChecklists();
+    const edit = ui.editing;
+    if (edit && edit.kind === "checklist") {
+      /* A brand-new checklist: drawn at its settings position, but not stored yet. */
+      if (settings().checklistPosition === "bottom") checklists.push(edit.entity);
+      else checklists.unshift(edit.entity);
+    }
     listsEl.replaceChildren(...(checklists.length ? checklists.map(checklistNode) : [emptyState()]));
     if (ui.focusEditor) {
       ui.focusEditor = false;
@@ -1048,10 +1085,25 @@ dialog::backdrop {
     for (const [name, select] of Object.entries(selects)) select.value = String(settings()[name]);
   }
 
+  /* Without a visible line, changes that silently never reach storage would just vanish. */
+  const SAVE_MSG = {
+    newer: "This data was saved by a newer version of TBD. Changes made here cannot be saved.",
+    blocked: "TBD cannot save changes. Anything you add or edit will be gone when you close this tab.",
+  };
+
+  function renderStorageWarning() {
+    let msg = "";
+    if (data.readOnly() || settingsStore.readOnly()) msg = SAVE_MSG.newer;
+    else if (memoryOnly || data.blocked() || settingsStore.blocked()) msg = SAVE_MSG.blocked;
+    storageWarnEl.textContent = msg;
+    storageWarnEl.hidden = !msg;
+  }
+
   function render() {
     renderLists();
     renderToolbar();
     syncSettingsForm();
+    renderStorageWarning();
   }
 
   /* --------------------------------------------------------- appearance */
@@ -1085,26 +1137,21 @@ dialog::backdrop {
 
   /* ----------------------------------------------------------- actions */
 
+  /* A brand-new entity lives in memory until its first text, so an abandoned
+     "+" leaves nothing behind — not even after a reload. */
   function addChecklist() {
-    const checklist = makeChecklist();
-    ui.editing = { kind: "checklist", id: checklist.id, fresh: true };
+    const entity = makeChecklist();
+    ui.editing = { kind: "checklist", id: entity.id, fresh: true, entity };
     ui.focusEditor = true;
-    data.update((store) => {
-      if (settings().checklistPosition === "bottom") store.checklists.push(checklist);
-      else store.checklists.unshift(checklist);
-    });
+    render();
   }
 
   function addItem(checklistId) {
-    data.update((store) => {
-      const checklist = store.checklists.find((row) => row.id === checklistId);
-      if (!checklist) return;
-      const item = makeItem();
-      if (settings().itemPosition === "top") checklist.items.unshift(item);
-      else checklist.items.push(item);
-      ui.editing = { kind: "item", id: item.id, fresh: true };
-      ui.focusEditor = true;
-    });
+    if (!db().checklists.some((row) => row.id === checklistId)) return; // e.g. a new checklist abandoned a moment ago
+    const entity = makeItem();
+    ui.editing = { kind: "item", id: entity.id, fresh: true, parentId: checklistId, entity };
+    ui.focusEditor = true;
+    render();
   }
 
   function toggleChecklist(checklistId) {
@@ -1151,21 +1198,41 @@ dialog::backdrop {
     return { list: null, index: -1 };
   }
 
-  /* Enter/blur save, Escape discards; an unsaved brand-new entity disappears. */
-  function endEdit(value, discard) {
-    const edit = ui.editing;
-    if (!edit) return;
-    ui.editing = null;
-    const text = discard ? "" : value.trim();
-    if (!text) {
-      if (edit.fresh) {
-        data.update((store) => {
-          const { list, index } = locate(store, edit);
-          if (list && index !== -1) list.splice(index, 1);
-        });
-      } else {
-        render(); // nothing changed in the store, but the editor must close
+  function insertFresh(edit, text) {
+    const entity = edit.entity;
+    entity[edit.kind === "checklist" ? "title" : "text"] = text;
+    entity.updatedAt = Date.now();
+    data.update((store) => {
+      if (edit.kind === "checklist") {
+        if (settings().checklistPosition === "bottom") store.checklists.push(entity);
+        else store.checklists.unshift(entity);
+        return;
       }
+      const checklist = store.checklists.find((row) => row.id === edit.parentId);
+      if (!checklist) return; // its checklist disappeared in another tab
+      if (settings().itemPosition === "top") checklist.items.unshift(entity);
+      else checklist.items.push(entity);
+    });
+  }
+
+  /* Enter/blur save, Escape discards. Enter on a brand-new item opens the next
+     one right away, so a whole list can be typed without reaching for "+". */
+  function endEdit(edit, value, discard, keep) {
+    if (edit.settled) return; // the deferred blur save of an already-closed editor
+    edit.settled = true;
+    if (ui.editing === edit) ui.editing = null;
+    const text = discard ? "" : value.trim();
+    if (edit.fresh) {
+      if (!text) {
+        render(); // nothing was ever stored, the editor simply goes away
+        return;
+      }
+      if (keep && edit.kind === "item") {
+        const next = makeItem();
+        ui.editing = { kind: "item", id: next.id, fresh: true, parentId: edit.parentId, entity: next };
+        ui.focusEditor = true;
+      }
+      insertFresh(edit, text);
       return;
     }
     data.update((store) => {
@@ -1209,6 +1276,10 @@ dialog::backdrop {
     ui.settingsOpen = open;
     settingsMenu.hidden = !open;
     settingsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    /* aria-controls only while the menu is open: pointing it at a hidden node trips axe. */
+    if (open) settingsBtn.setAttribute("aria-controls", "settings");
+    else settingsBtn.removeAttribute("aria-controls");
+    if (open) selects.theme.focus();
   }
 
   function bindHeader() {
@@ -1218,7 +1289,27 @@ dialog::backdrop {
     $("#btn-archive").addEventListener("click", () => {
       setSettingsOpen(false);
       // shortcut: the archive screen is task 5; until then the button says so.
-      openNote("Archive", "The archive is not in this build yet. It comes with the next step of TBD.");
+      openNote("Archive", "The archive is not in this build yet. It will arrive in a later version of TBD.");
+    });
+    /* The open menu is a dialog: Tab must circle inside it, not leak to the header —
+       listener on the document, because focus can escape to body via a click on a gap. */
+    doc.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab" || !ui.settingsOpen) return;
+      const nodes = [...settingsMenu.querySelectorAll("select, button")];
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (!settingsMenu.contains(doc.activeElement)) {
+        event.preventDefault(); // focus slipped out (gear, gap click): pull it back in
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (!event.shiftKey && doc.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && doc.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
     });
     doc.addEventListener("click", (event) => {
       if (!ui.settingsOpen || event.target.closest("#settings, #btn-settings")) return;
@@ -1245,7 +1336,9 @@ dialog::backdrop {
       if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
       else if (trigger.dataset.act === "add-item") addItem(holder.dataset.id);
     });
-    listsEl.addEventListener("change", (event) => {
+    /* Click, not change: a click already in flight while the list re-renders
+       still reaches this handler; the change event it fires would not. */
+    listsEl.addEventListener("click", (event) => {
       const box = event.target.closest('input[type="checkbox"]');
       if (!box) return;
       const holder = box.closest("[data-id]");
@@ -1268,6 +1361,7 @@ dialog::backdrop {
       applyTheme();
       applyLanguage();
       syncSettingsForm();
+      renderStorageWarning();
     });
     data.subscribe(render);
     darkQuery.addEventListener("change", () => {
