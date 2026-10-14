@@ -7,7 +7,6 @@
 <meta name="description" content="TBD — checklists and to-do items, stored on this device.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f5f6f8">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0e1015">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='2' y='2' width='28' height='28' rx='8' fill='%234f46e5'/><path d='M9 16.5l4.5 4.5L23 11.5' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 
 <!-- Icons: external webfont (never inline svg). jsDelivr, then unpkg, then no glyphs at all —
@@ -15,6 +14,8 @@
 <link
   rel="stylesheet"
   href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+  integrity="sha384-CK2SzKma4jA5H/MXDUU7i1TqZlCFaD4T01vtyDFvPlD97JQyS+IsSh1nI2EFbpyk"
+  crossorigin="anonymous"
   onerror="this.onerror=null;this.href='https://unpkg.com/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css'"
 >
 
@@ -54,7 +55,7 @@ document.documentElement.dataset.theme = (() => {
   --gutter: clamp(12px, 4vw, 24px);
   --col: 720px;
   --pad: 10px;
-  --tap: 40px;
+  --tap: 44px;
   --panel-w: 44px;
   --panel-gap: 14px;
 
@@ -232,10 +233,6 @@ button {
   box-shadow: var(--shadow-2);
 }
 
-.menu[hidden] {
-  display: none;
-}
-
 .field {
   display: flex;
   align-items: center;
@@ -260,6 +257,7 @@ button {
   background: var(--surface-2);
   color: inherit;
   font: inherit;
+  font-size: 16px; /* Safari zooms the page into focused fields smaller than 16px */
 }
 
 .sep {
@@ -354,7 +352,7 @@ button {
 }
 
 .item {
-  min-height: 42px;
+  min-height: 44px;
   padding-inline: 2px;
   border-radius: var(--radius-sm);
 }
@@ -363,7 +361,7 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
+  min-height: 44px;
   padding-inline: 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -451,6 +449,7 @@ button {
   background: var(--surface);
   color: inherit;
   font: inherit;
+  font-size: 16px; /* Safari zooms the page into focused fields smaller than 16px */
 }
 
 .editor:focus-visible {
@@ -565,56 +564,24 @@ dialog::backdrop {
         <div id="settings" class="menu" role="dialog" aria-label="Settings" hidden>
           <label class="field" for="set-theme">
             <span class="field-label">Theme</span>
-            <select id="set-theme">
-              <option value="system">System</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
+            <select id="set-theme"></select>
           </label>
           <label class="field" for="set-language">
             <span class="field-label">Language</span>
-            <select id="set-language">
-              <option value="auto">Auto</option>
-              <option value="ru">Русский</option>
-              <option value="bg">Български</option>
-              <option value="en">English</option>
-              <option value="fr">Français</option>
-              <option value="es">Español</option>
-              <option value="ro">Română</option>
-              <option value="zh">中文</option>
-              <option value="ja">日本語</option>
-              <option value="eo">Esperanto</option>
-              <option value="ia">Interlingua</option>
-              <option value="tok">toki pona</option>
-            </select>
+            <select id="set-language"></select>
           </label>
           <div class="sep"></div>
           <label class="field" for="set-checklist">
             <span class="field-label">New checklist</span>
-            <select id="set-checklist">
-              <option value="top">Above all</option>
-              <option value="bottom">Below all</option>
-            </select>
+            <select id="set-checklist"></select>
           </label>
           <label class="field" for="set-item">
             <span class="field-label">New item</span>
-            <select id="set-item">
-              <option value="top">Above all</option>
-              <option value="bottom">Below all</option>
-            </select>
+            <select id="set-item"></select>
           </label>
           <label class="field" for="set-page-size">
             <span class="field-label">Per page</span>
-            <select id="set-page-size">
-              <option value="all">All</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="30">30</option>
-              <option value="50">50</option>
-              <option value="80">80</option>
-              <option value="130">130</option>
-              <option value="210">210</option>
-            </select>
+            <select id="set-page-size"></select>
           </label>
           <div class="sep"></div>
           <button id="btn-archive" class="menu-item" type="button"><i class="bi bi-archive" aria-hidden="true"></i><span>Archive</span></button>
@@ -683,7 +650,7 @@ dialog::backdrop {
     for (const [key, value] of Object.entries(props || {})) {
       if (value !== null && value !== undefined && value !== false) setProp(node, key, value);
     }
-    node.append(...kids.flat(9).filter((kid) => kid !== null && kid !== undefined && kid !== false)
+    node.append(...kids.flat().filter((kid) => kid !== null && kid !== undefined && kid !== false)
       .map((kid) => (kid instanceof Node ? kid : doc.createTextNode(String(kid)))));
     return node;
   }
@@ -740,10 +707,7 @@ dialog::backdrop {
   function migrate(raw, blank, migrations) {
     if (raw === null || typeof raw !== "object") return blank();
     const from = Number.isFinite(raw.schema) ? raw.schema : 0;
-    if (from > SCHEMA) {
-      console.warn("TBD: data comes from a newer version, keeping it as is.");
-      return raw;
-    }
+    if (from > SCHEMA) return raw; // newer data: boot() marks the store read-only; the on-screen line says so
     let db = raw;
     for (let version = from + 1; version <= SCHEMA; version += 1) {
       const step = migrations[version];
@@ -799,6 +763,13 @@ dialog::backdrop {
       update(mutate) {
         mutate(db);
         commit();
+      },
+      /* Like update(), but listeners stay asleep: the caller has already applied
+         this change to the DOM itself (see the checkbox handler in bindLists). */
+      updateQuiet(mutate) {
+        const result = mutate(db);
+        persist();
+        return result;
       },
       patch(values) {
         Object.assign(db, values);
@@ -899,6 +870,16 @@ dialog::backdrop {
     pageSize: { default: 20, numeric: true, values: ["all", 10, 20, 30, 50, 80, 130, 210] },
   };
 
+  /* Captions for the <option>s, which are built from SETTING_SPECS; task 2 moves these into i18n. */
+  const POSITION_LABELS = { top: "Above all", bottom: "Below all" };
+  const OPTION_LABELS = {
+    theme: { system: "System", dark: "Dark", light: "Light" },
+    language: { auto: "Auto", ru: "Русский", bg: "Български", en: "English", fr: "Français", es: "Español", ro: "Română", zh: "中文", ja: "日本語", eo: "Esperanto", ia: "Interlingua", tok: "toki pona" },
+    checklistPosition: POSITION_LABELS,
+    itemPosition: POSITION_LABELS,
+    pageSize: { all: "All" },
+  };
+
   function castSetting(name, value) {
     const spec = SETTING_SPECS[name];
     if (!spec) return value;
@@ -933,11 +914,14 @@ dialog::backdrop {
 
   /* ------------------------------------------------------- dom handles */
 
+  const mainEl = $("#lists");
   const listsEl = $("#list-items");
   const storageWarnEl = $("#storage-warning");
   const settingsBtn = $("#btn-settings");
   const settingsMenu = $("#settings");
   const noteDialog = $("#dlg-note");
+  const expandBtn = $("#btn-expand-all");
+  const collapseBtn = $("#btn-collapse-all");
   const selects = {
     theme: $("#set-theme"),
     language: $("#set-language"),
@@ -946,45 +930,48 @@ dialog::backdrop {
     pageSize: $("#set-page-size"),
   };
   const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  const THEME_COLOR = { light: "#f5f6f8", dark: "#0e1015" };
 
   /* ----------------------------------------------------------- render */
 
   const UNTITLED = "Untitled";
 
   function editorNode(edit, value, label) {
-    const input = el("input", { class: "editor", type: "text", value, maxlength: "4000", "aria-label": label });
-    let closed = false;
-    const finish = (text, discard, keep) => {
-      if (closed) return;
-      closed = true;
-      endEdit(edit, text, discard, keep);
-    };
+    const input = el("input", {
+      class: "editor", type: "text", value, maxlength: "4000", enterkeyhint: "done",
+      spellcheck: "false", autocomplete: "off", "aria-label": label,
+    });
     input.addEventListener("keydown", (event) => {
       if (event.isComposing) return; // Enter commits an IME candidate (zh/ja), not the text
       if (event.key === "Enter") {
         event.preventDefault();
-        finish(input.value, false, true);
+        endEdit(edit, input.value, false, true);
       } else if (event.key === "Escape") {
         event.preventDefault();
-        finish("", true, false);
+        endEdit(edit, "", true, false);
       }
     });
     /* The click that moved focus away was aimed at the DOM from before the save.
-       Committing after it has landed keeps that click from missing its button. */
+       Committing after it has landed keeps that click from missing its button.
+       endEdit ignores the second call when both the click and the timer fire. */
     input.addEventListener("blur", () => {
-      doc.addEventListener("click", () => finish(input.value, false, false), { capture: true, once: true });
-      setTimeout(() => finish(input.value, false, false), 600); // blur without a click (Tab, re-render); slack for a slow synthesized tap
+      const commit = () => {
+        doc.removeEventListener("click", commit, true);
+        endEdit(edit, input.value, false, false);
+      };
+      doc.addEventListener("click", commit, { capture: true, once: true });
+      setTimeout(commit, 600); // blur without a click (Tab, re-render); slack for a slow synthesized tap
     });
     return input;
   }
 
   const editingFor = (kind, id) => (ui.editing && ui.editing.kind === kind && ui.editing.id === id ? ui.editing : null);
 
+  const allDone = (checklist) => checklist.items.length > 0 && checklist.items.every((item) => item.done);
+
   function checklistHeading(checklist) {
     const edit = editingFor("checklist", checklist.id);
     if (edit) return editorNode(edit, checklist.title, "Checklist title");
-    const muted = checklist.items.length > 0 && checklist.items.every((item) => item.done);
+    const muted = allDone(checklist);
     const chevron = el("i", { class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true" });
     const title = el("span", { class: ["cl-title", muted && "is-muted"], text: checklist.title || UNTITLED });
     return el("button", {
@@ -1047,7 +1034,10 @@ dialog::backdrop {
   function restoreFocus(target) {
     if (!target) return;
     const holder = listsEl.querySelector(`[data-id="${CSS.escape(target.id)}"]`);
-    if (!holder) return;
+    if (!holder) {
+      mainEl.focus(); // its row is gone: keep the keyboard in the page, not in <body>
+      return;
+    }
     const node = target.checkbox ? holder.querySelector('input[type="checkbox"]') : holder.querySelector("button, input");
     if (node) node.focus();
   }
@@ -1077,8 +1067,11 @@ dialog::backdrop {
   function renderToolbar() {
     const checklists = activeChecklists();
     const open = checklists.filter((checklist) => checklist.open).length;
-    $("#btn-expand-all").disabled = open === checklists.length;
-    $("#btn-collapse-all").disabled = open === 0;
+    const focused = [expandBtn, collapseBtn].find((btn) => doc.activeElement === btn);
+    expandBtn.disabled = open === checklists.length;
+    collapseBtn.disabled = open === 0;
+    /* Disabling the focused button drops the keyboard to <body>; hand it to the sibling. */
+    if (focused && focused.disabled) (focused === expandBtn ? collapseBtn : expandBtn).focus();
   }
 
   function syncSettingsForm() {
@@ -1115,7 +1108,8 @@ dialog::backdrop {
     else if (mode === "light") dark = false;
     else dark = darkQuery.matches;
     root.dataset.theme = dark ? "dark" : "light";
-    $('meta[name="theme-color"]').content = dark ? THEME_COLOR.dark : THEME_COLOR.light;
+    // One source for the color: the --bg token of the theme just switched to.
+    $('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue("--bg").trim();
   }
 
   function applyLanguage() {
@@ -1163,16 +1157,20 @@ dialog::backdrop {
     });
   }
 
+  /* Quiet on purpose: the click handler ticks the box and swaps the classes in
+     place, so marking done does not pay for a full re-render.
+     shortcut: re-measure when pagination (task 2) lands. */
   function toggleItem(itemId) {
-    data.update((store) => {
+    return data.updateQuiet((store) => {
       for (const checklist of store.checklists) {
         const item = checklist.items.find((row) => row.id === itemId);
         if (item) {
           item.done = !item.done;
           item.updatedAt = Date.now();
-          return;
+          return { item, checklist };
         }
       }
+      return null;
     });
   }
 
@@ -1221,7 +1219,11 @@ dialog::backdrop {
     if (edit.settled) return; // the deferred blur save of an already-closed editor
     edit.settled = true;
     if (ui.editing === edit) ui.editing = null;
-    const text = discard ? "" : value.trim();
+    if (discard) {
+      render(); // Escape cancels: the stored text is neither read nor overwritten
+      return;
+    }
+    const text = value.trim();
     if (edit.fresh) {
       if (!text) {
         render(); // nothing was ever stored, the editor simply goes away
@@ -1323,12 +1325,32 @@ dialog::backdrop {
   }
 
   function bindToolbar() {
-    $("#btn-expand-all").addEventListener("click", () => setAllOpen(true));
-    $("#btn-collapse-all").addEventListener("click", () => setAllOpen(false));
+    expandBtn.addEventListener("click", () => setAllOpen(true));
+    collapseBtn.addEventListener("click", () => setAllOpen(false));
   }
 
   function bindLists() {
+    /* Click, not change: a click already in flight while the list re-renders
+       still reaches this handler; the change event it fires would not. */
     listsEl.addEventListener("click", (event) => {
+      const box = event.target.closest('input[type="checkbox"]');
+      if (box) {
+        const row = box.closest("[data-id]");
+        if (!row) return;
+        const changed = toggleItem(row.dataset.id);
+        if (!changed) return;
+        if (!listsEl.contains(row)) {
+          render(); // this very click's blur-commit rebuilt the list: show the just-saved state
+          return;
+        }
+        /* The browser already ticked the box and only classes follow, so set
+           them in place instead of re-rendering every list (the hot path). */
+        row.classList.toggle("is-done", changed.item.done);
+        const title = row.closest(".cl")?.querySelector(".cl-title");
+        if (title) title.classList.toggle("is-muted", allDone(changed.checklist));
+        if (data.blocked()) renderStorageWarning(); // a write failure must still get its line
+        return;
+      }
       const trigger = event.target.closest("[data-act]");
       if (!trigger) return;
       const holder = trigger.closest("[data-id]");
@@ -1336,18 +1358,16 @@ dialog::backdrop {
       if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
       else if (trigger.dataset.act === "add-item") addItem(holder.dataset.id);
     });
-    /* Click, not change: a click already in flight while the list re-renders
-       still reaches this handler; the change event it fires would not. */
-    listsEl.addEventListener("click", (event) => {
-      const box = event.target.closest('input[type="checkbox"]');
-      if (!box) return;
-      const holder = box.closest("[data-id]");
-      if (holder) toggleItem(holder.dataset.id);
-    });
   }
 
   function bindSettings() {
     for (const [name, select] of Object.entries(selects)) {
+      /* Options come from SETTING_SPECS alone: a value the cast accepts can
+         never be missing from the <select> (and vice versa). */
+      const labels = OPTION_LABELS[name];
+      select.replaceChildren(...SETTING_SPECS[name].values.map((value) => el("option", {
+        value: String(value), text: labels?.[value] ?? String(value),
+      })));
       select.addEventListener("change", () => settingsStore.patch({ [name]: castSetting(name, select.value) }));
     }
   }
@@ -1369,8 +1389,13 @@ dialog::backdrop {
     });
     /* Keep two open tabs in sync (fires for the other tabs only). */
     window.addEventListener("storage", (event) => {
-      if (event.key === KEYS.data) data.reload();
-      else if (event.key === KEYS.settings) settingsStore.reload();
+      /* A data reload rebuilds the lists and destroys the open editor, losing
+         the text being typed — a stale view beats lost keystrokes.
+         shortcut: task 2's targeted list updates remove this. Settings never
+         touch the editor, so they keep syncing live. */
+      if (event.key === KEYS.data) {
+        if (!ui.editing) data.reload();
+      } else if (event.key === KEYS.settings) settingsStore.reload();
     });
     applyTheme();
     applyLanguage();
