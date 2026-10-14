@@ -58,6 +58,7 @@ document.documentElement.dataset.theme = (() => {
   --tap: 44px;
   --panel-w: 44px;
   --panel-gap: 14px;
+  --topbar-h: 63px; /* measured by JS at startup: it depends on the safe-area insets */
 
   color-scheme: light;
 }
@@ -308,6 +309,24 @@ button {
   padding: 6px 6px 6px 4px;
 }
 
+/* The header of an open checklist sticks under the app header for as long as its
+   own card is on screen; CSS does the tracking, so re-renders cannot desync it. */
+.cl.is-open > .cl-head {
+  position: sticky;
+  inset-block-start: var(--topbar-h);
+  z-index: 2;
+  background: var(--surface);
+  border-start-start-radius: calc(var(--radius) - 1px);
+  border-start-end-radius: calc(var(--radius) - 1px);
+}
+
+/* Keep landing points clear of the two sticky bars when the browser scrolls:
+   #list-items is where a checklist page change lands, .editor where focus lands. */
+#list-items,
+.editor {
+  scroll-margin-block-start: calc(var(--topbar-h) + 8px);
+}
+
 .cl-heading {
   flex: 1;
   min-width: 0;
@@ -330,6 +349,7 @@ button {
 
 .cl-toggle .bi {
   flex: none;
+  padding-inline: 7px;
   font-size: 13px;
   color: var(--muted);
 }
@@ -417,6 +437,26 @@ button {
 
 .empty-hint {
   margin-block-start: 4px;
+}
+
+/* ===== pager ===== */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-block: 2px 10px;
+}
+
+.pager-info {
+  /* flex: none + nowrap: a long translated label must not be squeezed under an arrow */
+  flex: none;
+  min-inline-size: 112px;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .noscript {
@@ -552,54 +592,54 @@ dialog::backdrop {
 </style>
 </head>
 <body>
-<a class="skip-link" href="#lists">Skip to lists</a>
+<a class="skip-link" href="#lists" data-i18n="skip">Skip to lists</a>
 
 <header class="topbar">
   <div class="topbar-inner">
     <h1 class="brand">TBD</h1>
     <div class="topbar-actions">
-      <button id="btn-add" class="iconbtn" type="button" aria-label="Add checklist" title="Add checklist"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
+      <button id="btn-add" class="iconbtn" type="button" data-i18n-label="addChecklist" aria-label="Add checklist" title="Add checklist"><i class="bi bi-plus-lg" aria-hidden="true"></i></button>
       <div class="menu-anchor">
-        <button id="btn-settings" class="iconbtn" type="button" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" title="Settings"><i class="bi bi-gear" aria-hidden="true"></i></button>
-        <div id="settings" class="menu" role="dialog" aria-label="Settings" hidden>
+        <button id="btn-settings" class="iconbtn" type="button" data-i18n-label="settings" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" title="Settings"><i class="bi bi-gear" aria-hidden="true"></i></button>
+        <div id="settings" class="menu" role="dialog" data-i18n-aria="settings" aria-label="Settings" hidden>
           <label class="field" for="set-theme">
-            <span class="field-label">Theme</span>
+            <span class="field-label" data-i18n="theme">Theme</span>
             <select id="set-theme"></select>
           </label>
           <label class="field" for="set-language">
-            <span class="field-label">Language</span>
+            <span class="field-label" data-i18n="language">Language</span>
             <select id="set-language"></select>
           </label>
           <div class="sep"></div>
           <label class="field" for="set-checklist">
-            <span class="field-label">New checklist</span>
+            <span class="field-label" data-i18n="newChecklist">New checklist</span>
             <select id="set-checklist"></select>
           </label>
           <label class="field" for="set-item">
-            <span class="field-label">New item</span>
+            <span class="field-label" data-i18n="newItem">New item</span>
             <select id="set-item"></select>
           </label>
           <label class="field" for="set-page-size">
-            <span class="field-label">Per page</span>
+            <span class="field-label" data-i18n="pageSize">Per page</span>
             <select id="set-page-size"></select>
           </label>
           <div class="sep"></div>
-          <button id="btn-archive" class="menu-item" type="button"><i class="bi bi-archive" aria-hidden="true"></i><span>Archive</span></button>
+          <button id="btn-archive" class="menu-item" type="button"><i class="bi bi-archive" aria-hidden="true"></i><span data-i18n="archive">Archive</span></button>
         </div>
       </div>
-      <button id="btn-help" class="iconbtn" type="button" aria-label="Help" title="Help"><i class="bi bi-question-lg" aria-hidden="true"></i></button>
+      <button id="btn-help" class="iconbtn" type="button" data-i18n-label="help" aria-label="Help" title="Help"><i class="bi bi-question-lg" aria-hidden="true"></i></button>
     </div>
   </div>
 </header>
 
 <noscript><p class="noscript">TBD needs JavaScript to run.</p></noscript>
 
-<main id="lists" class="main" tabindex="-1" aria-label="Checklists">
+<main id="lists" class="main" tabindex="-1" data-i18n-aria="lists" aria-label="Lists">
   <p id="storage-warning" class="notice" role="status" hidden></p>
   <div id="list-items"></div>
-  <div class="panel" role="toolbar" aria-label="Lists" aria-orientation="vertical">
-    <button id="btn-expand-all" class="iconbtn" type="button" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
-    <button id="btn-collapse-all" class="iconbtn" type="button" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
+  <div class="panel" role="toolbar" data-i18n-aria="lists" aria-label="Lists" aria-orientation="vertical">
+    <button id="btn-expand-all" class="iconbtn" type="button" data-i18n-label="expandAll" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
+    <button id="btn-collapse-all" class="iconbtn" type="button" data-i18n-label="collapseAll" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
   </div>
 </main>
 
@@ -607,16 +647,15 @@ dialog::backdrop {
   <h2 id="note-title" class="dialog-title"></h2>
   <p id="note-body" class="dialog-body"></p>
   <form method="dialog" class="dialog-actions">
-    <button class="btn btn--accent" type="submit">Close</button>
+    <button class="btn btn--accent" type="submit" data-i18n="close">Close</button>
   </form>
 </dialog>
 
 <script>
 /* ===========================================================================
    TBD — one-file todo app. docs/spec.md
-   1. utils  2. storage + store  3. data model  4. settings  5. render
-   6. actions  7. wiring
-   UI strings are English literals; task 2 replaces them with the i18n engine.
+   1. utils  2. storage + store  3. data model  4. settings  5. i18n
+   6. render  7. actions  8. wiring
    =========================================================================== */
 (() => {
   "use strict";
@@ -866,18 +905,7 @@ dialog::backdrop {
     language: { default: "auto", values: ["auto", ...LANGS] },
     checklistPosition: { default: "top", values: ["top", "bottom"] },
     itemPosition: { default: "bottom", values: ["top", "bottom"] },
-    // shortcut: pageSize is stored but not applied yet, task 2 adds pagination.
     pageSize: { default: 20, numeric: true, values: ["all", 10, 20, 30, 50, 80, 130, 210] },
-  };
-
-  /* Captions for the <option>s, which are built from SETTING_SPECS; task 2 moves these into i18n. */
-  const POSITION_LABELS = { top: "Above all", bottom: "Below all" };
-  const OPTION_LABELS = {
-    theme: { system: "System", dark: "Dark", light: "Light" },
-    language: { auto: "Auto", ru: "Русский", bg: "Български", en: "English", fr: "Français", es: "Español", ro: "Română", zh: "中文", ja: "日本語", eo: "Esperanto", ia: "Interlingua", tok: "toki pona" },
-    checklistPosition: POSITION_LABELS,
-    itemPosition: POSITION_LABELS,
-    pageSize: { all: "All" },
   };
 
   function castSetting(name, value) {
@@ -910,7 +938,15 @@ dialog::backdrop {
   const activeChecklists = () => db().checklists.filter((checklist) => checklist.archivedAt === null);
 
   /* Transient UI state, never persisted. */
-  const ui = { editing: null, focusEditor: false, settingsOpen: false };
+  const ui = {
+    editing: null, focusEditor: false, settingsOpen: false,
+    pages: { checklists: 1, items: {} }, // current page per list, never persisted
+    scrolledTo: null, // pager key: scroll the new page into view once the lists are rebuilt
+  };
+
+  /* A write from the other window that arrived while an editor was open, waiting to
+     be adopted at commit time (see endEdit and the storage listener). */
+  let staleData = false;
 
   /* ------------------------------------------------------- dom handles */
 
@@ -930,16 +966,556 @@ dialog::backdrop {
     pageSize: $("#set-page-size"),
   };
   const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const topbarEl = $(".topbar");
+
+  /* ------------------------------------------------------------- i18n */
+
+  /* Dictionaries are inlined, not fetched: translations work offline and on file://.
+     Every language carries every key; anything missing falls back to English, so a
+     half-finished dictionary degrades per string instead of breaking the UI.
+     toki pona has ~130 words, so its captions are deliberate coinages. */
+  const STRINGS = {
+    en: {
+      skip: "Skip to lists",
+      addChecklist: "Add checklist",
+      settings: "Settings",
+      help: "Help",
+      theme: "Theme",
+      language: "Language",
+      langAuto: "Auto",
+      newChecklist: "New checklist",
+      newItem: "New item",
+      pageSize: "Per page",
+      archive: "Archive",
+      lists: "Lists",
+      expandAll: "Expand all checklists",
+      collapseAll: "Collapse all checklists",
+      close: "Close",
+      untitled: "Untitled",
+      checklistTitle: "Checklist title",
+      itemText: "Item text",
+      addItem: "Add item",
+      noItems: "No items yet.",
+      emptyTitle: "Nothing here yet",
+      emptyHint: "Press + in the header to create your first checklist.",
+      dataNewer: "This data was saved by a newer version of TBD. Changes made here cannot be saved.",
+      storageBlocked: "TBD cannot save changes. Anything you add or edit will be gone when you close this tab.",
+      helpBody: "TBD keeps your lists in this browser — nothing is uploaded anywhere.\nPress + in the header to add a checklist, then type its name and press Enter.\nPress the + at the right of an open checklist to add items.\nTick an item when it is done; finished things turn grey.\nUse the buttons on the right to open or close every checklist at once.\nThe gear holds theme, language, where new things are added, and page size.\nIf a name or item is cut short, press it to read it in full.",
+      archiveSoon: "The archive is not in this build yet. It will arrive in a later version of TBD.",
+      fullText: "Full text",
+      prevPage: "Previous page",
+      nextPage: "Next page",
+      pageInfo: "Page %1 of %2",
+      checklistPages: "Checklist pages",
+      itemPages: "Item pages",
+      toggleList: "Open or close this checklist",
+      themeSystem: "System",
+      themeDark: "Dark",
+      themeLight: "Light",
+      posTop: "Above all",
+      posBottom: "Below all",
+      all: "All",
+    },
+    ru: {
+      skip: "Перейти к спискам",
+      addChecklist: "Добавить чек-лист",
+      settings: "Настройки",
+      help: "Справка",
+      theme: "Тема",
+      language: "Язык",
+      langAuto: "Авто",
+      newChecklist: "Новый чек-лист",
+      newItem: "Новый пункт",
+      pageSize: "На странице",
+      archive: "Архив",
+      lists: "Списки",
+      expandAll: "Развернуть все чек-листы",
+      collapseAll: "Свернуть все чек-листы",
+      close: "Закрыть",
+      untitled: "Без названия",
+      checklistTitle: "Название чек-листа",
+      itemText: "Текст пункта",
+      addItem: "Добавить пункт",
+      noItems: "Пока нет пунктов.",
+      emptyTitle: "Здесь пока пусто",
+      emptyHint: "Нажмите «плюс» в шапке, чтобы создать первый чек-лист.",
+      dataNewer: "Эти данные сохранила более новая версия TBD. Изменения, внесённые здесь, сохранить нельзя.",
+      storageBlocked: "TBD не может сохранять изменения. Всё добавленное и изменённое исчезнет после закрытия вкладки.",
+      helpBody: "TBD хранит списки в этом браузере — ничего никуда не отправляется.\nНажмите «плюс» в шапке, введите название чек-листа и нажмите Enter.\nНажмите «плюс» справа у открытого чек-листа, чтобы добавить пункт.\nОтметьте пункт, когда он выполнен, — сделанное становится серым.\nКнопки справа раскрывают или сворачивают все чек-листы сразу.\nВ шестерёнке — тема, язык, место для новых записей и размер страницы.\nЕсли текст не помещается и обрывается, нажмите на него, чтобы прочесть целиком.",
+      archiveSoon: "Архива в этой версии ещё нет. Он появится позже.",
+      fullText: "Полный текст",
+      prevPage: "Предыдущая страница",
+      nextPage: "Следующая страница",
+      pageInfo: "Страница %1 из %2",
+      checklistPages: "Страницы чек-листов",
+      itemPages: "Страницы пунктов",
+      toggleList: "Открыть или закрыть чек-лист",
+      themeSystem: "Системная",
+      themeDark: "Тёмная",
+      themeLight: "Светлая",
+      posTop: "Выше всех",
+      posBottom: "Ниже всех",
+      all: "Все",
+    },
+    bg: {
+      skip: "Към списъците",
+      addChecklist: "Добави списък",
+      settings: "Настройки",
+      help: "Помощ",
+      theme: "Тема",
+      language: "Език",
+      langAuto: "Авто",
+      newChecklist: "Нов списък",
+      newItem: "Нова точка",
+      pageSize: "На страница",
+      archive: "Архив",
+      lists: "Списъци",
+      expandAll: "Разгъни всички списъци",
+      collapseAll: "Сгъни всички списъци",
+      close: "Затвори",
+      untitled: "Без заглавие",
+      checklistTitle: "Заглавие на списъка",
+      itemText: "Текст на точката",
+      addItem: "Добави точка",
+      noItems: "Все още няма точки.",
+      emptyTitle: "Тук още няма нищо",
+      emptyHint: "Натиснете «+» в горната лента, за да създадете първия списък.",
+      dataNewer: "Тези данни са запазени от по-нова версия на TBD. Промените, направени тук, не могат да се запазят.",
+      storageBlocked: "TBD не може да запазва промени. Всичко добавено или променено ще изчезне, след като затворите раздела.",
+      helpBody: "TBD пази списъците ви в този браузър — нищо не се изпраща никъде.\nНатиснете «+» в горната лента, напишете името на списъка и натиснете Enter.\nНатиснете «+» вдясно от отворен списък, за да добавите точка.\nОтбележете точка, когато е готова — свършеното става сиво.\nБутоните вдясно отварят или затварят всички списъци наведнъж.\nЗъбното колело пази тема, език, къде се добавят новите записи и размера на страницата.\nАко текст е отрязан, натиснете го, за да го прочетете целия.",
+      archiveSoon: "Архивът още го няма в тази версия. Ще дойде по-късно.",
+      fullText: "Пълен текст",
+      prevPage: "Предишна страница",
+      nextPage: "Следваща страница",
+      pageInfo: "Страница %1 от %2",
+      checklistPages: "Страници на списъците",
+      itemPages: "Страници на точките",
+      toggleList: "Отвори или затвори списъка",
+      themeSystem: "Системна",
+      themeDark: "Тъмна",
+      themeLight: "Светла",
+      posTop: "Над всички",
+      posBottom: "Под всички",
+      all: "Всички",
+    },
+    fr: {
+      skip: "Aller aux listes",
+      addChecklist: "Ajouter une liste",
+      settings: "Paramètres",
+      help: "Aide",
+      theme: "Thème",
+      language: "Langue",
+      langAuto: "Automatique",
+      newChecklist: "Nouvelle liste",
+      newItem: "Nouvel élément",
+      pageSize: "Par page",
+      archive: "Archives",
+      lists: "Listes",
+      expandAll: "Tout développer",
+      collapseAll: "Tout réduire",
+      close: "Fermer",
+      untitled: "Sans titre",
+      checklistTitle: "Titre de la liste",
+      itemText: "Texte de l’élément",
+      addItem: "Ajouter un élément",
+      noItems: "Aucun élément pour l’instant.",
+      emptyTitle: "Rien pour l’instant",
+      emptyHint: "Appuyez sur + dans l’en-tête pour créer votre première liste.",
+      dataNewer: "Ces données ont été enregistrées par une version plus récente de TBD. Les modifications effectuées ici ne peuvent pas être enregistrées.",
+      storageBlocked: "TBD ne peut pas enregistrer les modifications. Tout ce que vous ajoutez ou modifiez disparaîtra à la fermeture de cet onglet.",
+      helpBody: "TBD garde vos listes dans ce navigateur — rien n’est envoyé nulle part.\nAppuyez sur + dans l’en-tête pour ajouter une liste, tapez son nom puis Entrée.\nAppuyez sur + à droite d’une liste ouverte pour ajouter un élément.\nCochez un élément lorsqu’il est terminé ; ce qui est fini devient gris.\nLes boutons de droite ouvrent ou ferment toutes les listes d’un coup.\nL’engrenage contient le thème, la langue, l’endroit où ajouter les nouveautés et la taille des pages.\nSi un nom ou un élément est tronqué, appuyez dessus pour le lire en entier.",
+      archiveSoon: "L’archive n’est pas encore dans cette version. Elle arrivera plus tard.",
+      fullText: "Texte complet",
+      prevPage: "Page précédente",
+      nextPage: "Page suivante",
+      pageInfo: "Page %1 sur %2",
+      checklistPages: "Pages des listes",
+      itemPages: "Pages des éléments",
+      toggleList: "Ouvrir ou fermer cette liste",
+      themeSystem: "Système",
+      themeDark: "Sombre",
+      themeLight: "Clair",
+      posTop: "Au-dessus de tout",
+      posBottom: "En dessous de tout",
+      all: "Tout",
+    },
+    es: {
+      skip: "Ir a las listas",
+      addChecklist: "Añadir lista",
+      settings: "Ajustes",
+      help: "Ayuda",
+      theme: "Tema",
+      language: "Idioma",
+      langAuto: "Automático",
+      newChecklist: "Nueva lista",
+      newItem: "Nuevo elemento",
+      pageSize: "Por página",
+      archive: "Archivo",
+      lists: "Listas",
+      expandAll: "Expandir todas las listas",
+      collapseAll: "Contraer todas las listas",
+      close: "Cerrar",
+      untitled: "Sin título",
+      checklistTitle: "Título de la lista",
+      itemText: "Texto del elemento",
+      addItem: "Añadir elemento",
+      noItems: "Aún no hay elementos.",
+      emptyTitle: "Aquí no hay nada todavía",
+      emptyHint: "Pulse + en la cabecera para crear su primera lista.",
+      dataNewer: "Estos datos los guardó una versión más reciente de TBD. Los cambios hechos aquí no se pueden guardar.",
+      storageBlocked: "TBD no puede guardar cambios. Lo que añada o cambie se perderá al cerrar esta pestaña.",
+      helpBody: "TBD guarda sus listas en este navegador — nada se envía a ningún sitio.\nPulse + en la cabecera para añadir una lista, escriba su nombre y pulse Intro.\nPulse + a la derecha de una lista abierta para añadir un elemento.\nMarque un elemento cuando esté hecho; lo terminado se vuelve gris.\nLos botones de la derecha abren o cierran todas las listas a la vez.\nEl engranaje guarda el tema, el idioma, dónde se añaden las novedades y el tamaño de página.\nSi un nombre o un elemento aparece cortado, púlselo para leerlo entero.",
+      archiveSoon: "El archivo aún no está en esta versión. Llegará más adelante.",
+      fullText: "Texto completo",
+      prevPage: "Página anterior",
+      nextPage: "Página siguiente",
+      pageInfo: "Página %1 de %2",
+      checklistPages: "Páginas de las listas",
+      itemPages: "Páginas de los elementos",
+      toggleList: "Abrir o cerrar esta lista",
+      themeSystem: "Sistema",
+      themeDark: "Oscuro",
+      themeLight: "Claro",
+      posTop: "Encima de todo",
+      posBottom: "Debajo de todo",
+      all: "Todas",
+    },
+    ro: {
+      skip: "Salt la liste",
+      addChecklist: "Adaugă listă",
+      settings: "Setări",
+      help: "Ajutor",
+      theme: "Temă",
+      language: "Limbă",
+      langAuto: "Automat",
+      newChecklist: "Listă nouă",
+      newItem: "Element nou",
+      pageSize: "Pe pagină",
+      archive: "Arhivă",
+      lists: "Liste",
+      expandAll: "Desfășoară toate listele",
+      collapseAll: "Restrânge toate listele",
+      close: "Închide",
+      untitled: "Fără titlu",
+      checklistTitle: "Titlul listei",
+      itemText: "Textul elementului",
+      addItem: "Adaugă element",
+      noItems: "Încă nu există elemente.",
+      emptyTitle: "Încă nu e nimic aici",
+      emptyHint: "Apasă + din antet pentru a crea prima listă.",
+      dataNewer: "Aceste date au fost salvate de o versiune mai nouă de TBD. Modificările făcute aici nu pot fi salvate.",
+      storageBlocked: "TBD nu poate salva modificările. Orice adaugi sau schimbi va dispărea când închizi această filă.",
+      helpBody: "TBD îți păstrează listele în acest browser — nimic nu este trimis nicăieri.\nApasă + din antet pentru a adăuga o listă, scrie-i numele și apasă Enter.\nApasă + din dreapta unei liste deschise pentru a adăuga un element.\nBifează un element când este gata; ce s-a terminat devine gri.\nButoanele din dreapta deschid sau închid toate listele deodată.\nRotița ține tema, limba, unde se adaugă elementele noi și dimensiunea paginii.\nDacă un nume sau un element este tăiat, apasă pe el ca să-l citești întreg.",
+      archiveSoon: "Arhiva nu este încă în această versiune. Va apărea mai târziu.",
+      fullText: "Text complet",
+      prevPage: "Pagina anterioară",
+      nextPage: "Pagina următoare",
+      pageInfo: "Pagina %1 din %2",
+      checklistPages: "Paginile listelor",
+      itemPages: "Paginile elementelor",
+      toggleList: "Deschide sau închide această listă",
+      themeSystem: "Sistem",
+      themeDark: "Întunecată",
+      themeLight: "Deschisă",
+      posTop: "Deasupra tuturor",
+      posBottom: "Sub toate",
+      all: "Toate",
+    },
+    zh: {
+      skip: "跳到清单",
+      addChecklist: "添加清单",
+      settings: "设置",
+      help: "帮助",
+      theme: "主题",
+      language: "语言",
+      langAuto: "自动",
+      newChecklist: "新建清单",
+      newItem: "新条目",
+      pageSize: "每页数量",
+      archive: "归档",
+      lists: "清单",
+      expandAll: "展开全部清单",
+      collapseAll: "折叠全部清单",
+      close: "关闭",
+      untitled: "未命名",
+      checklistTitle: "清单名称",
+      itemText: "条目文本",
+      addItem: "新建条目",
+      noItems: "还没有条目。",
+      emptyTitle: "这里还什么都没有",
+      emptyHint: "点击顶部的“+”创建第一个清单。",
+      dataNewer: "这些数据由更新版本的 TBD 保存，这里的改动无法保存。",
+      storageBlocked: "TBD 无法保存改动。关闭此标签页后，新增和修改的内容都会丢失。",
+      helpBody: "TBD 把清单存放在本浏览器里，不会上传到任何地方。\n点击顶部的“+”，输入清单名称后按回车。\n点击已展开清单右侧的“+”来添加条目。\n完成一个条目就勾选它，完成的内容会变灰。\n右侧的按钮可一次展开或折叠所有清单。\n齿轮里有主题、语言、新记录的位置和每页数量。\n名称或条目被截断时，点击它就能读完整内容。",
+      archiveSoon: "这个版本还没有归档，以后会加上。",
+      fullText: "完整文字",
+      prevPage: "上一页",
+      nextPage: "下一页",
+      pageInfo: "第 %1 页，共 %2 页",
+      checklistPages: "清单分页",
+      itemPages: "条目分页",
+      toggleList: "展开或折叠此清单",
+      themeSystem: "跟随系统",
+      themeDark: "深色",
+      themeLight: "浅色",
+      posTop: "最上方",
+      posBottom: "最下方",
+      all: "全部",
+    },
+    ja: {
+      skip: "リストへ移動",
+      addChecklist: "チェックリストを追加",
+      settings: "設定",
+      help: "ヘルプ",
+      theme: "テーマ",
+      language: "言語",
+      langAuto: "自動",
+      newChecklist: "新しいチェックリスト",
+      newItem: "新しい項目",
+      pageSize: "1ページあたり",
+      archive: "アーカイブ",
+      lists: "リスト",
+      expandAll: "すべてのチェックリストを展開",
+      collapseAll: "すべてのチェックリストを折りたたむ",
+      close: "閉じる",
+      untitled: "無題",
+      checklistTitle: "チェックリスト名",
+      itemText: "項目のテキスト",
+      addItem: "項目を追加",
+      noItems: "まだ項目がありません。",
+      emptyTitle: "まだ何もありません",
+      emptyHint: "上部の＋を押して最初のチェックリストを作成します。",
+      dataNewer: "このデータは新しい版の TBD が保存しました。ここでの変更は保存できません。",
+      storageBlocked: "TBD は変更を保存できません。追加や変更はこのタブを閉じると失われます。",
+      helpBody: "TBD はリストをこのブラウザーに保存します。どこにも送信しません。\n上部の＋を押し、名前を入力してから Enter を押します。\n開いているチェックリストの右の＋で項目を追加します。\n終わった項目にチェックを入れると、終わった物は灰色になります。\n右のボタンですべて展開・折りたたみできます。\n歯車にはテーマ、言語、新しい物の追加位置、1ページあたりの数があります。\n名前や項目が省略されたら、そこを押すと全文を読めます。",
+      archiveSoon: "この版にアーカイブはまだありません。後で追加されます。",
+      fullText: "全文",
+      prevPage: "前のページ",
+      nextPage: "次のページ",
+      pageInfo: "%1 / %2 ページ",
+      checklistPages: "チェックリストのページ",
+      itemPages: "項目のページ",
+      toggleList: "このチェックリストを開く・閉じる",
+      themeSystem: "システム",
+      themeDark: "ダーク",
+      themeLight: "ライト",
+      posTop: "一番上",
+      posBottom: "一番下",
+      all: "すべて",
+    },
+    eo: {
+      skip: "Salti al la listoj",
+      addChecklist: "Aldoni kontrolliston",
+      settings: "Agordoj",
+      help: "Helpo",
+      theme: "Etoso",
+      language: "Lingvo",
+      langAuto: "Aŭtomate",
+      newChecklist: "Nova kontrollisto",
+      newItem: "Nova punkto",
+      pageSize: "En paĝo",
+      archive: "Arkivo",
+      lists: "Listoj",
+      expandAll: "Malfermi ĉiujn kontrollistojn",
+      collapseAll: "Fermi ĉiujn kontrollistojn",
+      close: "Fermi",
+      untitled: "Sentitola",
+      checklistTitle: "Titolo de la kontrollisto",
+      itemText: "Teksto de la punkto",
+      addItem: "Aldoni punkton",
+      noItems: "Ankoraŭ neniuj punktoj.",
+      emptyTitle: "Ankoraŭ nenio ĉi tie",
+      emptyHint: "Premu la «+» en la suprabreto por krei vian unuan kontrolliston.",
+      dataNewer: "Pli nova versio de TBD konservis ĉi tiujn datumojn. Ĉi tie faritaj ŝanĝoj ne konserveblas.",
+      storageBlocked: "TBD ne povas konservi ŝanĝojn. Ĉio aldonita aŭ ŝanĝita perdiĝos kiam vi fermos ĉi tiun langeton.",
+      helpBody: "TBD konservas viajn listojn en ĉi tiu retumilo — nenio sendiĝas.\nPremu la «+» en la suprabreto por aldoni kontrolliston, skribu la nomon de la kontrollisto kaj premu Enter.\nPremu la «+» dekstre de malfermita kontrollisto por aldoni punkton.\nMarku punkton kiam ĝi finiĝis; finitaj aĵoj iĝas grizaj.\nLa butonoj dekstre malfermas aŭ fermas ĉiujn kontrollistojn samtempe.\nLa dentrado enhavas la etoson, la lingvon, kien aldoniĝas novaj aĵoj, kaj la paĝgrandecon.\nSe nomo aŭ punkto estas tranĉita, premu ĝin por legi ĝin tute.",
+      archiveSoon: "La arkivo ankoraŭ ne estas en ĉi tiu versio. Ĝi alvenos poste.",
+      fullText: "Plena teksto",
+      prevPage: "Antaŭa paĝo",
+      nextPage: "Sekva paĝo",
+      pageInfo: "Paĝo %1 el %2",
+      checklistPages: "Paĝoj de la kontrollistoj",
+      itemPages: "Paĝoj de la punktoj",
+      toggleList: "Malfermi aŭ fermi ĉi tiun kontrolliston",
+      themeSystem: "Sistema",
+      themeDark: "Malhela",
+      themeLight: "Hela",
+      posTop: "Super ĉiuj",
+      posBottom: "Sub ĉiuj",
+      all: "Ĉiuj",
+    },
+    ia: {
+      skip: "Saltar al listas",
+      addChecklist: "Adder lista de controlo",
+      settings: "Preferentias",
+      help: "Adjuta",
+      theme: "Thema",
+      language: "Lingua",
+      langAuto: "Automatic",
+      newChecklist: "Nove lista de controlo",
+      newItem: "Nove elemento",
+      pageSize: "Per pagina",
+      archive: "Archivo",
+      lists: "Listas",
+      expandAll: "Displicar omne listas de controlo",
+      collapseAll: "Plicar omne listas de controlo",
+      close: "Closer",
+      untitled: "Sin titulo",
+      checklistTitle: "Titulo del lista de controlo",
+      itemText: "Texto del elemento",
+      addItem: "Adder elemento",
+      noItems: "Il ha ancora nulle elemento.",
+      emptyTitle: "Il ha ancora nihil hic",
+      emptyHint: "Preme le «+» in le barra superior pro crear tu prime lista de controlo.",
+      dataNewer: "Un version plus recente de TBD salvava iste datos. Le modificationes facite hic non pote esser salvate.",
+      storageBlocked: "TBD non pote salvar modificationes. Toto que tu adde o cambia disparera quando tu claude iste scheda.",
+      helpBody: "TBD guarda tu listas in iste navigator — nihil es inviate alicubi.\nPreme le «+» in le barra superior, scribe le nomine del lista de controlo e preme Enter.\nPreme le «+» al latere dextre de un lista de controlo aperite pro adder un elemento.\nMarca un elemento quando illo es finite; le cosas finite deveni gris.\nLe buttones al latere dextre aperi o claude omne listas de controlo insimul.\nLe rota dentate contine le thema, le lingua, ubi le nove cosas se adde, e le dimension del pagina.\nSi un nomine o un elemento es truncate, preme lo pro leger lo integre.",
+      archiveSoon: "Le archivo non es ancora in iste version. Illo venira plus tarde.",
+      fullText: "Texto complete",
+      prevPage: "Pagina precedente",
+      nextPage: "Pagina sequente",
+      pageInfo: "Pagina %1 de %2",
+      checklistPages: "Paginas del listas de controlo",
+      itemPages: "Paginas del elementos",
+      toggleList: "Aperir o clauder iste lista de controlo",
+      themeSystem: "Systema",
+      themeDark: "Obscur",
+      themeLight: "Clar",
+      posTop: "Super toto",
+      posBottom: "Sub toto",
+      all: "Toto",
+    },
+    tok: {
+      skip: "o tawa lipu",
+      addChecklist: "pali e lipu",
+      settings: "nasin kepeken",
+      help: "sona",
+      theme: "kule",
+      language: "toki",
+      langAuto: "toki sina",
+      newChecklist: "lipu pali sin",
+      newItem: "pali sin",
+      pageSize: "mute lon lipu",
+      archive: "lipu pi tenpo pini",
+      lists: "lipu",
+      expandAll: "o open e lipu pali ale",
+      collapseAll: "o pini e lipu pali ale",
+      close: "pini",
+      untitled: "nimi ala",
+      checklistTitle: "nimi pi lipu pali",
+      itemText: "nimi pi pali",
+      addItem: "pana e pali",
+      noItems: "pali ala li lon.",
+      emptyTitle: "ala li lon ni",
+      emptyHint: "o luka e '+' lon sewi la sina pali e lipu.",
+      dataNewer: "ilo TBD sin li awen e ni. sina ken ala awen e ante lon ni.",
+      storageBlocked: "ilo TBD li ken ala awen e ante. o pini e lipu ni la ante ale li weka.",
+      helpBody: "TBD li awen e lipu sina lon ilo ni. ona li pana ala e sona tawa ante.\no luka e '+' lon sewi. o sitelen e nimi lipu. o luka e Enter.\no luka e '+' lon poka pi lipu pali open la pali sin li kama.\no sitelen e pali pini. pali pini li kama pimeja lili.\nilo lon poka li open anu pini e lipu pali ale.\nilo sike li jo e kule en toki en nasin pana en nanpa lipu.\nnimi li suli mute la o luka e ona la sina lukin e nimi ale.",
+      archiveSoon: "tenpo ni la ilo TBD jo ala e lipu pi tenpo pini. tenpo kama la ona li kama.",
+      fullText: "nimi ale",
+      prevPage: "lipu pini",
+      nextPage: "lipu kama",
+      pageInfo: "lipu %1 / %2",
+      checklistPages: "nanpa lipu pali",
+      itemPages: "nanpa pali",
+      toggleList: "o open anu pini e lipu pali ni",
+      themeSystem: "nasin ilo",
+      themeDark: "pimeja",
+      themeLight: "walo",
+      posTop: "lon sewi",
+      posBottom: "lon anpa",
+      all: "ale",
+    },
+  };
+
+  /* Language names stay in their own language in the picker, as every app does. */
+  const LANGUAGE_NAMES = {
+    ru: "Русский", bg: "Български", en: "English", fr: "Français", es: "Español",
+    ro: "Română", zh: "中文", ja: "日本語", eo: "Esperanto", ia: "Interlingua", tok: "toki pona",
+  };
+
+  /* <option> captions by dictionary key; the language list has none (endonyms). */
+  const OPTION_KEYS = {
+    theme: { system: "themeSystem", dark: "themeDark", light: "themeLight" },
+    checklistPosition: { top: "posTop", bottom: "posBottom" },
+    itemPosition: { top: "posTop", bottom: "posBottom" },
+    pageSize: { all: "all" },
+    language: { auto: "langAuto" }, // the other 11 name themselves, see LANGUAGE_NAMES
+  };
+
+  /* Current language, then English, then the key itself; %1…%9 come from args. */
+  function t(key, args) {
+    const text = STRINGS[root.lang]?.[key] ?? STRINGS.en[key] ?? key;
+    if (!args) return text;
+    return text.replace(/%(\d)/g, (match, index) => args[Number(index) - 1] ?? match);
+  }
+
+  /* The markup keeps English text as its default and points at the dictionary with
+     data-i18n (text), data-i18n-label (label + tooltip) and data-i18n-aria (label). */
+  let shownLang = "";
+  function applyStrings() {
+    if (root.lang === shownLang) return; // captions only move with the language
+    shownLang = root.lang;
+    for (const node of doc.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
+    for (const node of doc.querySelectorAll("[data-i18n-label]")) {
+      node.setAttribute("aria-label", t(node.dataset.i18nLabel));
+      node.title = t(node.dataset.i18nLabel);
+    }
+    for (const node of doc.querySelectorAll("[data-i18n-aria]")) node.setAttribute("aria-label", t(node.dataset.i18nAria));
+    for (const [name, select] of Object.entries(selects)) {
+      const keys = OPTION_KEYS[name];
+      select.replaceChildren(...SETTING_SPECS[name].values.map((value) => el("option", {
+        value: String(value),
+        text: keys?.[value] ? t(keys[value]) : LANGUAGE_NAMES[value] ?? String(value),
+      })));
+    }
+  }
+
+  /* ------------------------------------------------------- pagination */
+
+  /* One page of a list: what to show plus the page number clamped to what the
+     data allows — the store shrinks between renders whenever anything is removed. */
+  function paginate(list, page, size) {
+    const pages = size === "all" ? 1 : Math.max(1, Math.ceil(list.length / size));
+    const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
+    const from = size === "all" ? 0 : (current - 1) * size;
+    return { current, pages, shown: size === "all" ? list : list.slice(from, from + size) };
+  }
+
+  /* The page a brand-new entity lands on, so creating something never leaves the
+     user on a page without it: page 1 for "above all", the last page for "below all". */
+  function pageForNew(count, position) {
+    const size = settings().pageSize;
+    if (position !== "bottom" || size === "all") return 1;
+    return Math.ceil(count / size);
+  }
+
+  function pagerNode(key, label, page) {
+    const button = (dir, text) => el("button", {
+      class: "iconbtn", type: "button", "data-act": "page", "data-dir": String(dir),
+      disabled: dir < 0 ? page.current <= 1 : page.current >= page.pages,
+      /* The page number rides along in the name: after a page change focus lands on
+         this button, and its name is all a screen reader gets to announce. */
+      "aria-label": `${text}, ${t("pageInfo", [page.current, page.pages])}`,
+      title: text,
+    }, icon(dir < 0 ? "chevron-left" : "chevron-right"));
+    return el("nav", { class: "pager", "data-pager": String(key), "aria-label": label },
+      button(-1, t("prevPage")),
+      el("span", { class: "pager-info", text: t("pageInfo", [page.current, page.pages]) }),
+      button(1, t("nextPage")));
+  }
 
   /* ----------------------------------------------------------- render */
 
-  const UNTITLED = "Untitled";
-
   function editorNode(edit, value, label) {
+    /* edit.value carries what has been typed but not saved yet: a settings change
+       from the other window rebuilds this field, and the store knows nothing of it. */
     const input = el("input", {
-      class: "editor", type: "text", value, maxlength: "4000", enterkeyhint: "done",
+      class: "editor", type: "text", value: edit.value ?? value, maxlength: "4000", enterkeyhint: "done",
       spellcheck: "false", autocomplete: "off", "aria-label": label,
     });
+    input.addEventListener("input", () => { edit.value = input.value; });
     input.addEventListener("keydown", (event) => {
       if (event.isComposing) return; // Enter commits an IME candidate (zh/ja), not the text
       if (event.key === "Enter") {
@@ -970,24 +1546,30 @@ dialog::backdrop {
 
   function checklistHeading(checklist) {
     const edit = editingFor("checklist", checklist.id);
-    if (edit) return editorNode(edit, checklist.title, "Checklist title");
+    if (edit) return editorNode(edit, checklist.title, t("checklistTitle"));
     const muted = allDone(checklist);
-    const chevron = el("i", { class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true" });
-    const title = el("span", { class: ["cl-title", muted && "is-muted"], text: checklist.title || UNTITLED });
+    /* The arrow keeps its own tooltip: with a cut-off name a click on the name
+       opens the full text, so the arrow is what opens and closes the card. */
+    const chevron = el("i", {
+      class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true", title: t("toggleList"),
+    });
+    const name = checklist.title || t("untitled");
+    const title = el("span", { class: ["cl-title", muted && "is-muted"], text: name });
     return el("button", {
       class: "cl-toggle",
       type: "button",
       "data-act": "toggle",
       "aria-expanded": checklist.open ? "true" : "false",
-      title: checklist.title || UNTITLED,
+      title: name,
     }, chevron, title);
   }
 
   function itemRow(checklist, item) {
     const edit = editingFor("item", item.id);
-    if (edit) return el("li", { class: "item", "data-id": item.id }, editorNode(edit, item.text, "Item text"));
-    const box = el("input", { type: "checkbox", checked: item.done, "aria-label": item.text || UNTITLED });
-    const text = el("span", { class: "item-text", title: item.text || UNTITLED, text: item.text || UNTITLED });
+    if (edit) return el("li", { class: "item", "data-id": item.id }, editorNode(edit, item.text, t("itemText")));
+    const name = item.text || t("untitled");
+    const box = el("input", { type: "checkbox", checked: item.done, "aria-label": name });
+    const text = el("span", { class: "item-text", title: name, text: name });
     return el("li", { class: ["item", item.done && "is-done"], "data-id": item.id },
       el("label", { class: "item-row" }, box, text));
   }
@@ -1003,43 +1585,71 @@ dialog::backdrop {
     return items;
   }
 
+  /* Returns the nodes of one open checklist: its items, then the pager when there is one. */
   function checklistBody(checklist) {
     const items = visibleItems(checklist);
-    if (!items.length) return el("p", { class: "cl-empty", text: "No items yet." });
-    return el("ul", { class: "items" }, items.map((item) => itemRow(checklist, item)));
+    if (!items.length) return [el("p", { class: "cl-empty", text: t("noItems") })];
+    /* A brand-new item is drawn before it exists: keep following its page, so typing
+       on from the last row of a page never hides the field being typed in. */
+    const fresh = ui.editing;
+    const wanted = fresh && fresh.kind === "item" && fresh.parentId === checklist.id
+      ? pageForNew(items.length, settings().itemPosition)
+      : ui.pages.items[checklist.id] ?? 1;
+    const page = paginate(items, wanted, settings().pageSize);
+    ui.pages.items[checklist.id] = page.current;
+    const nodes = [el("ul", { class: "items" }, page.shown.map((item) => itemRow(checklist, item)))];
+    /* Named after its checklist: two identical "Item pages" landmarks read as one control. */
+    if (page.pages > 1) nodes.push(pagerNode(checklist.id, `${t("itemPages")}: ${checklist.title || t("untitled")}`, page));
+    return nodes;
   }
 
   function checklistNode(checklist) {
     const addBtn = checklist.open
-      ? el("button", { class: "iconbtn", type: "button", "data-act": "add-item", "aria-label": "Add item", title: "Add item" }, icon("plus-lg"))
+      ? el("button", { class: "iconbtn", type: "button", "data-act": "add-item", "aria-label": t("addItem"), title: t("addItem") }, icon("plus-lg"))
       : null;
     const head = el("div", { class: "cl-head" }, el("h2", { class: "cl-heading" }, checklistHeading(checklist)), addBtn);
-    return el("section", { class: "cl", "data-id": checklist.id }, head, checklist.open ? checklistBody(checklist) : null);
+    return el("section", { class: ["cl", checklist.open && "is-open"], "data-id": checklist.id },
+      head, checklist.open ? checklistBody(checklist) : null);
   }
 
   function emptyState() {
-    const title = el("p", { class: "empty-title", text: "Nothing here yet" });
-    const hint = el("p", { class: "empty-hint", text: "Press + in the header to create your first checklist." });
+    const title = el("p", { class: "empty-title", text: t("emptyTitle") });
+    const hint = el("p", { class: "empty-hint", text: t("emptyHint") });
     return el("div", { class: "empty" }, title, hint);
   }
 
-  /* Re-rendering swaps nodes, so remember what had focus and put it back. */
+  /* Re-rendering swaps nodes, so remember what had focus and put it back. The pager
+     is rebuilt too: its buttons are remembered by list + direction. */
   function captureFocus() {
     const active = doc.activeElement;
-    const holder = active && active.closest("[data-id]");
-    if (!holder || !listsEl.contains(holder)) return null;
+    if (!active || !listsEl.contains(active)) return null;
+    const pager = active.closest("[data-pager]");
+    if (pager) return { pager: pager.dataset.pager, dir: active.dataset.dir };
+    const holder = active.closest("[data-id]");
+    if (!holder) return null;
     return { id: holder.dataset.id, checkbox: active.matches('input[type="checkbox"]') };
   }
 
   function restoreFocus(target) {
     if (!target) return;
+    /* A page change scrolls on its own; focus must not scroll the page first. */
+    const options = ui.scrolledTo ? { preventScroll: true } : {};
+    if (target.pager) {
+      const nav = listsEl.querySelector(`[data-pager="${CSS.escape(target.pager)}"]`);
+      const buttons = nav ? [...nav.querySelectorAll("button")] : [];
+      const node = buttons.find((button) => button.dataset.dir === target.dir && !button.disabled)
+        || buttons.find((button) => !button.disabled); // the wanted one hit a page edge
+      if (node) node.focus(options);
+      else mainEl.focus(options); // the list shrank to one page: keep the keyboard in the page
+      return;
+    }
     const holder = listsEl.querySelector(`[data-id="${CSS.escape(target.id)}"]`);
     if (!holder) {
-      mainEl.focus(); // its row is gone: keep the keyboard in the page, not in <body>
+      mainEl.focus(options); // its row is gone: keep the keyboard in the page, not in <body>
       return;
     }
     const node = target.checkbox ? holder.querySelector('input[type="checkbox"]') : holder.querySelector("button, input");
-    if (node) node.focus();
+    if (node) node.focus(options);
   }
 
   function renderLists() {
@@ -1050,8 +1660,14 @@ dialog::backdrop {
       /* A brand-new checklist: drawn at its settings position, but not stored yet. */
       if (settings().checklistPosition === "bottom") checklists.push(edit.entity);
       else checklists.unshift(edit.entity);
+      // Same as for a new item: jump to the page the editor sits on, then scroll to it.
+      ui.pages.checklists = pageForNew(checklists.length, settings().checklistPosition);
     }
-    listsEl.replaceChildren(...(checklists.length ? checklists.map(checklistNode) : [emptyState()]));
+    const page = paginate(checklists, ui.pages.checklists, settings().pageSize);
+    ui.pages.checklists = page.current;
+    const nodes = page.shown.length ? page.shown.map(checklistNode) : [emptyState()];
+    if (page.pages > 1) nodes.push(pagerNode("checklists", t("checklistPages"), page));
+    listsEl.replaceChildren(...nodes);
     if (ui.focusEditor) {
       ui.focusEditor = false;
       const input = $(".editor", listsEl);
@@ -1079,24 +1695,33 @@ dialog::backdrop {
   }
 
   /* Without a visible line, changes that silently never reach storage would just vanish. */
-  const SAVE_MSG = {
-    newer: "This data was saved by a newer version of TBD. Changes made here cannot be saved.",
-    blocked: "TBD cannot save changes. Anything you add or edit will be gone when you close this tab.",
-  };
-
   function renderStorageWarning() {
     let msg = "";
-    if (data.readOnly() || settingsStore.readOnly()) msg = SAVE_MSG.newer;
-    else if (memoryOnly || data.blocked() || settingsStore.blocked()) msg = SAVE_MSG.blocked;
+    if (data.readOnly() || settingsStore.readOnly()) msg = t("dataNewer");
+    else if (memoryOnly || data.blocked() || settingsStore.blocked()) msg = t("storageBlocked");
     storageWarnEl.textContent = msg;
     storageWarnEl.hidden = !msg;
   }
 
+  /* Landing after a page change: checklists from their top, items with the pager
+     they clicked kept at the bottom of the screen, so nobody is left mid-list. */
+  function scrollAfterRender() {
+    const key = ui.scrolledTo;
+    if (!key) return;
+    ui.scrolledTo = null;
+    const checklists = key === "checklists";
+    const node = checklists ? listsEl : listsEl.querySelector(`[data-pager="${CSS.escape(key)}"]`);
+    if (!node) return;
+    node.scrollIntoView({ block: checklists ? "start" : "end", behavior: motionQuery.matches ? "auto" : "smooth" });
+  }
+
   function render() {
+    applyStrings();
     renderLists();
     renderToolbar();
     syncSettingsForm();
     renderStorageWarning();
+    scrollAfterRender();
   }
 
   /* --------------------------------------------------------- appearance */
@@ -1141,7 +1766,8 @@ dialog::backdrop {
   }
 
   function addItem(checklistId) {
-    if (!db().checklists.some((row) => row.id === checklistId)) return; // e.g. a new checklist abandoned a moment ago
+    const checklist = db().checklists.find((row) => row.id === checklistId);
+    if (!checklist) return; // e.g. a new checklist abandoned a moment ago
     const entity = makeItem();
     ui.editing = { kind: "item", id: entity.id, fresh: true, parentId: checklistId, entity };
     ui.focusEditor = true;
@@ -1158,8 +1784,8 @@ dialog::backdrop {
   }
 
   /* Quiet on purpose: the click handler ticks the box and swaps the classes in
-     place, so marking done does not pay for a full re-render.
-     shortcut: re-measure when pagination (task 2) lands. */
+     place, so marking done does not pay for a full re-render. Pagination is safe
+     here: pages are cut by what exists, not by what is done, so the row stays. */
   function toggleItem(itemId) {
     return data.updateQuiet((store) => {
       for (const checklist of store.checklists) {
@@ -1219,6 +1845,12 @@ dialog::backdrop {
     if (edit.settled) return; // the deferred blur save of an already-closed editor
     edit.settled = true;
     if (ui.editing === edit) ui.editing = null;
+    /* The other window wrote something while this field was open: adopt its data
+       first, so the text just typed lands on top of it instead of overwriting it. */
+    if (staleData) {
+      staleData = false;
+      data.reload();
+    }
     if (discard) {
       render(); // Escape cancels: the stored text is neither read nor overwritten
       return;
@@ -1263,14 +1895,6 @@ dialog::backdrop {
     showDialog(noteDialog);
   }
 
-  const HELP_TEXT = [
-    "TBD keeps your lists in this browser — nothing is uploaded anywhere.",
-    "Press + in the header to add a checklist, then type its name and press Enter.",
-    "Press the + at the right of an open checklist to add items.",
-    "Tick an item when it is done; finished things turn grey.",
-    "Use the buttons on the right to open or close every checklist at once.",
-    "The gear holds theme, language, where new things are added, and page size.",
-  ].join("\n");
 
   /* ------------------------------------------------------------ wiring */
 
@@ -1287,11 +1911,11 @@ dialog::backdrop {
   function bindHeader() {
     $("#btn-add").addEventListener("click", () => addChecklist());
     settingsBtn.addEventListener("click", () => setSettingsOpen(!ui.settingsOpen));
-    $("#btn-help").addEventListener("click", () => openNote("How to use TBD", HELP_TEXT));
+    $("#btn-help").addEventListener("click", () => openNote(t("help"), t("helpBody")));
     $("#btn-archive").addEventListener("click", () => {
       setSettingsOpen(false);
       // shortcut: the archive screen is task 5; until then the button says so.
-      openNote("Archive", "The archive is not in this build yet. It will arrive in a later version of TBD.");
+      openNote(t("archive"), t("archiveSoon"));
     });
     /* The open menu is a dialog: Tab must circle inside it, not leak to the header —
        listener on the document, because focus can escape to body via a click on a gap. */
@@ -1329,10 +1953,29 @@ dialog::backdrop {
     collapseBtn.addEventListener("click", () => setAllOpen(false));
   }
 
+  /* What a press asked to reveal, measured while the node is certainly on screen. */
+  let cutPress = null;
+
   function bindLists() {
+    /* Measured on press, not on click: this very click can first commit an open
+       editor, and a rebuilt node measures 0 — that would read as "nothing hidden"
+       and fold the list instead of showing the text the user asked for. */
+    listsEl.addEventListener("pointerdown", (event) => {
+      const cut = event.target.closest(".item-text, .cl-title");
+      cutPress = cut && cut.scrollWidth > cut.clientWidth + 1 ? { node: cut, text: cut.textContent } : null;
+    });
     /* Click, not change: a click already in flight while the list re-renders
        still reaches this handler; the change event it fires would not. */
     listsEl.addEventListener("click", (event) => {
+      /* Cut-off text: this click asks for the whole of it, so it must not also tick
+         the item or fold the checklist. Nothing to reveal when nothing is hidden. */
+      const reveal = cutPress && cutPress.node === event.target ? cutPress : null;
+      cutPress = null;
+      if (reveal) {
+        event.preventDefault();
+        openNote(t("fullText"), reveal.text);
+        return;
+      }
       const box = event.target.closest('input[type="checkbox"]');
       if (box) {
         const row = box.closest("[data-id]");
@@ -1353,6 +1996,10 @@ dialog::backdrop {
       }
       const trigger = event.target.closest("[data-act]");
       if (!trigger) return;
+      if (trigger.dataset.act === "page") {
+        changePage(trigger.closest("[data-pager]").dataset.pager, Number(trigger.dataset.dir));
+        return; // the pager belongs to a list, not to a card
+      }
       const holder = trigger.closest("[data-id]");
       if (!holder) return;
       if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
@@ -1360,16 +2007,18 @@ dialog::backdrop {
     });
   }
 
+  /* The <option>s themselves are built by applyStrings: they carry translated text. */
   function bindSettings() {
     for (const [name, select] of Object.entries(selects)) {
-      /* Options come from SETTING_SPECS alone: a value the cast accepts can
-         never be missing from the <select> (and vice versa). */
-      const labels = OPTION_LABELS[name];
-      select.replaceChildren(...SETTING_SPECS[name].values.map((value) => el("option", {
-        value: String(value), text: labels?.[value] ?? String(value),
-      })));
       select.addEventListener("change", () => settingsStore.patch({ [name]: castSetting(name, select.value) }));
     }
+  }
+
+  function changePage(key, direction) {
+    if (key === "checklists") ui.pages.checklists += direction;
+    else ui.pages.items[key] = (ui.pages.items[key] ?? 1) + direction;
+    ui.scrolledTo = key; // clamped by render(), which then scrolls to the new page
+    render();
   }
 
   function init() {
@@ -1377,11 +2026,12 @@ dialog::backdrop {
     bindToolbar();
     bindLists();
     bindSettings();
+    /* Every setting reaches the screen through render(): page size and language
+       change what is drawn, not just how it looks. */
     settingsStore.subscribe(() => {
       applyTheme();
       applyLanguage();
-      syncSettingsForm();
-      renderStorageWarning();
+      render();
     });
     data.subscribe(render);
     darkQuery.addEventListener("change", () => {
@@ -1389,14 +2039,20 @@ dialog::backdrop {
     });
     /* Keep two open tabs in sync (fires for the other tabs only). */
     window.addEventListener("storage", (event) => {
-      /* A data reload rebuilds the lists and destroys the open editor, losing
-         the text being typed — a stale view beats lost keystrokes.
-         shortcut: task 2's targeted list updates remove this. Settings never
-         touch the editor, so they keep syncing live. */
+      /* Reloading now would rebuild the lists and destroy the open editor, losing
+         the text being typed: remember it and adopt the change at commit time. */
       if (event.key === KEYS.data) {
-        if (!ui.editing) data.reload();
+        if (ui.editing) staleData = true;
+        else data.reload();
       } else if (event.key === KEYS.settings) settingsStore.reload();
     });
+    /* The sticky checklist header sits under the app header, whose height depends on
+       the safe-area insets of the device: measure it instead of guessing. */
+    /* Exact height, not rounded: any rounding either leaves a hairline of lists
+       showing through under the header or hides a slice of the stuck head behind it. */
+    const measureTopbar = () => root.style.setProperty("--topbar-h", `${topbarEl.getBoundingClientRect().height}px`);
+    if (window.ResizeObserver) new ResizeObserver(measureTopbar).observe(topbarEl);
+    else measureTopbar(); // Safari before 13.4: measured once, no live update
     applyTheme();
     applyLanguage();
     render();
