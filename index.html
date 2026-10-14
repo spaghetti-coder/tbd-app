@@ -558,6 +558,9 @@ dialog::backdrop {
 
 .dialog-body {
   white-space: pre-line;
+  /* URLs and long words must not run past the dialog edge: break only where a
+     line would otherwise not fit */
+  overflow-wrap: anywhere;
 }
 
 .dialog-actions {
@@ -643,7 +646,7 @@ dialog::backdrop {
   </div>
 </main>
 
-<dialog id="dlg-note" aria-labelledby="note-title">
+<dialog id="dlg-note" aria-labelledby="note-title" tabindex="-1">
   <h2 id="note-title" class="dialog-title"></h2>
   <p id="note-body" class="dialog-body"></p>
   <form method="dialog" class="dialog-actions">
@@ -1632,8 +1635,10 @@ dialog::backdrop {
 
   function restoreFocus(target) {
     if (!target) return;
-    /* A page change scrolls on its own; focus must not scroll the page first. */
-    const options = ui.scrolledTo ? { preventScroll: true } : {};
+    /* Putting focus back must never move the screen: restoring it into a card that
+       just collapsed out of view would drag the page to it (a stuck header closing
+       jumped to the top). Page changes do their own scrolling after the render. */
+    const options = { preventScroll: true };
     if (target.pager) {
       const nav = listsEl.querySelector(`[data-pager="${CSS.escape(target.pager)}"]`);
       const buttons = nav ? [...nav.querySelectorAll("button")] : [];
@@ -1883,10 +1888,14 @@ dialog::backdrop {
   function showDialog(dialog) {
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
-      return;
+    } else {
+      dialog.setAttribute("open", ""); // old Safari: visible, non-modal
+      dialog.scrollIntoView({ block: "center" });
     }
-    dialog.setAttribute("open", ""); // old Safari: visible, non-modal
-    dialog.scrollIntoView({ block: "center" });
+    /* showModal hands focus to the Close button at the bottom, which leaves a long
+       text opened at its end: keep the focus on the dialog itself, read from the top. */
+    dialog.focus({ preventScroll: true });
+    dialog.scrollTop = 0;
   }
 
   function openNote(title, body) {
@@ -1973,6 +1982,11 @@ dialog::backdrop {
       cutPress = null;
       if (reveal) {
         event.preventDefault();
+        /* The press landed on text, which cannot hold focus: put the keyboard on the
+           row's own control first, so closing the dialog hands it back there instead
+           of dropping it at the top of the lists. */
+        const back = reveal.node.closest("[data-id]")?.querySelector("button, input");
+        back?.focus({ preventScroll: true });
         openNote(t("fullText"), reveal.text);
         return;
       }
