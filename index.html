@@ -58,7 +58,7 @@ document.documentElement.dataset.theme = (() => {
   --tap: 44px;
   --panel-w: 44px;
   --panel-gap: 14px;
-  --topbar-h: 63px; /* measured by JS at startup: it depends on the safe-area insets */
+  --topbar-h: 69px; /* height without safe-area; JS measures the real one at startup */
 
   color-scheme: light;
 }
@@ -1494,7 +1494,9 @@ dialog::backdrop {
     return Math.ceil(count / size);
   }
 
-  function pagerNode(key, label, page) {
+  /* landmark=false renders the pager as a named group, not a nav: two checklists
+     sharing a title would give screen readers two identically-named navs. */
+  function pagerNode(key, label, page, landmark = true) {
     const button = (dir, text) => el("button", {
       class: "iconbtn", type: "button", "data-act": "page", "data-dir": String(dir),
       disabled: dir < 0 ? page.current <= 1 : page.current >= page.pages,
@@ -1503,7 +1505,7 @@ dialog::backdrop {
       "aria-label": `${text}, ${t("pageInfo", [page.current, page.pages])}`,
       title: text,
     }, icon(dir < 0 ? "chevron-left" : "chevron-right"));
-    return el("nav", { class: "pager", "data-pager": String(key), "aria-label": label },
+    return el(landmark ? "nav" : "div", { class: "pager", role: landmark ? null : "group", "data-pager": String(key), "aria-label": label },
       button(-1, t("prevPage")),
       el("span", { class: "pager-info", text: t("pageInfo", [page.current, page.pages]) }),
       button(1, t("nextPage")));
@@ -1518,6 +1520,7 @@ dialog::backdrop {
       class: "editor", type: "text", value: edit.value ?? value, maxlength: "4000", enterkeyhint: "done",
       spellcheck: "false", autocomplete: "off", "aria-label": label,
     });
+    edit.node = input; // the live editor node: a stale blur commit checks itself against this
     input.addEventListener("input", () => { edit.value = input.value; });
     input.addEventListener("keydown", (event) => {
       if (event.isComposing) return; // Enter commits an IME candidate (zh/ja), not the text
@@ -1535,6 +1538,10 @@ dialog::backdrop {
     input.addEventListener("blur", () => {
       const commit = () => {
         doc.removeEventListener("click", commit, true);
+        /* A re-render rebuilds this field (a settings change, even from the other
+           window) and only Chrome fires blur when it removes the focused node: a
+           commit from a dead node must not save half-typed text and close the live editor. */
+        if (edit.node !== input) return;
         endEdit(edit, input.value, false, false);
       };
       doc.addEventListener("click", commit, { capture: true, once: true });
@@ -1544,6 +1551,7 @@ dialog::backdrop {
   }
 
   const editingFor = (kind, id) => (ui.editing && ui.editing.kind === kind && ui.editing.id === id ? ui.editing : null);
+  const freshItemFor = (id) => (ui.editing && ui.editing.kind === "item" && ui.editing.parentId === id ? ui.editing : null);
 
   const allDone = (checklist) => checklist.items.length > 0 && checklist.items.every((item) => item.done);
 
@@ -1580,8 +1588,8 @@ dialog::backdrop {
   /* A brand-new item shows here as an editor row before it exists in the store. */
   function visibleItems(checklist) {
     const items = checklist.items.filter((item) => item.archivedAt === null);
-    const edit = ui.editing;
-    if (edit && edit.kind === "item" && edit.parentId === checklist.id) {
+    const edit = freshItemFor(checklist.id);
+    if (edit) {
       if (settings().itemPosition === "top") items.unshift(edit.entity);
       else items.push(edit.entity);
     }
@@ -1594,15 +1602,14 @@ dialog::backdrop {
     if (!items.length) return [el("p", { class: "cl-empty", text: t("noItems") })];
     /* A brand-new item is drawn before it exists: keep following its page, so typing
        on from the last row of a page never hides the field being typed in. */
-    const fresh = ui.editing;
-    const wanted = fresh && fresh.kind === "item" && fresh.parentId === checklist.id
+    const wanted = freshItemFor(checklist.id)
       ? pageForNew(items.length, settings().itemPosition)
       : ui.pages.items[checklist.id] ?? 1;
     const page = paginate(items, wanted, settings().pageSize);
     ui.pages.items[checklist.id] = page.current;
     const nodes = [el("ul", { class: "items" }, page.shown.map((item) => itemRow(checklist, item)))];
-    /* Named after its checklist: two identical "Item pages" landmarks read as one control. */
-    if (page.pages > 1) nodes.push(pagerNode(checklist.id, `${t("itemPages")}: ${checklist.title || t("untitled")}`, page));
+    /* Named after its checklist: "Item pages" alone would not say which list it pages. */
+    if (page.pages > 1) nodes.push(pagerNode(checklist.id, `${t("itemPages")}: ${checklist.title || t("untitled")}`, page, false));
     return nodes;
   }
 
@@ -1904,7 +1911,6 @@ dialog::backdrop {
     showDialog(noteDialog);
   }
 
-
   /* ------------------------------------------------------------ wiring */
 
   function setSettingsOpen(open) {
@@ -1965,6 +1971,44 @@ dialog::backdrop {
   /* What a press asked to reveal, measured while the node is certainly on screen. */
   let cutPress = null;
 
+  /* Cut-off text: this click asks for the whole of it, so it must not also tick
+     the item or fold the checklist. Nothing to reveal when nothing is hidden. */
+  function revealCutText(event) {
+    const reveal = cutPress && cutPress.node === event.target ? cutPress : null;
+    cutPress = null;
+    if (!reveal) return false;
+    event.preventDefault();
+    /* The press landed on text, which cannot hold focus: put the keyboard on the
+       row's own control first, so closing the dialog hands it back there instead
+       of dropping it at the top of the lists. */
+    const back = reveal.node.closest("[data-id]")?.querySelector("button, input");
+    back?.focus({ preventScroll: true });
+    openNote(t("fullText"), reveal.text);
+    return true;
+  }
+
+  /* Returns true when the click was a tick: it must not also flip a page or fold a list. */
+  function tickItem(event) {
+    const box = event.target.closest('input[type="checkbox"]');
+    if (!box) return false;
+    const row = box.closest("[data-id]");
+    if (!row) return true; // a box outside any row: nothing else must react, as before the split
+    const changed = toggleItem(row.dataset.id);
+    if (changed) {
+      if (!listsEl.contains(row)) {
+        render(); // this very click's blur-commit rebuilt the list: show the just-saved state
+      } else {
+        /* The browser already ticked the box and only classes follow, so set
+           them in place instead of re-rendering every list (the hot path). */
+        row.classList.toggle("is-done", changed.item.done);
+        const title = row.closest(".cl")?.querySelector(".cl-title");
+        if (title) title.classList.toggle("is-muted", allDone(changed.checklist));
+        if (data.blocked()) renderStorageWarning(); // a write failure must still get its line
+      }
+    }
+    return true;
+  }
+
   function bindLists() {
     /* Measured on press, not on click: this very click can first commit an open
        editor, and a rebuilt node measures 0 — that would read as "nothing hidden"
@@ -1976,38 +2020,8 @@ dialog::backdrop {
     /* Click, not change: a click already in flight while the list re-renders
        still reaches this handler; the change event it fires would not. */
     listsEl.addEventListener("click", (event) => {
-      /* Cut-off text: this click asks for the whole of it, so it must not also tick
-         the item or fold the checklist. Nothing to reveal when nothing is hidden. */
-      const reveal = cutPress && cutPress.node === event.target ? cutPress : null;
-      cutPress = null;
-      if (reveal) {
-        event.preventDefault();
-        /* The press landed on text, which cannot hold focus: put the keyboard on the
-           row's own control first, so closing the dialog hands it back there instead
-           of dropping it at the top of the lists. */
-        const back = reveal.node.closest("[data-id]")?.querySelector("button, input");
-        back?.focus({ preventScroll: true });
-        openNote(t("fullText"), reveal.text);
-        return;
-      }
-      const box = event.target.closest('input[type="checkbox"]');
-      if (box) {
-        const row = box.closest("[data-id]");
-        if (!row) return;
-        const changed = toggleItem(row.dataset.id);
-        if (!changed) return;
-        if (!listsEl.contains(row)) {
-          render(); // this very click's blur-commit rebuilt the list: show the just-saved state
-          return;
-        }
-        /* The browser already ticked the box and only classes follow, so set
-           them in place instead of re-rendering every list (the hot path). */
-        row.classList.toggle("is-done", changed.item.done);
-        const title = row.closest(".cl")?.querySelector(".cl-title");
-        if (title) title.classList.toggle("is-muted", allDone(changed.checklist));
-        if (data.blocked()) renderStorageWarning(); // a write failure must still get its line
-        return;
-      }
+      if (revealCutText(event)) return;
+      if (tickItem(event)) return;
       const trigger = event.target.closest("[data-act]");
       if (!trigger) return;
       if (trigger.dataset.act === "page") {
@@ -2018,6 +2032,17 @@ dialog::backdrop {
       if (!holder) return;
       if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
       else if (trigger.dataset.act === "add-item") addItem(holder.dataset.id);
+    });
+    /* Keyboard parity (WCAG 2.1.1): no pointerdown preceded this, so measure on Enter.
+       Cut-off item text opens in full; a checklist heading keeps Enter for expand/
+       collapse — its own controls (edit icon, full text) come with task 3. */
+    listsEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || !event.target.matches('input[type="checkbox"]')) return;
+      const text = event.target.closest(".item")?.querySelector(".item-text");
+      if (text && text.scrollWidth > text.clientWidth + 1) {
+        event.preventDefault();
+        openNote(t("fullText"), text.textContent);
+      }
     });
   }
 
@@ -2061,9 +2086,9 @@ dialog::backdrop {
       } else if (event.key === KEYS.settings) settingsStore.reload();
     });
     /* The sticky checklist header sits under the app header, whose height depends on
-       the safe-area insets of the device: measure it instead of guessing. */
-    /* Exact height, not rounded: any rounding either leaves a hairline of lists
-       showing through under the header or hides a slice of the stuck head behind it. */
+       the safe-area insets of the device: measure it instead of guessing. Exact value,
+       not rounded: any rounding either leaves a hairline of lists showing through
+       under the header or hides a slice of the stuck head behind it. */
     const measureTopbar = () => root.style.setProperty("--topbar-h", `${topbarEl.getBoundingClientRect().height}px`);
     if (window.ResizeObserver) new ResizeObserver(measureTopbar).observe(topbarEl);
     else measureTopbar(); // Safari before 13.4: measured once, no live update
