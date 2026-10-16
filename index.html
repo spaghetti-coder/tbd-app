@@ -316,7 +316,9 @@ button {
   align-items: center;
   gap: 4px;
   padding: 6px 6px 6px 4px;
-  touch-action: pan-y; /* vertical drag scrolls the page; horizontal drag is a gesture */
+  /* pan-y: a vertical drag scrolls the page, a horizontal one is our gesture. pinch-zoom
+     stays on: without it the browser would refuse to zoom the lists with two fingers. */
+  touch-action: pan-y pinch-zoom;
   transition: transform 150ms ease;
 }
 
@@ -392,7 +394,7 @@ section.cl {
   min-height: 44px;
   padding-inline: 2px;
   border-radius: var(--radius-sm);
-  touch-action: pan-y;
+  touch-action: pan-y pinch-zoom; /* see .cl-head: our horizontal gesture, the browser's pinch */
   transition: transform 150ms ease;
 }
 
@@ -1776,7 +1778,9 @@ dialog::backdrop {
     });
     /* The save icon is the edit field's own commit: for anyone who would rather press
        something than press Enter. */
-    return el("div", { class: "edit-wrap" }, input, iconButton("save-edit", t("save"), "check-lg"));
+    /* span, not div: for a checklist this field is drawn inside its <h2>, which takes
+       phrasing content only. The class is flex either way. */
+    return el("span", { class: "edit-wrap" }, input, iconButton("save-edit", t("save"), "check-lg"));
   }
 
   const editingFor = (kind, id) => (ui.editing && ui.editing.kind === kind && ui.editing.id === id ? ui.editing : null);
@@ -2419,6 +2423,13 @@ dialog::backdrop {
     if (Date.now() - at > ECHO_MS) return false;
     const holder = event.target.closest("[data-id]");
     if (!holder || holder.dataset.id !== entityId || rowKind(holder) !== kind) return false;
+    /* Two controls are never the gesture's own echo, only a press made after it: the save
+       icon of the field the swipe just opened, and a page arrow. Everything else stays
+       swallowed — the checklist title lives inside its own fold button, so an echo there
+       would fold the list under the dialog that asks about archiving.
+       shortcut: a deliberate press on the row's text, its checkbox or its icons inside
+       ECHO_MS is still read as an echo; revisit with the drag of task 4. */
+    if (event.target.closest('[data-act="save-edit"], [data-act="page"]')) return false;
     cutPress = null; // the press that became a swipe never asks for full text
     event.preventDefault(); // a click on an item's label ticks its checkbox without asking us
     return true;
@@ -2442,7 +2453,10 @@ dialog::backdrop {
 
   /* The last click that flipped a checkbox, and what the box said before it: the double
      click that follows puts that value back (see the dblclick listener), so renaming a row
-     never marks it done — however many of the pair's clicks the browser forwarded. */
+     never marks it done — however many of the pair's clicks the browser forwarded.
+     Only the first click of a pair records: the second would store the state before
+     itself rather than before the pair, and putting "that" back means ticking the row.
+     Of { id, at, before }: `at` moves with every click of the pair, `before` does not. */
   let lastTick = null;
 
   /* Returns true when the click was a tick: it must not also flip a page or fold a list. */
@@ -2453,7 +2467,13 @@ dialog::backdrop {
     if (!row) return true; // a box outside any row: nothing else must react, as before the split
     const changed = toggleItem(row.dataset.id);
     if (changed) {
-      lastTick = { id: row.dataset.id, at: Date.now(), before: !changed.item.done };
+      /* The click's own count knows the pair (1, then 2) even where the timer would not:
+         a double-click interval set above DBLCLICK_MS in accessibility settings. detail 0
+         (no count, e.g. a programmatic click) leaves the timer as the only clue. */
+      const inPair = lastTick && lastTick.id === row.dataset.id
+        && (event.detail > 1 || (!event.detail && Date.now() - lastTick.at < DBLCLICK_MS));
+      if (inPair) lastTick.at = Date.now(); // the pair is still in progress: the reader below weighs this
+      else lastTick = { id: row.dataset.id, at: Date.now(), before: !changed.item.done };
       if (!listsEl.contains(row)) {
         render(); // this very click's blur-commit rebuilt the list: show the just-saved state
       } else {
@@ -2616,9 +2636,9 @@ dialog::backdrop {
       if (action) action(rowKind(holder), holder.dataset.id);
     });
     /* Double click edits an item: the mouse entry point on a row. Its own first click
-       leaves two things behind that have to go first, or the row ends in two states at
-       once: it ticked the row, and on a cut-off row it opened the full text — which would
-       otherwise stay open over an editor that can neither be typed in nor escaped with Esc. */
+       ticked the row, and this puts that back (see lastTick). On a cut-off row the first
+       click opens the full text in a modal, so the pair never reaches this listener: that
+       row is edited by swipe, F2 or the pencil, once the text window is closed. */
     listsEl.addEventListener("dblclick", (event) => {
       if (ui.editing) return; // one editor at a time, exactly as startEdit does
       const row = event.target.closest(".item");
@@ -2629,6 +2649,10 @@ dialog::backdrop {
          here to repaint, so nothing is touched. */
       if (item && lastTick && lastTick.id === item.id && item.done !== lastTick.before
         && Date.now() - lastTick.at < DBLCLICK_MS) toggleItem(item.id);
+      /* Live only where showModal is missing: there the window is opened non-modally (see
+         showDialog), so the row is still under the second click and this editor would
+         otherwise open over the full text. Also what automation that sends one press with
+         clickCount 2 sees. */
       if (noteDialog.open) noteDialog.close();
       startEdit("item", row.dataset.id);
     });
@@ -2647,6 +2671,7 @@ dialog::backdrop {
        without it, editing a row would need a pointer. */
     listsEl.addEventListener("keydown", (event) => {
       if (event.key !== "F2") return;
+      if (event.target.closest("[data-pager]")) return; // item pagers sit inside their card: no row here
       const holder = event.target.closest("[data-id]");
       if (!holder) return;
       event.preventDefault();
