@@ -47,7 +47,10 @@ document.documentElement.dataset.theme = (() => {
   --border: #dfe2e9;
   --accent: #4f46e5;
   --accent-contrast: #fff;
+  --danger: #c92a2a;
+  --danger-contrast: #fff;
   --ring: rgb(79 70 229 / 0.35);
+  --danger-ring: rgb(201 42 42 / 0.16);
   --shadow-1: 0 1px 2px rgb(14 18 27 / 0.06);
   --shadow-2: 0 12px 32px rgb(14 18 27 / 0.16);
   --radius: 14px;
@@ -72,7 +75,10 @@ document.documentElement.dataset.theme = (() => {
   --border: #2a3038;
   --accent: #8079ff;
   --accent-contrast: #0e1015;
+  --danger: #ff7b7b;
+  --danger-contrast: #1a0f14;
   --ring: rgb(128 121 255 / 0.4);
+  --danger-ring: rgb(255 123 123 / 0.16);
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-2: 0 12px 32px rgb(0 0 0 / 0.55);
 
@@ -298,6 +304,9 @@ button {
   margin-block-end: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* clip, not hidden: a swiped row stops at the card instead of widening the page,
+     and clip keeps the sticky header sticky (hidden would make the card a scroller) */
+  overflow-x: clip;
   background: var(--surface);
   box-shadow: var(--shadow-1);
 }
@@ -307,6 +316,8 @@ button {
   align-items: center;
   gap: 4px;
   padding: 6px 6px 6px 4px;
+  touch-action: pan-y; /* vertical drag scrolls the page; horizontal drag is a gesture */
+  transition: transform 150ms ease;
 }
 
 /* The header of an open checklist sticks under the app header for as long as its
@@ -314,16 +325,18 @@ button {
 .cl.is-open > .cl-head {
   position: sticky;
   inset-block-start: var(--topbar-h);
-  z-index: 2;
+  z-index: 4; /* above a swiping row (3): a row dragged under the stuck header hides behind it */
   background: var(--surface);
   border-start-start-radius: calc(var(--radius) - 1px);
   border-start-end-radius: calc(var(--radius) - 1px);
 }
 
 /* Keep landing points clear of the two sticky bars when the browser scrolls:
-   #list-items is where a checklist page change lands, .editor where focus lands. */
+   #list-items is where a checklist page change lands, .editor where focus lands,
+   section.cl where "to top / to bottom" lands inside a one-page list. */
 #list-items,
-.editor {
+.editor,
+section.cl {
   scroll-margin-block-start: calc(var(--topbar-h) + 8px);
 }
 
@@ -372,15 +385,23 @@ button {
 }
 
 .item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative; /* so a swiping row paints over its neighbours */
   min-height: 44px;
   padding-inline: 2px;
   border-radius: var(--radius-sm);
+  touch-action: pan-y;
+  transition: transform 150ms ease;
 }
 
 .item-row {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   min-height: 44px;
   padding-inline: 8px;
   border-radius: var(--radius-sm);
@@ -405,6 +426,34 @@ button {
 
 .item.is-done .item-text {
   color: var(--muted);
+}
+
+/* A row being swiped follows the pointer. The tint — inset shadow, so it lands on
+   top of the stuck header's own background too — says which way it will go. */
+.is-swiping {
+  z-index: 3;
+  transition: none; /* the row tracks the finger, no easing behind it */
+}
+
+/* Two values each: the plain token for a browser without color-mix (Safari < 16.2),
+   the mixed one for every browser that has it. */
+.swipe-edit {
+  box-shadow: inset 0 0 0 200px var(--ring);
+  box-shadow: inset 0 0 0 200px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.swipe-archive {
+  box-shadow: inset 0 0 0 200px var(--danger-ring);
+  box-shadow: inset 0 0 0 200px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+/* Editor field and its save icon side by side. */
+.edit-wrap {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 
 @media (hover: hover) {
@@ -556,6 +605,18 @@ dialog::backdrop {
   font-weight: 700;
 }
 
+.dialog-subject {
+  margin-block-end: 8px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+/* Rows of the 3-dot menu; .menu-item is the same row style the settings dropdown uses. */
+.dialog-menu {
+  display: grid;
+  gap: 2px;
+}
+
 .dialog-body {
   white-space: pre-line;
   /* URLs and long words must not run past the dialog edge: break only where a
@@ -582,6 +643,12 @@ dialog::backdrop {
   border-color: transparent;
   background: var(--accent);
   color: var(--accent-contrast);
+}
+
+.btn--danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: var(--danger-contrast);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -652,6 +719,24 @@ dialog::backdrop {
   <form method="dialog" class="dialog-actions">
     <button class="btn btn--accent" type="submit" data-i18n="close">Close</button>
   </form>
+</dialog>
+
+<dialog id="dlg-menu" aria-labelledby="menu-title" aria-describedby="menu-subject" tabindex="-1">
+  <h2 id="menu-title" class="dialog-title" data-i18n="actions">Actions</h2>
+  <p id="menu-subject" class="dialog-subject"></p>
+  <div id="menu-actions" class="dialog-menu"></div>
+  <div class="dialog-actions">
+    <button id="menu-cancel" class="btn" type="button" data-i18n="cancel">Cancel</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-confirm" aria-labelledby="confirm-title" aria-describedby="confirm-body" tabindex="-1">
+  <h2 id="confirm-title" class="dialog-title"></h2>
+  <p id="confirm-body" class="dialog-body"></p>
+  <div class="dialog-actions">
+    <button id="confirm-cancel" class="btn" type="button" data-i18n="cancel">Cancel</button>
+    <button id="confirm-ok" class="btn btn--danger" type="button"></button>
+  </div>
 </dialog>
 
 <script>
@@ -943,6 +1028,7 @@ dialog::backdrop {
   /* Transient UI state, never persisted. */
   const ui = {
     editing: null, focusEditor: false, settingsOpen: false,
+    focusAfter: null, // row to hand focus to after the next render (a dialog closed over it)
     pages: { checklists: 1, items: {} }, // current page per list, never persisted
     scrolledTo: null, // pager key: scroll the new page into view once the lists are rebuilt
   };
@@ -959,6 +1045,9 @@ dialog::backdrop {
   const settingsBtn = $("#btn-settings");
   const settingsMenu = $("#settings");
   const noteDialog = $("#dlg-note");
+  const menuDialog = $("#dlg-menu");
+  const menuActionsEl = $("#menu-actions");
+  const confirmDlg = $("#dlg-confirm");
   const expandBtn = $("#btn-expand-all");
   const collapseBtn = $("#btn-collapse-all");
   const selects = {
@@ -1004,8 +1093,20 @@ dialog::backdrop {
       emptyHint: "Press + in the header to create your first checklist.",
       dataNewer: "This data was saved by a newer version of TBD. Changes made here cannot be saved.",
       storageBlocked: "TBD cannot save changes. Anything you add or edit will be gone when you close this tab.",
-      helpBody: "TBD keeps your lists in this browser — nothing is uploaded anywhere.\nPress + in the header to add a checklist, then type its name and press Enter.\nPress the + at the right of an open checklist to add items.\nTick an item when it is done; finished things turn grey.\nUse the buttons on the right to open or close every checklist at once.\nThe gear holds theme, language, where new things are added, and page size.\nIf a name or item is cut short, press it to read it in full.",
+      helpBody: "TBD keeps your lists in this browser — nothing is uploaded anywhere.\nPress + in the header to add a checklist, then type its name and press Enter.\nPress the + at the right of an open checklist to add items.\nTick an item when it is done; finished things turn grey.\nUse the buttons on the right to open or close every checklist at once.\nThe gear holds theme, language, where new things are added, and page size.\nIf a name or item is cut short, press it to read it in full.\nSwipe a row right to edit it, left to archive it; with a keyboard press F2 to edit.\nThe three dots on a row hold the rest: archive, delete, move to the top, move to the bottom.",
       archiveSoon: "The archive is not in this build yet. It will arrive in a later version of TBD.",
+      edit: "Edit",
+      save: "Save",
+      actions: "Actions",
+      archiveAction: "Archive",
+      delete: "Delete",
+      toTop: "To top",
+      toBottom: "To bottom",
+      cancel: "Cancel",
+      archiveItemBody: "“%1” goes to the archive and disappears from the lists. The archive screen, where archived things come back, is not built yet — it arrives in the next version.",
+      archiveChecklistBody: "“%1” and all its items go to the archive and disappear from the lists. The archive screen, where archived things come back, is not built yet — it arrives in the next version.",
+      deleteItemBody: "“%1” will be deleted for good. This cannot be undone.",
+      deleteChecklistBody: "“%1” and all its items will be deleted for good. This cannot be undone.",
       fullText: "Full text",
       prevPage: "Previous page",
       nextPage: "Next page",
@@ -1045,8 +1146,20 @@ dialog::backdrop {
       emptyHint: "Нажмите «плюс» в шапке, чтобы создать первый чек-лист.",
       dataNewer: "Эти данные сохранила более новая версия TBD. Изменения, внесённые здесь, сохранить нельзя.",
       storageBlocked: "TBD не может сохранять изменения. Всё добавленное и изменённое исчезнет после закрытия вкладки.",
-      helpBody: "TBD хранит списки в этом браузере — ничего никуда не отправляется.\nНажмите «плюс» в шапке, введите название чек-листа и нажмите Enter.\nНажмите «плюс» справа у открытого чек-листа, чтобы добавить пункт.\nОтметьте пункт, когда он выполнен, — сделанное становится серым.\nКнопки справа раскрывают или сворачивают все чек-листы сразу.\nВ шестерёнке — тема, язык, место для новых записей и размер страницы.\nЕсли текст не помещается и обрывается, нажмите на него, чтобы прочесть целиком.",
+      helpBody: "TBD хранит списки в этом браузере — ничего никуда не отправляется.\nНажмите «плюс» в шапке, введите название чек-листа и нажмите Enter.\nНажмите «плюс» справа у открытого чек-листа, чтобы добавить пункт.\nОтметьте пункт, когда он выполнен, — сделанное становится серым.\nКнопки справа раскрывают или сворачивают все чек-листы сразу.\nВ шестерёнке — тема, язык, место для новых записей и размер страницы.\nЕсли текст не помещается и обрывается, нажмите на него, чтобы прочесть целиком.\nСвайп вправо по строке — редактировать, свайп влево — в архив; с клавиатуры правка по F2.\nТри точки справа у строки — остальное: в архив, удалить, в начало, в конец.",
       archiveSoon: "Архива в этой версии ещё нет. Он появится позже.",
+      edit: "Редактировать",
+      save: "Сохранить",
+      actions: "Действия",
+      archiveAction: "Архивировать",
+      delete: "Удалить",
+      toTop: "В начало",
+      toBottom: "В конец",
+      cancel: "Отмена",
+      archiveItemBody: "«%1» уйдёт в архив и исчезнет из списков. Экран архива, откуда его можно вернуть, ещё не сделан — он появится в следующей версии.",
+      archiveChecklistBody: "«%1» и все его пункты уйдут в архив и исчезнут из списков. Экран архива, откуда их можно вернуть, ещё не сделан — он появится в следующей версии.",
+      deleteItemBody: "«%1» удалится навсегда. Отменить это будет нельзя.",
+      deleteChecklistBody: "«%1» и все его пункты удалятся навсегда. Отменить это будет нельзя.",
       fullText: "Полный текст",
       prevPage: "Предыдущая страница",
       nextPage: "Следующая страница",
@@ -1086,8 +1199,20 @@ dialog::backdrop {
       emptyHint: "Натиснете «+» в горната лента, за да създадете първия списък.",
       dataNewer: "Тези данни са запазени от по-нова версия на TBD. Промените, направени тук, не могат да се запазят.",
       storageBlocked: "TBD не може да запазва промени. Всичко добавено или променено ще изчезне, след като затворите раздела.",
-      helpBody: "TBD пази списъците ви в този браузър — нищо не се изпраща никъде.\nНатиснете «+» в горната лента, напишете името на списъка и натиснете Enter.\nНатиснете «+» вдясно от отворен списък, за да добавите точка.\nОтбележете точка, когато е готова — свършеното става сиво.\nБутоните вдясно отварят или затварят всички списъци наведнъж.\nЗъбното колело пази тема, език, къде се добавят новите записи и размера на страницата.\nАко текст е отрязан, натиснете го, за да го прочетете целия.",
+      helpBody: "TBD пази списъците ви в този браузър — нищо не се изпраща никъде.\nНатиснете «+» в горната лента, напишете името на списъка и натиснете Enter.\nНатиснете «+» вдясно от отворен списък, за да добавите точка.\nОтбележете точка, когато е готова — свършеното става сиво.\nБутоните вдясно отварят или затварят всички списъци наведнъж.\nЗъбното колело пази тема, език, къде се добавят новите записи и размера на страницата.\nАко текст е отрязан, натиснете го, за да го прочетете целия.\nПлъзнете ред надясно, за да го редактирате, наляво — за архив; с клавиатура редактирайте с F2.\nТрите точки вдясно пазят останалото: архив, изтриване, най-отгоре, най-отдолу.",
       archiveSoon: "Архивът още го няма в тази версия. Ще дойде по-късно.",
+      edit: "Редактирай",
+      save: "Запази",
+      actions: "Действия",
+      archiveAction: "Архивирай",
+      delete: "Изтрий",
+      toTop: "Най-отгоре",
+      toBottom: "Най-отдолу",
+      cancel: "Отказ",
+      archiveItemBody: "«%1» отива в архива и изчезва от списъците. Екранът на архива, откъдето може да се върне, още не е готов — ще дойде в следващата версия.",
+      archiveChecklistBody: "«%1» и всички негови точки отиват в архива и изчезват от списъците. Екранът на архива, откъдето могат да се върнат, още не е готов — ще дойде в следващата версия.",
+      deleteItemBody: "«%1» ще се изтрие завинаги. Това не може да се отмени.",
+      deleteChecklistBody: "«%1» и всички негови точки ще се изтрият завинаги. Това не може да се отмени.",
       fullText: "Пълен текст",
       prevPage: "Предишна страница",
       nextPage: "Следваща страница",
@@ -1127,8 +1252,20 @@ dialog::backdrop {
       emptyHint: "Appuyez sur + dans l’en-tête pour créer votre première liste.",
       dataNewer: "Ces données ont été enregistrées par une version plus récente de TBD. Les modifications effectuées ici ne peuvent pas être enregistrées.",
       storageBlocked: "TBD ne peut pas enregistrer les modifications. Tout ce que vous ajoutez ou modifiez disparaîtra à la fermeture de cet onglet.",
-      helpBody: "TBD garde vos listes dans ce navigateur — rien n’est envoyé nulle part.\nAppuyez sur + dans l’en-tête pour ajouter une liste, tapez son nom puis Entrée.\nAppuyez sur + à droite d’une liste ouverte pour ajouter un élément.\nCochez un élément lorsqu’il est terminé ; ce qui est fini devient gris.\nLes boutons de droite ouvrent ou ferment toutes les listes d’un coup.\nL’engrenage contient le thème, la langue, l’endroit où ajouter les nouveautés et la taille des pages.\nSi un nom ou un élément est tronqué, appuyez dessus pour le lire en entier.",
+      helpBody: "TBD garde vos listes dans ce navigateur — rien n’est envoyé nulle part.\nAppuyez sur + dans l’en-tête pour ajouter une liste, tapez son nom puis Entrée.\nAppuyez sur + à droite d’une liste ouverte pour ajouter un élément.\nCochez un élément lorsqu’il est terminé ; ce qui est fini devient gris.\nLes boutons de droite ouvrent ou ferment toutes les listes d’un coup.\nL’engrenage contient le thème, la langue, l’endroit où ajouter les nouveautés et la taille des pages.\nSi un nom ou un élément est tronqué, appuyez dessus pour le lire en entier.\nFaites glisser une ligne vers la droite pour la modifier, vers la gauche pour l’archiver ; au clavier, appuyez sur F2 pour modifier.\nLes trois points à droite d’une ligne contiennent le reste : archives, suppression, déplacer en haut, déplacer en bas.",
       archiveSoon: "L’archive n’est pas encore dans cette version. Elle arrivera plus tard.",
+      edit: "Modifier",
+      save: "Enregistrer",
+      actions: "Actions",
+      archiveAction: "Archiver",
+      delete: "Supprimer",
+      toTop: "En haut",
+      toBottom: "En bas",
+      cancel: "Annuler",
+      archiveItemBody: "« %1 » part dans les archives et disparaît des listes. L’écran des archives, où l’on peut les retrouver, n’est pas encore fait — il arrive dans la prochaine version.",
+      archiveChecklistBody: "« %1 » et tous ses éléments partent dans les archives et disparaissent des listes. L’écran des archives, où l’on peut les retrouver, n’est pas encore fait — il arrive dans la prochaine version.",
+      deleteItemBody: "« %1 » sera supprimé définitivement. Rien ne pourra être annulé.",
+      deleteChecklistBody: "« %1 » et tous ses éléments seront supprimés définitivement. Rien ne pourra être annulé.",
       fullText: "Texte complet",
       prevPage: "Page précédente",
       nextPage: "Page suivante",
@@ -1168,8 +1305,20 @@ dialog::backdrop {
       emptyHint: "Pulse + en la cabecera para crear su primera lista.",
       dataNewer: "Estos datos los guardó una versión más reciente de TBD. Los cambios hechos aquí no se pueden guardar.",
       storageBlocked: "TBD no puede guardar cambios. Lo que añada o cambie se perderá al cerrar esta pestaña.",
-      helpBody: "TBD guarda sus listas en este navegador — nada se envía a ningún sitio.\nPulse + en la cabecera para añadir una lista, escriba su nombre y pulse Intro.\nPulse + a la derecha de una lista abierta para añadir un elemento.\nMarque un elemento cuando esté hecho; lo terminado se vuelve gris.\nLos botones de la derecha abren o cierran todas las listas a la vez.\nEl engranaje guarda el tema, el idioma, dónde se añaden las novedades y el tamaño de página.\nSi un nombre o un elemento aparece cortado, púlselo para leerlo entero.",
+      helpBody: "TBD guarda sus listas en este navegador — nada se envía a ningún sitio.\nPulse + en la cabecera para añadir una lista, escriba su nombre y pulse Intro.\nPulse + a la derecha de una lista abierta para añadir un elemento.\nMarque un elemento cuando esté hecho; lo terminado se vuelve gris.\nLos botones de la derecha abren o cierran todas las listas a la vez.\nEl engranaje guarda el tema, el idioma, dónde se añaden las novedades y el tamaño de página.\nSi un nombre o un elemento aparece cortado, púlselo para leerlo entero.\nDeslice una fila a la derecha para editarla, a la izquierda para archivarla; con teclado pulse F2 para editar.\nLos tres puntos a la derecha de una fila guardan lo demás: archivar, eliminar, mover arriba, mover abajo.",
       archiveSoon: "El archivo aún no está en esta versión. Llegará más adelante.",
+      edit: "Editar",
+      save: "Guardar",
+      actions: "Acciones",
+      archiveAction: "Archivar",
+      delete: "Eliminar",
+      toTop: "Al principio",
+      toBottom: "Al final",
+      cancel: "Cancelar",
+      archiveItemBody: "«%1» se va al archivo y desaparece de las listas. La pantalla del archivo, donde se puede recuperar, todavía no está hecha; llegará en la próxima versión.",
+      archiveChecklistBody: "«%1» y todos sus elementos se van al archivo y desaparecen de las listas. La pantalla del archivo, donde se pueden recuperar, todavía no está hecha; llegará en la próxima versión.",
+      deleteItemBody: "«%1» se eliminará para siempre. Esto no se puede deshacer.",
+      deleteChecklistBody: "«%1» y todos sus elementos se eliminarán para siempre. Esto no se puede deshacer.",
       fullText: "Texto completo",
       prevPage: "Página anterior",
       nextPage: "Página siguiente",
@@ -1209,8 +1358,20 @@ dialog::backdrop {
       emptyHint: "Apasă + din antet pentru a crea prima listă.",
       dataNewer: "Aceste date au fost salvate de o versiune mai nouă de TBD. Modificările făcute aici nu pot fi salvate.",
       storageBlocked: "TBD nu poate salva modificările. Orice adaugi sau schimbi va dispărea când închizi această filă.",
-      helpBody: "TBD îți păstrează listele în acest browser — nimic nu este trimis nicăieri.\nApasă + din antet pentru a adăuga o listă, scrie-i numele și apasă Enter.\nApasă + din dreapta unei liste deschise pentru a adăuga un element.\nBifează un element când este gata; ce s-a terminat devine gri.\nButoanele din dreapta deschid sau închid toate listele deodată.\nRotița ține tema, limba, unde se adaugă elementele noi și dimensiunea paginii.\nDacă un nume sau un element este tăiat, apasă pe el ca să-l citești întreg.",
+      helpBody: "TBD îți păstrează listele în acest browser — nimic nu este trimis nicăieri.\nApasă + din antet pentru a adăuga o listă, scrie-i numele și apasă Enter.\nApasă + din dreapta unei liste deschise pentru a adăuga un element.\nBifează un element când este gata; ce s-a terminat devine gri.\nButoanele din dreapta deschid sau închid toate listele deodată.\nRotița ține tema, limba, unde se adaugă elementele noi și dimensiunea paginii.\nDacă un nume sau un element este tăiat, apasă pe el ca să-l citești întreg.\nGlisează un rând la dreapta ca să-l editezi, la stânga ca să-l arhivezi; cu tastatura apasă F2 pentru editare.\nCele trei puncte din dreapta unui rând țin restul: arhivare, ștergere, mutare la început, mutare la sfârșit.",
       archiveSoon: "Arhiva nu este încă în această versiune. Va apărea mai târziu.",
+      edit: "Editează",
+      save: "Salvează",
+      actions: "Acțiuni",
+      archiveAction: "Arhivează",
+      delete: "Șterge",
+      toTop: "La început",
+      toBottom: "La sfârșit",
+      cancel: "Anulează",
+      archiveItemBody: "«%1» pleacă în arhivă și dispare din liste. Ecranul arhivei, de unde poate fi adus înapoi, nu este gata — apare în versiunea următoare.",
+      archiveChecklistBody: "«%1» și toate elementele lui pleacă în arhivă și dispar din liste. Ecranul arhivei, de unde pot fi aduse înapoi, nu este gata — apare în versiunea următoare.",
+      deleteItemBody: "«%1» va fi șters definitiv. Nu se poate anula.",
+      deleteChecklistBody: "«%1» și toate elementele lui vor fi șterse definitiv. Nu se pot anula.",
       fullText: "Text complet",
       prevPage: "Pagina anterioară",
       nextPage: "Pagina următoare",
@@ -1250,8 +1411,20 @@ dialog::backdrop {
       emptyHint: "点击顶部的“+”创建第一个清单。",
       dataNewer: "这些数据由更新版本的 TBD 保存，这里的改动无法保存。",
       storageBlocked: "TBD 无法保存改动。关闭此标签页后，新增和修改的内容都会丢失。",
-      helpBody: "TBD 把清单存放在本浏览器里，不会上传到任何地方。\n点击顶部的“+”，输入清单名称后按回车。\n点击已展开清单右侧的“+”来添加条目。\n完成一个条目就勾选它，完成的内容会变灰。\n右侧的按钮可一次展开或折叠所有清单。\n齿轮里有主题、语言、新记录的位置和每页数量。\n名称或条目被截断时，点击它就能读完整内容。",
+      helpBody: "TBD 把清单存放在本浏览器里，不会上传到任何地方。\n点击顶部的“+”，输入清单名称后按回车。\n点击已展开清单右侧的“+”来添加条目。\n完成一个条目就勾选它，完成的内容会变灰。\n右侧的按钮可一次展开或折叠所有清单。\n齿轮里有主题、语言、新记录的位置和每页数量。\n名称或条目被截断时，点击它就能读完整内容。\n在某一行上向右滑动可编辑，向左滑动可归档；用键盘时按 F2 编辑。\n每行右侧的三个圆点是其余操作：归档、删除、移到最前、移到最后。",
       archiveSoon: "这个版本还没有归档，以后会加上。",
+      edit: "编辑",
+      save: "保存",
+      actions: "操作",
+      archiveAction: "归档",
+      delete: "删除",
+      toTop: "移到最前",
+      toBottom: "移到最后",
+      cancel: "取消",
+      archiveItemBody: "“%1”将移入归档，并从清单中消失。用来找回归档内容的归档页面还没做，会在下一个版本推出。",
+      archiveChecklistBody: "“%1”及其全部条目将移入归档，并从清单中消失。用来找回归档内容的归档页面还没做，会在下一个版本推出。",
+      deleteItemBody: "“%1”将被彻底删除，无法撤销。",
+      deleteChecklistBody: "“%1”及其全部条目将被彻底删除，无法撤销。",
       fullText: "完整文字",
       prevPage: "上一页",
       nextPage: "下一页",
@@ -1291,8 +1464,20 @@ dialog::backdrop {
       emptyHint: "上部の＋を押して最初のチェックリストを作成します。",
       dataNewer: "このデータは新しい版の TBD が保存しました。ここでの変更は保存できません。",
       storageBlocked: "TBD は変更を保存できません。追加や変更はこのタブを閉じると失われます。",
-      helpBody: "TBD はリストをこのブラウザーに保存します。どこにも送信しません。\n上部の＋を押し、名前を入力してから Enter を押します。\n開いているチェックリストの右の＋で項目を追加します。\n終わった項目にチェックを入れると、終わった物は灰色になります。\n右のボタンですべて展開・折りたたみできます。\n歯車にはテーマ、言語、新しい物の追加位置、1ページあたりの数があります。\n名前や項目が省略されたら、そこを押すと全文を読めます。",
+      helpBody: "TBD はリストをこのブラウザーに保存します。どこにも送信しません。\n上部の＋を押し、名前を入力してから Enter を押します。\n開いているチェックリストの右の＋で項目を追加します。\n終わった項目にチェックを入れると、終わった物は灰色になります。\n右のボタンですべて展開・折りたたみできます。\n歯車にはテーマ、言語、新しい物の追加位置、1ページあたりの数があります。\n名前や項目が省略されたら、そこを押すと全文を読めます。\n行を右にスワイプで編集、左にスワイプでアーカイブ。キーボードでは F2 で編集します。\n行の右の三点リーダーに残りの操作があります：アーカイブ、削除、先頭へ、末尾へ。",
       archiveSoon: "この版にアーカイブはまだありません。後で追加されます。",
+      edit: "編集",
+      save: "保存",
+      actions: "操作",
+      archiveAction: "アーカイブ",
+      delete: "削除",
+      toTop: "先頭へ",
+      toBottom: "末尾へ",
+      cancel: "キャンセル",
+      archiveItemBody: "「%1」はアーカイブに移って、リストから消えます。アーカイブから戻す画面はまだ作られておらず、次のバージョンで追加されます。",
+      archiveChecklistBody: "「%1」とその項目はすべてアーカイブに移って、リストから消えます。アーカイブから戻す画面はまだ作られておらず、次のバージョンで追加されます。",
+      deleteItemBody: "「%1」は完全に削除されます。元に戻せません。",
+      deleteChecklistBody: "「%1」とその項目はすべて完全に削除されます。元に戻せません。",
       fullText: "全文",
       prevPage: "前のページ",
       nextPage: "次のページ",
@@ -1332,8 +1517,20 @@ dialog::backdrop {
       emptyHint: "Premu la «+» en la suprabreto por krei vian unuan kontrolliston.",
       dataNewer: "Pli nova versio de TBD konservis ĉi tiujn datumojn. Ĉi tie faritaj ŝanĝoj ne konserveblas.",
       storageBlocked: "TBD ne povas konservi ŝanĝojn. Ĉio aldonita aŭ ŝanĝita perdiĝos kiam vi fermos ĉi tiun langeton.",
-      helpBody: "TBD konservas viajn listojn en ĉi tiu retumilo — nenio sendiĝas.\nPremu la «+» en la suprabreto por aldoni kontrolliston, skribu la nomon de la kontrollisto kaj premu Enter.\nPremu la «+» dekstre de malfermita kontrollisto por aldoni punkton.\nMarku punkton kiam ĝi finiĝis; finitaj aĵoj iĝas grizaj.\nLa butonoj dekstre malfermas aŭ fermas ĉiujn kontrollistojn samtempe.\nLa dentrado enhavas la etoson, la lingvon, kien aldoniĝas novaj aĵoj, kaj la paĝgrandecon.\nSe nomo aŭ punkto estas tranĉita, premu ĝin por legi ĝin tute.",
+      helpBody: "TBD konservas viajn listojn en ĉi tiu retumilo — nenio sendiĝas.\nPremu la «+» en la suprabreto por aldoni kontrolliston, skribu la nomon de la kontrollisto kaj premu Enter.\nPremu la «+» dekstre de malfermita kontrollisto por aldoni punkton.\nMarku punkton kiam ĝi finiĝis; finitaj aĵoj iĝas grizaj.\nLa butonoj dekstre malfermas aŭ fermas ĉiujn kontrollistojn samtempe.\nLa dentrado enhavas la etoson, la lingvon, kien aldoniĝas novaj aĵoj, kaj la paĝgrandecon.\nSe nomo aŭ punkto estas tranĉita, premu ĝin por legi ĝin tute.\nGlitu vicon dekstren por redakti ĝin, maldekstren por arkivi ĝin; kun klavaro premu F2 por redakti.\nLa tri punktoj dekstre de vico enhavas la ceteron: arkivado, forigado, supren, malsupren.",
       archiveSoon: "La arkivo ankoraŭ ne estas en ĉi tiu versio. Ĝi alvenos poste.",
+      edit: "Redaktu",
+      save: "Konservu",
+      actions: "Agoj",
+      archiveAction: "Arkivigu",
+      delete: "Forigu",
+      toTop: "Supren",
+      toBottom: "Malsupren",
+      cancel: "Nuligu",
+      archiveItemBody: "«%1» iras al la arkivo kaj malaperas el la listoj. La arkiva ekrano, el kio ĝi revenas, ankoraŭ ne ekzistas — ĝi alvenos en la sekva versio.",
+      archiveChecklistBody: "«%1» kaj ĉiuj ĝiaj punktoj iras al la arkivo kaj malaperas el la listoj. La arkiva ekrano, el kio ili revenas, ankoraŭ ne ekzistas — ĝi alvenos en la sekva versio.",
+      deleteItemBody: "«%1» estos forigita por ĉiam. Oni ne povas malfari ĝin.",
+      deleteChecklistBody: "«%1» kaj ĉiuj ĝiaj punktoj estos forigitaj por ĉiam. Oni ne povas malfari ilin.",
       fullText: "Plena teksto",
       prevPage: "Antaŭa paĝo",
       nextPage: "Sekva paĝo",
@@ -1373,8 +1570,20 @@ dialog::backdrop {
       emptyHint: "Preme le «+» in le barra superior pro crear tu prime lista de controlo.",
       dataNewer: "Un version plus recente de TBD salvava iste datos. Le modificationes facite hic non pote esser salvate.",
       storageBlocked: "TBD non pote salvar modificationes. Toto que tu adde o cambia disparera quando tu claude iste scheda.",
-      helpBody: "TBD guarda tu listas in iste navigator — nihil es inviate alicubi.\nPreme le «+» in le barra superior, scribe le nomine del lista de controlo e preme Enter.\nPreme le «+» al latere dextre de un lista de controlo aperite pro adder un elemento.\nMarca un elemento quando illo es finite; le cosas finite deveni gris.\nLe buttones al latere dextre aperi o claude omne listas de controlo insimul.\nLe rota dentate contine le thema, le lingua, ubi le nove cosas se adde, e le dimension del pagina.\nSi un nomine o un elemento es truncate, preme lo pro leger lo integre.",
+      helpBody: "TBD guarda tu listas in iste navigator — nihil es inviate alicubi.\nPreme le «+» in le barra superior, scribe le nomine del lista de controlo e preme Enter.\nPreme le «+» al latere dextre de un lista de controlo aperite pro adder un elemento.\nMarca un elemento quando illo es finite; le cosas finite deveni gris.\nLe buttones al latere dextre aperi o claude omne listas de controlo insimul.\nLe rota dentate contine le thema, le lingua, ubi le nove cosas se adde, e le dimension del pagina.\nSi un nomine o un elemento es truncate, preme lo pro leger lo integre.\nTrahe un fila a dextra pro modificar lo, a sinistra pro archivar lo; con le clavario preme F2 pro modificar.\nLe tres punctos al dextra de un fila contine le resto: archivar, deler, mover al initio, mover al fin.",
       archiveSoon: "Le archivo non es ancora in iste version. Illo venira plus tarde.",
+      edit: "Modificar",
+      save: "Salvar",
+      actions: "Actiones",
+      archiveAction: "Archivar",
+      delete: "Deler",
+      toTop: "Al initio",
+      toBottom: "Al fin",
+      cancel: "Cancellar",
+      archiveItemBody: "«%1» va al archivo e dispare del listas. Le pagina del archivo, ubon on lo pote recuperar, non es ancora facite — illo venira in le version sequente.",
+      archiveChecklistBody: "«%1» e tote su elementos va al archivo e dispare del listas. Le pagina del archivo, ubon on los pote recuperar, non es ancora facite — illo venira in le version sequente.",
+      deleteItemBody: "«%1» essera delite pro sempre. On non pote disface isto.",
+      deleteChecklistBody: "«%1» e tote su elementos essera delite pro sempre. On non pote disface isto.",
       fullText: "Texto complete",
       prevPage: "Pagina precedente",
       nextPage: "Pagina sequente",
@@ -1414,8 +1623,20 @@ dialog::backdrop {
       emptyHint: "o luka e '+' lon sewi la sina pali e lipu.",
       dataNewer: "ilo TBD sin li awen e ni. sina ken ala awen e ante lon ni.",
       storageBlocked: "ilo TBD li ken ala awen e ante. o pini e lipu ni la ante ale li weka.",
-      helpBody: "TBD li awen e lipu sina lon ilo ni. ona li pana ala e sona tawa ante.\no luka e '+' lon sewi. o sitelen e nimi lipu. o luka e Enter.\no luka e '+' lon poka pi lipu pali open la pali sin li kama.\no sitelen e pali pini. pali pini li kama pimeja lili.\nilo lon poka li open anu pini e lipu pali ale.\nilo sike li jo e kule en toki en nasin pana en nanpa lipu.\nnimi li suli mute la o luka e ona la sina lukin e nimi ale.",
+      helpBody: "TBD li awen e lipu sina lon ilo ni. ona li pana ala e sona tawa ante.\no luka e '+' lon sewi. o sitelen e nimi lipu. o luka e Enter.\no luka e '+' lon poka pi lipu pali open la pali sin li kama.\no sitelen e pali pini. pali pini li kama pimeja lili.\nilo lon poka li open anu pini e lipu pali ale.\nilo sike li jo e kule en toki en nasin pana en nanpa lipu.\nnimi li suli mute la o luka e ona la sina lukin e nimi ale.\no tawa e luka sina lon linja: tawa poka kama la sina ante e nimi; tawa poka pini la linja li tawa lipu pi tenpo pini; o luka e F2 la sina ante e nimi.\nnanpa tu wan lon poka linja li jo e pali ante: lipu pi tenpo pini, weka, tawa sewi, tawa anpa.",
       archiveSoon: "tenpo ni la ilo TBD jo ala e lipu pi tenpo pini. tenpo kama la ona li kama.",
+      edit: "ante e nimi",
+      save: "awen e nimi",
+      actions: "nasin pali",
+      archiveAction: "tawa lipu pi tenpo pini",
+      delete: "weka e ni",
+      toTop: "tawa sewi",
+      toBottom: "tawa anpa",
+      cancel: "ala",
+      archiveItemBody: "'%1' li tawa lipu pi tenpo pini la ona li weka tan lipu sina. tenpo ni la sina ken ala lukin e lipu pi tenpo pini. tenpo kama la ken ni li kama.",
+      archiveChecklistBody: "lipu '%1' en pali ona ale li tawa lipu pi tenpo pini la ona li weka tan lipu sina. tenpo ni la sina ken ala lukin e lipu pi tenpo pini. tenpo kama la ken ni li kama.",
+      deleteItemBody: "'%1' li weka pini. sina ken ala kama sin e ona.",
+      deleteChecklistBody: "lipu '%1' en pali ona ale li weka pini. sina ken ala kama sin e ona.",
       fullText: "nimi ale",
       prevPage: "lipu pini",
       nextPage: "lipu kama",
@@ -1486,9 +1707,10 @@ dialog::backdrop {
     return { current, pages, shown: size === "all" ? list : list.slice(from, from + size) };
   }
 
-  /* The page a brand-new entity lands on, so creating something never leaves the
-     user on a page without it: page 1 for "above all", the last page for "below all". */
-  function pageForNew(count, position) {
+  /* The page an entity at one end of its list is found on — a newly created one, or one
+     just moved to the top or the bottom — so the user is never left on a page without
+     it: page 1 for "above all", the last page for "below all". */
+  function pageForPosition(count, position) {
     const size = settings().pageSize;
     if (position !== "bottom" || size === "all") return 1;
     return Math.ceil(count / size);
@@ -1512,6 +1734,11 @@ dialog::backdrop {
   }
 
   /* ----------------------------------------------------------- render */
+
+  /* An icon button of a row: "+", the pencil, the 3-dot menu, save. */
+  const iconButton = (act, label, glyph) => el("button", {
+    class: "iconbtn", type: "button", "data-act": act, "aria-label": label, title: label,
+  }, icon(glyph));
 
   function editorNode(edit, value, label) {
     /* edit.value carries what has been typed but not saved yet: a settings change
@@ -1547,11 +1774,13 @@ dialog::backdrop {
       doc.addEventListener("click", commit, { capture: true, once: true });
       setTimeout(commit, 600); // blur without a click (Tab, re-render); slack for a slow synthesized tap
     });
-    return input;
+    /* The save icon is the edit field's own commit: for anyone who would rather press
+       something than press Enter. */
+    return el("div", { class: "edit-wrap" }, input, iconButton("save-edit", t("save"), "check-lg"));
   }
 
   const editingFor = (kind, id) => (ui.editing && ui.editing.kind === kind && ui.editing.id === id ? ui.editing : null);
-  const freshItemFor = (id) => (ui.editing && ui.editing.kind === "item" && ui.editing.parentId === id ? ui.editing : null);
+  const freshItemFor = (id) => (ui.editing && ui.editing.fresh && ui.editing.kind === "item" && ui.editing.parentId === id ? ui.editing : null);
 
   const allDone = (checklist) => checklist.items.length > 0 && checklist.items.every((item) => item.done);
 
@@ -1575,14 +1804,17 @@ dialog::backdrop {
     }, chevron, title);
   }
 
-  function itemRow(checklist, item) {
+  function itemRow(item) {
     const edit = editingFor("item", item.id);
     if (edit) return el("li", { class: "item", "data-id": item.id }, editorNode(edit, item.text, t("itemText")));
     const name = item.text || t("untitled");
     const box = el("input", { type: "checkbox", checked: item.done, "aria-label": name });
     const text = el("span", { class: "item-text", title: name, text: name });
+    /* The menu button sits beside the label, never inside it: a click on it must not
+       tick the item on the way to the dialog. */
     return el("li", { class: ["item", item.done && "is-done"], "data-id": item.id },
-      el("label", { class: "item-row" }, box, text));
+      el("label", { class: "item-row" }, box, text),
+      iconButton("menu", `${t("actions")}: ${name}`, "three-dots-vertical"));
   }
 
   /* A brand-new item shows here as an editor row before it exists in the store. */
@@ -1603,21 +1835,25 @@ dialog::backdrop {
     /* A brand-new item is drawn before it exists: keep following its page, so typing
        on from the last row of a page never hides the field being typed in. */
     const wanted = freshItemFor(checklist.id)
-      ? pageForNew(items.length, settings().itemPosition)
+      ? pageForPosition(items.length, settings().itemPosition)
       : ui.pages.items[checklist.id] ?? 1;
     const page = paginate(items, wanted, settings().pageSize);
     ui.pages.items[checklist.id] = page.current;
-    const nodes = [el("ul", { class: "items" }, page.shown.map((item) => itemRow(checklist, item)))];
+    const nodes = [el("ul", { class: "items" }, page.shown.map(itemRow))];
     /* Named after its checklist: "Item pages" alone would not say which list it pages. */
     if (page.pages > 1) nodes.push(pagerNode(checklist.id, `${t("itemPages")}: ${checklist.title || t("untitled")}`, page, false));
     return nodes;
   }
 
   function checklistNode(checklist) {
-    const addBtn = checklist.open
-      ? el("button", { class: "iconbtn", type: "button", "data-act": "add-item", "aria-label": t("addItem"), title: t("addItem") }, icon("plus-lg"))
-      : null;
-    const head = el("div", { class: "cl-head" }, el("h2", { class: "cl-heading" }, checklistHeading(checklist)), addBtn);
+    /* Pencil, "+", 3-dot menu. All of them step aside while the title is being typed:
+       the head is a field then, and a half-made checklist is not in the store yet. */
+    const actions = editingFor("checklist", checklist.id) ? [] : [
+      iconButton("edit", t("edit"), "pencil"),
+      checklist.open ? iconButton("add-item", t("addItem"), "plus-lg") : null,
+      iconButton("menu", `${t("actions")}: ${checklist.title || t("untitled")}`, "three-dots-vertical"),
+    ];
+    const head = el("div", { class: "cl-head" }, el("h2", { class: "cl-heading" }, checklistHeading(checklist)), actions);
     return el("section", { class: ["cl", checklist.open && "is-open"], "data-id": checklist.id },
       head, checklist.open ? checklistBody(checklist) : null);
   }
@@ -1668,12 +1904,12 @@ dialog::backdrop {
     const previous = captureFocus();
     const checklists = activeChecklists();
     const edit = ui.editing;
-    if (edit && edit.kind === "checklist") {
+    if (edit && edit.fresh && edit.kind === "checklist") {
       /* A brand-new checklist: drawn at its settings position, but not stored yet. */
       if (settings().checklistPosition === "bottom") checklists.push(edit.entity);
       else checklists.unshift(edit.entity);
       // Same as for a new item: jump to the page the editor sits on, then scroll to it.
-      ui.pages.checklists = pageForNew(checklists.length, settings().checklistPosition);
+      ui.pages.checklists = pageForPosition(checklists.length, settings().checklistPosition);
     }
     const page = paginate(checklists, ui.pages.checklists, settings().pageSize);
     ui.pages.checklists = page.current;
@@ -1682,6 +1918,7 @@ dialog::backdrop {
     listsEl.replaceChildren(...nodes);
     if (ui.focusEditor) {
       ui.focusEditor = false;
+      ui.focusAfter = null; // this render goes to the field, not to the row a dialog asked for
       const input = $(".editor", listsEl);
       if (input) {
         input.focus();
@@ -1689,7 +1926,10 @@ dialog::backdrop {
         return;
       }
     }
-    restoreFocus(previous);
+    /* A dialog that closed over a row asks for the focus back; a plain render puts it
+       where it was before the lists were rebuilt. */
+    restoreFocus(ui.focusAfter || previous);
+    ui.focusAfter = null;
   }
 
   function renderToolbar() {
@@ -1721,10 +1961,16 @@ dialog::backdrop {
     const key = ui.scrolledTo;
     if (!key) return;
     ui.scrolledTo = null;
-    const checklists = key === "checklists";
-    const node = checklists ? listsEl : listsEl.querySelector(`[data-pager="${CSS.escape(key)}"]`);
+    /* Three kinds of landing point: the whole list from its top, a single checklist
+       card from its top ("card:<id>", used by to top / to bottom), or the end of a
+       page, where its pager sits. A list on one page has no pager: aim at the card. */
+    const card = key.startsWith("card:");
+    const id = card ? key.slice(5) : key;
+    const find = (what) => listsEl.querySelector(`[${what}="${CSS.escape(id)}"]`);
+    const node = id === "checklists" ? listsEl : find(card ? "data-id" : "data-pager") || find("data-id");
     if (!node) return;
-    node.scrollIntoView({ block: checklists ? "start" : "end", behavior: motionQuery.matches ? "auto" : "smooth" });
+    const toEnd = !card && id !== "checklists";
+    node.scrollIntoView({ block: toEnd ? "end" : "start", behavior: motionQuery.matches ? "auto" : "smooth" });
   }
 
   function render() {
@@ -1829,7 +2075,7 @@ dialog::backdrop {
     }
     for (const checklist of store.checklists) {
       const index = checklist.items.findIndex((row) => row.id === edit.id);
-      if (index !== -1) return { list: checklist.items, index };
+      if (index !== -1) return { list: checklist.items, index, checklistId: checklist.id };
     }
     return { list: null, index: -1 };
   }
@@ -1883,25 +2129,126 @@ dialog::backdrop {
     }
     data.update((store) => {
       const { list, index } = locate(store, edit);
+      if (list && index !== -1) {
+        const entity = list[index];
+        entity[edit.kind === "checklist" ? "title" : "text"] = text;
+        entity.updatedAt = Date.now();
+        return;
+      }
+      /* Another window deleted this row while the field was open. Nothing typed here is
+         thrown away: it becomes an entry of the same list — an emptied field stores
+         nothing. shortcut: when that list is gone too the text has nowhere to live and
+         the editor simply closes. */
+      if (!text) return;
+      if (edit.kind === "checklist") store.checklists.push({ ...makeChecklist(), title: text, updatedAt: Date.now() });
+      else {
+        const checklist = store.checklists.find((row) => row.id === edit.parentId);
+        if (checklist) checklist.items.push({ ...makeItem(), text, updatedAt: Date.now() });
+      }
+    });
+  }
+
+  /* The record itself, or null: another window can delete it while a dialog is open. */
+  function entityOf(kind, id) {
+    const { list, index } = locate(db(), { kind, id });
+    return index === -1 ? null : list[index];
+  }
+
+  /* The name an entity is referred to in dialogs and in screen-reader labels; "" when
+     the entity is gone, which every caller here checks before showing anything. */
+  function entityName(kind, id) {
+    const entity = entityOf(kind, id);
+    return entity ? entity[kind === "checklist" ? "title" : "text"] || t("untitled") : "";
+  }
+
+  /* Inline editing of something that already exists. Entry points: swipe right (both
+     kinds), double click (items), the pencil (checklists) and F2 (keyboard only). */
+  function startEdit(kind, id) {
+    if (ui.editing) return; // one editor at a time: never drop the text being typed
+    if (!entityOf(kind, id)) return; // the row is gone (another window); an editor with no row would hang
+    /* Which list the item lives in, remembered: if another window deletes the row while
+       this field is open, what is typed still goes back where it belongs. */
+    const parentId = kind === "item" ? locate(db(), { kind, id }).checklistId : null;
+    ui.editing = { kind, id, parentId };
+    ui.focusEditor = true;
+    render();
+  }
+
+  /* The save icon commits exactly what Enter commits. */
+  function saveEdit() {
+    const edit = ui.editing;
+    if (edit) endEdit(edit, edit.node ? edit.node.value : "", false, false);
+  }
+
+  function archiveEntity(kind, id) {
+    if (!entityOf(kind, id)) return; // deleted in another window while its dialog was open
+    ui.focusAfter = { id };
+    data.update((store) => {
+      const { list, index } = locate(store, { kind, id });
+      if (list && index !== -1) list[index].archivedAt = Date.now();
+    });
+  }
+
+  /* Deleting a checklist drops the whole record, items included: archived ones live
+     inside it, so nothing of a deleted checklist is left behind (task 5). */
+  function deleteEntity(kind, id) {
+    if (!entityOf(kind, id)) return;
+    ui.focusAfter = { id };
+    data.update((store) => {
+      const { list, index } = locate(store, { kind, id });
       if (!list || index === -1) return;
-      const entity = list[index];
-      entity[edit.kind === "checklist" ? "title" : "text"] = text;
-      entity.updatedAt = Date.now();
+      list.splice(index, 1);
+      if (kind === "checklist") delete ui.pages.items[id]; // its page counter is gone with it
+    });
+  }
+
+  /* To top / to bottom inside the entity's own list, then show the page it moved to.
+     The destination is worked out before the move — moving changes no counts — so the
+     page and the scroll target are already in place when the store renders. */
+  function moveTo(kind, id, bottom) {
+    if (!entityOf(kind, id)) return;
+    const position = bottom ? "bottom" : "top";
+    let target;
+    if (kind === "checklist") {
+      target = { key: `card:${id}`, page: pageForPosition(activeChecklists().length, position) };
+    } else {
+      const checklist = db().checklists.find((row) => row.items.some((item) => item.id === id));
+      if (!checklist) return;
+      const count = checklist.items.filter((item) => item.archivedAt === null).length;
+      /* At the bottom, land on the end of the page (its pager, so the last rows are on
+         screen); at the top, on the card itself. */
+      target = {
+        key: bottom ? checklist.id : `card:${checklist.id}`,
+        page: pageForPosition(count, position),
+        checklistId: checklist.id,
+      };
+    }
+    if (kind === "checklist") ui.pages.checklists = target.page;
+    else ui.pages.items[target.checklistId] = target.page;
+    ui.scrolledTo = target.key;
+    ui.focusAfter = { id };
+    data.update((store) => {
+      const { list, index } = locate(store, { kind, id });
+      if (!list || index === -1) return;
+      const [entity] = list.splice(index, 1);
+      if (bottom) list.push(entity);
+      else list.unshift(entity);
     });
   }
 
   /* ------------------------------------------------------------ dialogs */
 
-  function showDialog(dialog) {
+  function showDialog(dialog, focusNode) {
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     } else {
       dialog.setAttribute("open", ""); // old Safari: visible, non-modal
       dialog.scrollIntoView({ block: "center" });
     }
-    /* showModal hands focus to the Close button at the bottom, which leaves a long
-       text opened at its end: keep the focus on the dialog itself, read from the top. */
-    dialog.focus({ preventScroll: true });
+    /* showModal hands focus to the first button it finds, which leaves a long text
+       opened at its end: with no node of its own the dialog keeps the focus and the
+       text is read from the top. */
+    (focusNode || dialog).focus({ preventScroll: true });
     dialog.scrollTop = 0;
   }
 
@@ -1911,8 +2258,63 @@ dialog::backdrop {
     showDialog(noteDialog);
   }
 
+  /* One confirmation for everything destructive — archive and delete. The stored
+     action runs only once the dialog has closed, so focus goes back to a row that is
+     still on the screen at that moment. */
+  let confirmAction = null;
+
+  function askConfirm(title, body, onOk) {
+    confirmAction = onOk;
+    $("#confirm-title").textContent = title;
+    $("#confirm-body").textContent = body;
+    $("#confirm-ok").textContent = title; // the verb of the action: "Archive", "Delete"
+    showDialog(confirmDlg, $("#confirm-cancel")); // Cancel holds focus, so Enter never destroys
+  }
+
+  /* The 3-dot menu: a dialog like every other modal here, so it behaves the same on a
+     phone, in a narrow window and under a screen reader, and Tab cannot leak out of it. */
+  function menuRow(glyph, label, action) {
+    const btn = el("button", { class: "menu-item", type: "button" }, icon(glyph), el("span", { text: label }));
+    btn.addEventListener("click", () => {
+      menuDialog.close(); // first close, then act: focus goes back to the row the menu came from
+      action();
+    });
+    return btn;
+  }
+
+  function openMenu(kind, id) {
+    if (!entityOf(kind, id)) return; // its row was deleted in another window
+    $("#menu-subject").textContent = entityName(kind, id);
+    /* Bulk mode joins this list in task 4. */
+    menuActionsEl.replaceChildren(
+      menuRow("archive", t("archiveAction"), () => askArchive(kind, id)),
+      menuRow("trash", t("delete"), () => askDelete(kind, id)),
+      el("div", { class: "sep" }),
+      menuRow("arrow-bar-up", t("toTop"), () => moveTo(kind, id, false)),
+      menuRow("arrow-bar-down", t("toBottom"), () => moveTo(kind, id, true)),
+    );
+    showDialog(menuDialog);
+  }
+
+  /* shortcut: the archive screen is task 5, so the confirmation says where the record
+     went and that it cannot be read back yet — the Archive button says the same. */
+  function askArchive(kind, id) {
+    if (!entityOf(kind, id)) return; // its row was deleted in another window
+    const body = t(kind === "checklist" ? "archiveChecklistBody" : "archiveItemBody", [entityName(kind, id)]);
+    askConfirm(t("archiveAction"), body, () => archiveEntity(kind, id));
+  }
+
+  function askDelete(kind, id) {
+    if (!entityOf(kind, id)) return;
+    const body = t(kind === "checklist" ? "deleteChecklistBody" : "deleteItemBody", [entityName(kind, id)]);
+    askConfirm(t("delete"), body, () => deleteEntity(kind, id));
+  }
+
   /* ------------------------------------------------------------ wiring */
 
+  /* Settings stays an anchored dropdown rather than a <dialog> like the windows above:
+     spec.md asks for a panel pinned to the gear, and it carries the same contract by
+     hand — focus stays inside it, Escape and a click outside close it, focus returns. */
   function setSettingsOpen(open) {
     ui.settingsOpen = open;
     settingsMenu.hidden = !open;
@@ -1968,8 +2370,41 @@ dialog::backdrop {
     collapseBtn.addEventListener("click", () => setAllOpen(false));
   }
 
+  function bindDialogs() {
+    $("#menu-cancel").addEventListener("click", () => menuDialog.close());
+    $("#confirm-cancel").addEventListener("click", () => {
+      confirmAction = null;
+      confirmDlg.close();
+    });
+    $("#confirm-ok").addEventListener("click", () => {
+      const action = confirmAction;
+      confirmAction = null;
+      confirmDlg.close();
+      if (action) action();
+    });
+    confirmDlg.addEventListener("cancel", () => { confirmAction = null; }); // Esc means Cancel
+  }
+
   /* What a press asked to reveal, measured while the node is certainly on screen. */
   let cutPress = null;
+
+  /* A gesture that fired owns the click its pointer release produces — without this a
+     swipe would also tick the item or fold the checklist under it. Such a click is one
+     on the swiped row that follows right away; a deliberate tap on that same row a
+     moment later (its save icon, its menu) still gets through. */
+  let swallowedClick = null;
+
+  function consumeSwipeClick(event) {
+    if (!swallowedClick) return false;
+    const { kind, entityId, at } = swallowedClick;
+    swallowedClick = null;
+    if (Date.now() - at > ECHO_MS) return false;
+    const holder = event.target.closest("[data-id]");
+    if (!holder || holder.dataset.id !== entityId || rowKind(holder) !== kind) return false;
+    cutPress = null; // the press that became a swipe never asks for full text
+    event.preventDefault(); // a click on an item's label ticks its checkbox without asking us
+    return true;
+  }
 
   /* Cut-off text: this click asks for the whole of it, so it must not also tick
      the item or fold the checklist. Nothing to reveal when nothing is hidden. */
@@ -2009,6 +2444,120 @@ dialog::backdrop {
     return true;
   }
 
+  /* What a click on a control of a row does, by its data-act. Every one of them takes
+     the kind of the row and its id, so no branch has to work out which it is. */
+  const ROW_ACTIONS = {
+    toggle: (kind, id) => toggleChecklist(id),
+    "add-item": (kind, id) => addItem(id),
+    edit: (kind, id) => startEdit(kind, id),
+    menu: (kind, id) => openMenu(kind, id),
+    "save-edit": () => saveEdit(),
+  };
+
+  const rowKind = (node) => (node.matches(".item") ? "item" : "checklist");
+
+  /* ------------------------------------------------------------ gestures */
+
+  const SWIPE_MIN = 44; // px sideways before a swipe is worth acting on…
+  const SWIPE_RATIO = 1.4; // …and it must beat the vertical travel by this much
+  const SWIPE_SHOW = 8; // px of sideways travel before the row starts following
+  const SWIPE_MAX = 120; // how far a row visually travels; the gesture keeps going
+  const ECHO_MS = 300; // a click this soon after a swipe is the swipe's own echo
+
+  let swipe = null; // the press being tracked, null while idle
+
+  /* Travel worth acting on, as -1 or 1: far enough sideways and clearly more sideways
+     than up or down; 0 for anything else, including a swipe pulled back to the start. */
+  const swipeDir = (dx, dy) =>
+    (Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) >= Math.abs(dy) * SWIPE_RATIO ? Math.sign(dx) : 0);
+
+  /* A gesture starts on a row's own surface, never on a control the user is already
+     operating: a checkbox, a toolbar button of the row (pencil, +, the 3 dots), the edit
+     field, the pager arrows. The row's own text stays a gesture surface, so does the
+     checklist title, which is a button of its own (folding it is a press, not a drag). */
+  function gestureRow(node) {
+    if (node.closest("input, select, .iconbtn, .edit-wrap, [data-pager]")) return null;
+    const item = node.closest(".item");
+    if (item) return { kind: "item", entityId: item.dataset.id, node: item };
+    const head = node.closest(".cl-head");
+    return head ? { kind: "checklist", entityId: head.closest(".cl").dataset.id, node: head } : null;
+  }
+
+  function dropSwipe() {
+    if (!swipe) return;
+    swipe.node.classList.remove("is-swiping", "swipe-edit", "swipe-archive");
+    swipe.node.style.transform = ""; // back where it came from, eased by the row's own transition
+    swipe = null;
+  }
+
+  function bindGestures() {
+    /* Capture phase, so it runs before a press of our own below: any new press ends the
+       one before it, including a release we never saw (off the window) — a press on the
+       header, the panel or a dialog must not leave a row waiting for it. */
+    doc.addEventListener("pointerdown", dropSwipe, true);
+
+    listsEl.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      const row = gestureRow(event.target);
+      if (row) {
+        swipe = {
+          ...row, x: event.clientX, y: event.clientY, pointerId: event.pointerId,
+          dx: 0, dy: 0, shown: false, armed: false,
+        };
+      }
+    });
+
+    listsEl.addEventListener("pointermove", (event) => {
+      if (!swipe || event.pointerId !== swipe.pointerId) return;
+      if (!swipe.node.isConnected) return dropSwipe(); // something rebuilt the lists under the finger
+      swipe.dx = event.clientX - swipe.x;
+      swipe.dy = event.clientY - swipe.y;
+      if (Math.abs(swipe.dy) > SWIPE_MIN && Math.abs(swipe.dy) > Math.abs(swipe.dx)) {
+        return dropSwipe(); // scrolling the page wins over a gesture
+      }
+      if (!swipe.shown) {
+        if (Math.abs(swipe.dx) < SWIPE_SHOW || Math.abs(swipe.dx) < Math.abs(swipe.dy) * SWIPE_RATIO) return;
+        swipe.shown = true; // the row starts following; a click is still a click at this travel
+      }
+      if (!swipe.armed && swipeDir(swipe.dx, swipe.dy)) {
+        /* Past this distance the gesture owns the pointer: keep its events even when it
+           drifts off the row, and drop the text selection the drag started. Capturing any
+           earlier would take the click of a slightly shaky tap away from its checkbox. */
+        swipe.armed = true;
+        try { listsEl.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+        doc.getSelection()?.removeAllRanges();
+      }
+      /* The row follows the whole way, back and forth: pulling towards the start pulls
+         the row back, so the user sees a gesture being given up. */
+      const dir = Math.sign(swipe.dx);
+      swipe.node.classList.add("is-swiping");
+      /* toggled, never only added — the finger can cross over to the other side */
+      swipe.node.classList.toggle("swipe-edit", dir > 0);
+      swipe.node.classList.toggle("swipe-archive", dir < 0);
+      swipe.node.style.transform = `translateX(${dir * Math.min(Math.abs(swipe.dx), SWIPE_MAX)}px)`;
+    });
+
+    /* On the document, not on the lists: released past the edge of a card on a wide
+       screen the gesture still has to end, and decide, here. */
+    doc.addEventListener("pointerup", (event) => {
+      if (!swipe || event.pointerId !== swipe.pointerId) return;
+      const { dx, dy, kind, entityId } = swipe;
+      dropSwipe();
+      /* Decided by where the pointer ended up: a swipe pulled back under the threshold
+         is a gesture the user gave up, and nothing happens. */
+      const dir = swipeDir(dx, dy);
+      if (!dir) return; // a plain tap: the click handler does its usual job
+      event.preventDefault(); // no click for the swipe, so the row is not also ticked or folded
+      swallowedClick = { kind, entityId, at: Date.now() }; // sent anyway by some browsers
+      if (dir > 0) startEdit(kind, entityId);
+      else askArchive(kind, entityId);
+    });
+
+    doc.addEventListener("pointercancel", (event) => {
+      if (swipe && event.pointerId === swipe.pointerId) dropSwipe();
+    });
+  }
+
   function bindLists() {
     /* Measured on press, not on click: this very click can first commit an open
        editor, and a rebuilt node measures 0 — that would read as "nothing hidden"
@@ -2020,6 +2569,7 @@ dialog::backdrop {
     /* Click, not change: a click already in flight while the list re-renders
        still reaches this handler; the change event it fires would not. */
     listsEl.addEventListener("click", (event) => {
+      if (consumeSwipeClick(event)) return;
       if (revealCutText(event)) return;
       if (tickItem(event)) return;
       const trigger = event.target.closest("[data-act]");
@@ -2030,12 +2580,19 @@ dialog::backdrop {
       }
       const holder = trigger.closest("[data-id]");
       if (!holder) return;
-      if (trigger.dataset.act === "toggle") toggleChecklist(holder.dataset.id);
-      else if (trigger.dataset.act === "add-item") addItem(holder.dataset.id);
+      const action = ROW_ACTIONS[trigger.dataset.act];
+      if (action) action(rowKind(holder), holder.dataset.id);
+    });
+    /* Double click edits an item: the mouse entry point on a row. A cut-off item is the
+       exception — its first click already opened the full text, and a modal dialog lets
+       no second click through to the row, so the double click never happens there. */
+    listsEl.addEventListener("dblclick", (event) => {
+      const row = event.target.closest(".item");
+      if (row && !event.target.matches("input, button")) startEdit("item", row.dataset.id);
     });
     /* Keyboard parity (WCAG 2.1.1): no pointerdown preceded this, so measure on Enter.
        Cut-off item text opens in full; a checklist heading keeps Enter for expand/
-       collapse — its own controls (edit icon, full text) come with task 3. */
+       collapse — its title is edited with F2 and read in full by the pencil's own field. */
     listsEl.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || !event.target.matches('input[type="checkbox"]')) return;
       const text = event.target.closest(".item")?.querySelector(".item-text");
@@ -2043,6 +2600,15 @@ dialog::backdrop {
         event.preventDefault();
         openNote(t("fullText"), text.textContent);
       }
+    });
+    /* F2 is the keyboard twin of the swipe and of the double click (WCAG 2.1.1):
+       without it, editing a row would need a pointer. */
+    listsEl.addEventListener("keydown", (event) => {
+      if (event.key !== "F2") return;
+      const holder = event.target.closest("[data-id]");
+      if (!holder) return;
+      event.preventDefault();
+      startEdit(rowKind(holder), holder.dataset.id);
     });
   }
 
@@ -2063,6 +2629,8 @@ dialog::backdrop {
   function init() {
     bindHeader();
     bindToolbar();
+    bindDialogs();
+    bindGestures();
     bindLists();
     bindSettings();
     /* Every setting reaches the screen through render(): page size and language
