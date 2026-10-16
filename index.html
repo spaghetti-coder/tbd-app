@@ -2383,6 +2383,24 @@ dialog::backdrop {
       if (action) action();
     });
     confirmDlg.addEventListener("cancel", () => { confirmAction = null; }); // Esc means Cancel
+    [noteDialog, menuDialog, confirmDlg].forEach(trapTab);
+  }
+
+  /* A modal window keeps the keyboard: Chromium gives the Tab that follows its last
+     button to the page behind it (focus lands on <body>, so a screen reader reads the
+     lists instead of the window) rather than circling back as it does backwards.
+     Circle it here, the way the settings dropdown already does. */
+  function trapTab(dialog) {
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const nodes = [...dialog.querySelectorAll("button, input, select, textarea")]
+        .filter((node) => !node.disabled);
+      if (!nodes.length) return;
+      const edge = event.shiftKey ? nodes[0] : nodes[nodes.length - 1];
+      if (doc.activeElement !== edge && doc.activeElement !== dialog) return;
+      event.preventDefault();
+      (event.shiftKey ? nodes[nodes.length - 1] : nodes[0]).focus();
+    });
   }
 
   /* What a press asked to reveal, measured while the node is certainly on screen. */
@@ -2422,6 +2440,11 @@ dialog::backdrop {
     return true;
   }
 
+  /* The last click that flipped a checkbox, and what the box said before it: the double
+     click that follows puts that value back (see the dblclick listener), so renaming a row
+     never marks it done — however many of the pair's clicks the browser forwarded. */
+  let lastTick = null;
+
   /* Returns true when the click was a tick: it must not also flip a page or fold a list. */
   function tickItem(event) {
     const box = event.target.closest('input[type="checkbox"]');
@@ -2430,6 +2453,7 @@ dialog::backdrop {
     if (!row) return true; // a box outside any row: nothing else must react, as before the split
     const changed = toggleItem(row.dataset.id);
     if (changed) {
+      lastTick = { id: row.dataset.id, at: Date.now(), before: !changed.item.done };
       if (!listsEl.contains(row)) {
         render(); // this very click's blur-commit rebuilt the list: show the just-saved state
       } else {
@@ -2463,6 +2487,7 @@ dialog::backdrop {
   const SWIPE_SHOW = 8; // px of sideways travel before the row starts following
   const SWIPE_MAX = 120; // how far a row visually travels; the gesture keeps going
   const ECHO_MS = 300; // a click this soon after a swipe is the swipe's own echo
+  const DBLCLICK_MS = 600; // long enough for the slowest double click the platform reports
 
   let swipe = null; // the press being tracked, null while idle
 
@@ -2472,11 +2497,14 @@ dialog::backdrop {
     (Math.abs(dx) >= SWIPE_MIN && Math.abs(dx) >= Math.abs(dy) * SWIPE_RATIO ? Math.sign(dx) : 0);
 
   /* A gesture starts on a row's own surface, never on a control the user is already
-     operating: a checkbox, a toolbar button of the row (pencil, +, the 3 dots), the edit
-     field, the pager arrows. The row's own text stays a gesture surface, so does the
-     checklist title, which is a button of its own (folding it is a press, not a drag). */
+     operating: a toolbar button of the row (pencil, +, the 3 dots), the edit field, the
+     pager arrows. The row's own text stays a gesture surface, so does the checklist
+     title, which is a button of its own (folding it is a press, not a drag) — and so does
+     the checkbox: a drag that starts a few pixels off it is the same gesture as one
+     started on the text, and must not end as a tick. A press that stays a press still
+     ticks it, as any click on its label does. */
   function gestureRow(node) {
-    if (node.closest("input, select, .iconbtn, .edit-wrap, [data-pager]")) return null;
+    if (node.closest("select, .iconbtn, .edit-wrap, [data-pager]")) return null;
     const item = node.closest(".item");
     if (item) return { kind: "item", entityId: item.dataset.id, node: item };
     const head = node.closest(".cl-head");
@@ -2507,7 +2535,11 @@ dialog::backdrop {
       }
     });
 
-    listsEl.addEventListener("pointermove", (event) => {
+    /* On the document, not on the lists: a mouse pointer does leave the lists behind (a
+       finger's events stay with the row it pressed), and a press at the checkbox has some
+       34px of lists to its left on a phone — less than a gesture needs. Travel must not
+       depend on how much room there is inside the lists. Idle cost is one test. */
+    doc.addEventListener("pointermove", (event) => {
       if (!swipe || event.pointerId !== swipe.pointerId) return;
       if (!swipe.node.isConnected) return dropSwipe(); // something rebuilt the lists under the finger
       swipe.dx = event.clientX - swipe.x;
@@ -2583,12 +2615,22 @@ dialog::backdrop {
       const action = ROW_ACTIONS[trigger.dataset.act];
       if (action) action(rowKind(holder), holder.dataset.id);
     });
-    /* Double click edits an item: the mouse entry point on a row. A cut-off item is the
-       exception — its first click already opened the full text, and a modal dialog lets
-       no second click through to the row, so the double click never happens there. */
+    /* Double click edits an item: the mouse entry point on a row. Its own first click
+       leaves two things behind that have to go first, or the row ends in two states at
+       once: it ticked the row, and on a cut-off row it opened the full text — which would
+       otherwise stay open over an editor that can neither be typed in nor escaped with Esc. */
     listsEl.addEventListener("dblclick", (event) => {
+      if (ui.editing) return; // one editor at a time, exactly as startEdit does
       const row = event.target.closest(".item");
-      if (row && !event.target.matches("input, button")) startEdit("item", row.dataset.id);
+      if (!row || event.target.matches("input, button")) return;
+      const item = entityOf("item", row.dataset.id);
+      /* The tick goes back by value, not by another flip: browsers differ on how many of
+         the pair's clicks a label forwards, and a row gone in the other window has nothing
+         here to repaint, so nothing is touched. */
+      if (item && lastTick && lastTick.id === item.id && item.done !== lastTick.before
+        && Date.now() - lastTick.at < DBLCLICK_MS) toggleItem(item.id);
+      if (noteDialog.open) noteDialog.close();
+      startEdit("item", row.dataset.id);
     });
     /* Keyboard parity (WCAG 2.1.1): no pointerdown preceded this, so measure on Enter.
        Cut-off item text opens in full; a checklist heading keeps Enter for expand/
