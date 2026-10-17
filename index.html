@@ -60,7 +60,7 @@ document.documentElement.dataset.theme = (() => {
   --pad: 10px;
   --tap: 44px;
   --panel-w: 44px;
-  --panel-gap: 14px;
+  --panel-gap: 14px; /* the panel's own margin, read by layoutPanel() too */
   --topbar-h: 69px; /* height without safe-area; JS measures the real one at startup */
 
   color-scheme: light;
@@ -301,6 +301,7 @@ button {
 }
 
 .cl {
+  position: relative; /* anchor for the drop line of a dragged checklist */
   margin-block-end: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -309,6 +310,10 @@ button {
   overflow-x: clip;
   background: var(--surface);
   box-shadow: var(--shadow-1);
+}
+
+.cl-head, .item {
+  -webkit-touch-callout: none; /* iOS: a long-press grabs the row, no copy callout */
 }
 
 .cl-head {
@@ -449,6 +454,51 @@ section.cl {
   box-shadow: inset 0 0 0 200px color-mix(in srgb, var(--danger) 16%, transparent);
 }
 
+/* ===== bulk mode, drag & drop ===== */
+
+/* The selection box is accent-coloured and sits where the chevron (checklists) or the
+   done box (items) usually sits — see checklistHeading() and itemRow(). */
+.bulk-box {
+  accent-color: var(--accent);
+}
+
+.item.is-selected,
+.cl.is-selected > .cl-head {
+  background: var(--surface-2);
+}
+
+/* A row lifted by a long-press: it follows the pointer and stops being a pointer target,
+   so elementFromPoint sees the row underneath it — that is how the drop slot is found. */
+.is-dragging {
+  transition: none; /* it tracks the finger; the row's own easing would leave it behind */
+  z-index: 6; /* above a stuck checklist head (4) and a swiping row (3) */
+  cursor: grabbing;
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  opacity: 0.92;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* The slot the dragged row (or group) will drop into. */
+.is-drop-before::before,
+.is-drop-after::after {
+  content: "";
+  position: absolute;
+  inset-inline: 6px;
+  block-size: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.is-drop-before::before {
+  inset-block-start: -1px;
+}
+
+.is-drop-after::after {
+  inset-block-end: -1px;
+}
+
 /* Editor field and its save icon side by side. */
 .edit-wrap {
   display: flex;
@@ -550,17 +600,31 @@ section.cl {
 
 /* ===== mini panel ===== */
 
+/* Stuck to one edge of the lists. JS measures the column and writes left/top and the
+   orientation class (see layoutPanel); fixed, so it never scrolls away. */
 .panel {
   position: fixed;
-  inset: 0;
   z-index: 20;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
   gap: 6px;
-  padding-inline-end: max(var(--gutter), env(safe-area-inset-right));
-  pointer-events: none;
+  padding: 4px;
+  touch-action: none; /* the panel is dragged; the page must not scroll under it */
+  -webkit-touch-callout: none; /* iOS: a long-press grabs the panel, no callout */
+  pointer-events: none; /* only the buttons are targets, not the space around them */
+  transition: left 160ms ease, top 160ms ease;
+}
+
+.panel.is-vertical {
+  flex-direction: column;
+}
+
+.panel.is-horizontal {
+  flex-wrap: wrap; /* eight bulk buttons have to fit a 320px screen too */
+  max-inline-size: calc(100vw - var(--panel-gap) * 2);
+}
+
+.panel [hidden] {
+  display: none; /* .iconbtn sets display, which would otherwise beat [hidden] */
 }
 
 .panel .iconbtn {
@@ -572,11 +636,43 @@ section.cl {
   box-shadow: var(--shadow-1);
 }
 
-@media (width >= 840px) {
-  /* Past the lists on wide screens: 720px column + room for the panel. */
-  .panel {
-    padding-inline-end: max(var(--panel-gap), calc((100vw - var(--col)) / 2 - var(--panel-w) - var(--panel-gap)));
-  }
+.panel.is-dragging {
+  transition: none; /* the panel tracks the finger, no easing behind it */
+  box-shadow: var(--shadow-2);
+}
+
+.panel .sep {
+  flex: none;
+  align-self: center;
+}
+
+.panel.is-vertical .sep {
+  inline-size: calc(var(--panel-w) - 12px);
+  block-size: 1px;
+}
+
+.panel.is-horizontal .sep {
+  inline-size: 1px;
+  block-size: calc(var(--panel-w) - 12px);
+}
+
+/* The slot the panel will take on release, drawn while it is dragged. */
+.stick-hint {
+  position: fixed;
+  z-index: 19;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+/* env(safe-area-inset-*) cannot be read off :root, so a throwaway element carries it
+   as padding and layoutPanel() measures that. Unsupported env() -> padding 0. */
+.safe-probe {
+  position: fixed;
+  inset: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* ===== dialogs ===== */
@@ -709,11 +805,21 @@ dialog::backdrop {
 <main id="lists" class="main" tabindex="-1" data-i18n-aria="lists" aria-label="Lists">
   <p id="storage-warning" class="notice" role="status" hidden></p>
   <div id="list-items"></div>
-  <div class="panel" role="toolbar" data-i18n-aria="lists" aria-label="Lists" aria-orientation="vertical">
+  <div id="panel" class="panel" role="toolbar" data-i18n-aria="lists" aria-label="Lists" aria-orientation="vertical">
     <button id="btn-expand-all" class="iconbtn" type="button" data-i18n-label="expandAll" aria-label="Expand all checklists" title="Expand all"><i class="bi bi-arrows-expand" aria-hidden="true"></i></button>
     <button id="btn-collapse-all" class="iconbtn" type="button" data-i18n-label="collapseAll" aria-label="Collapse all checklists" title="Collapse all"><i class="bi bi-arrows-collapse" aria-hidden="true"></i></button>
+    <!-- Bulk mode joins the panel: separator + the five group actions (spec.md). -->
+    <div class="sep" data-bulk hidden></div>
+    <button id="btn-bulk-delete" class="iconbtn" type="button" data-bulk data-bulk-action data-i18n-label="delete" aria-label="Delete" title="Delete" hidden><i class="bi bi-trash" aria-hidden="true"></i></button>
+    <button id="btn-bulk-archive" class="iconbtn" type="button" data-bulk data-bulk-action data-i18n-label="archiveAction" aria-label="Archive" title="Archive" hidden><i class="bi bi-archive" aria-hidden="true"></i></button>
+    <button id="btn-bulk-top" class="iconbtn" type="button" data-bulk data-bulk-action data-i18n-label="toTop" aria-label="To top" title="To top" hidden><i class="bi bi-arrow-bar-up" aria-hidden="true"></i></button>
+    <button id="btn-bulk-bottom" class="iconbtn" type="button" data-bulk data-bulk-action data-i18n-label="toBottom" aria-label="To bottom" title="To bottom" hidden><i class="bi bi-arrow-bar-down" aria-hidden="true"></i></button>
+    <button id="btn-bulk-cancel" class="iconbtn" type="button" data-bulk data-i18n-label="cancel" aria-label="Cancel" title="Cancel" hidden><i class="bi bi-x-lg" aria-hidden="true"></i></button>
   </div>
 </main>
+
+<div id="stick-hint" class="stick-hint" aria-hidden="true" hidden></div>
+<div class="safe-probe" id="safe-probe" aria-hidden="true"></div>
 
 <dialog id="dlg-note" aria-labelledby="note-title" tabindex="-1">
   <h2 id="note-title" class="dialog-title"></h2>
@@ -996,6 +1102,10 @@ dialog::backdrop {
     checklistPosition: { default: "top", values: ["top", "bottom"] },
     itemPosition: { default: "bottom", values: ["top", "bottom"] },
     pageSize: { default: 20, numeric: true, values: ["all", 10, 20, 30, 50, 80, 130, 210] },
+    /* Which edge of the lists the mini panel sticks to. It has no <select> in the
+       settings dropdown — it moves by dragging the panel (or Alt+arrow on it) — but it
+       belongs in this store, so it survives a reload and follows between windows. */
+    panel: { default: "right", values: ["top", "right", "bottom", "left"] },
   };
 
   function castSetting(name, value) {
@@ -1033,6 +1143,10 @@ dialog::backdrop {
     focusAfter: null, // row to hand focus to after the next render (a dialog closed over it)
     pages: { checklists: 1, items: {} }, // current page per list, never persisted
     scrolledTo: null, // pager key: scroll the new page into view once the lists are rebuilt
+    /* Bulk mode: null when off. Selected checklists, plus selected items of one list —
+       `checklistId`, the list whose items the selection covers (spec: only one at a time). */
+    bulk: null,
+    panelSlide: 0, // px the panel is slid along its edge from the middle; the edge itself is a setting
   };
 
   /* A write from the other window that arrived while an editor was open, waiting to
@@ -1052,6 +1166,9 @@ dialog::backdrop {
   const confirmDlg = $("#dlg-confirm");
   const expandBtn = $("#btn-expand-all");
   const collapseBtn = $("#btn-collapse-all");
+  const panelEl = $("#panel");
+  const stickHintEl = $("#stick-hint");
+  const safeProbeEl = $("#safe-probe");
   const selects = {
     theme: $("#set-theme"),
     language: $("#set-language"),
@@ -1095,7 +1212,7 @@ dialog::backdrop {
       emptyHint: "Press + in the header to create your first checklist.",
       dataNewer: "This data was saved by a newer version of TBD. Changes made here cannot be saved.",
       storageBlocked: "TBD cannot save changes. Anything you add or edit will be gone when you close this tab.",
-      helpBody: "TBD keeps your lists in this browser — nothing is uploaded anywhere.\nPress + in the header to add a checklist, then type its name and press Enter.\nPress the + at the right of an open checklist to add items.\nTick an item when it is done; finished things turn grey.\nUse the buttons on the right to open or close every checklist at once.\nThe gear holds theme, language, where new things are added, and page size.\nIf a name or item is cut short, press it to read it in full.\nSwipe a row right to edit it, left to archive it; with a keyboard press F2 to edit.\nThe three dots on a row hold the rest: archive, delete, move to the top, move to the bottom.",
+      helpBody: "TBD keeps your lists in this browser — nothing is uploaded anywhere.\nPress + in the header to add a checklist, then type its name and press Enter.\nPress the + at the right of an open checklist to add items.\nTick an item when it is done; finished things turn grey.\nUse the buttons on the right to open or close every checklist at once.\nThe gear holds theme, language, where new things are added, and page size.\nIf a name or item is cut short, press it to read it in full.\nSwipe a row right to edit it, left to archive it; with a keyboard press F2 to edit.\nThe three dots on a row hold the rest: archive, delete, move to the top, move to the bottom.\nHold a row to drag it: reorder checklists, move an item up, down or into another list.\nBulk mode is in the three dots: tick rows, then the panel deletes, archives, moves to the top or the bottom, or cancels.\nHold the panel and pull it to any edge of the lists; it sticks to the closest one.\nKeyboard: Alt+up or Alt+down moves the row in focus; with a panel button in focus, Alt+arrow moves the panel to that edge.",
       archiveSoon: "The archive is not in this build yet. It will arrive in a later version of TBD.",
       edit: "Edit",
       save: "Save",
@@ -1105,6 +1222,10 @@ dialog::backdrop {
       toTop: "To top",
       toBottom: "To bottom",
       cancel: "Cancel",
+      bulkMode: "Bulk mode",
+      select: "Select",
+      bulkArchiveBody: "Everything selected here goes to the archive and disappears from the lists. The archive screen, where archived things come back, is not built yet — it arrives in the next version.",
+      bulkDeleteBody: "Everything selected here will be deleted for good. This cannot be undone.",
       archiveItemBody: "“%1” goes to the archive and disappears from the lists. The archive screen, where archived things come back, is not built yet — it arrives in the next version.",
       archiveChecklistBody: "“%1” and all its items go to the archive and disappear from the lists. The archive screen, where archived things come back, is not built yet — it arrives in the next version.",
       deleteItemBody: "“%1” will be deleted for good. This cannot be undone.",
@@ -1148,7 +1269,7 @@ dialog::backdrop {
       emptyHint: "Нажмите «плюс» в шапке, чтобы создать первый чек-лист.",
       dataNewer: "Эти данные сохранила более новая версия TBD. Изменения, внесённые здесь, сохранить нельзя.",
       storageBlocked: "TBD не может сохранять изменения. Всё добавленное и изменённое исчезнет после закрытия вкладки.",
-      helpBody: "TBD хранит списки в этом браузере — ничего никуда не отправляется.\nНажмите «плюс» в шапке, введите название чек-листа и нажмите Enter.\nНажмите «плюс» справа у открытого чек-листа, чтобы добавить пункт.\nОтметьте пункт, когда он выполнен, — сделанное становится серым.\nКнопки справа раскрывают или сворачивают все чек-листы сразу.\nВ шестерёнке — тема, язык, место для новых записей и размер страницы.\nЕсли текст не помещается и обрывается, нажмите на него, чтобы прочесть целиком.\nСвайп вправо по строке — редактировать, свайп влево — в архив; с клавиатуры правка по F2.\nТри точки справа у строки — остальное: в архив, удалить, в начало, в конец.",
+      helpBody: "TBD хранит списки в этом браузере — ничего никуда не отправляется.\nНажмите «плюс» в шапке, введите название чек-листа и нажмите Enter.\nНажмите «плюс» справа у открытого чек-листа, чтобы добавить пункт.\nОтметьте пункт, когда он выполнен, — сделанное становится серым.\nКнопки справа раскрывают или сворачивают все чек-листы сразу.\nВ шестерёнке — тема, язык, место для новых записей и размер страницы.\nЕсли текст не помещается и обрывается, нажмите на него, чтобы прочесть целиком.\nСвайп вправо по строке — редактировать, свайп влево — в архив; с клавиатуры правка по F2.\nТри точки справа у строки — остальное: в архив, удалить, в начало, в конец.\nУдержите строку, чтобы перетащить её: менять порядок чек-листов, переносить пункт вверх, вниз или в другой список.\nГрупповой режим — в трёх точках: отметьте строки, а панель удалит, отправит в архив, перенесёт в начало или в конец либо отменит.\nУдержите панель и оттяните её к любой границе списков — она прилипнет к ближайшей.\nС клавиатуры: Alt+стрелка вверх или вниз перемещает строку в фокусе; если в фокусе кнопка панели, Alt+стрелка переносит панель к этой грани.",
       archiveSoon: "Архива в этой версии ещё нет. Он появится позже.",
       edit: "Редактировать",
       save: "Сохранить",
@@ -1158,6 +1279,10 @@ dialog::backdrop {
       toTop: "В начало",
       toBottom: "В конец",
       cancel: "Отмена",
+      bulkMode: "Групповой режим",
+      select: "Выбрать",
+      bulkArchiveBody: "Всё выбранное уйдёт в архив и исчезнет из списков. Экран архива, откуда его можно вернуть, ещё не сделан — он появится в следующей версии.",
+      bulkDeleteBody: "Всё выбранное удалится навсегда. Отменить это будет нельзя.",
       archiveItemBody: "«%1» уйдёт в архив и исчезнет из списков. Экран архива, откуда его можно вернуть, ещё не сделан — он появится в следующей версии.",
       archiveChecklistBody: "«%1» и все его пункты уйдут в архив и исчезнут из списков. Экран архива, откуда их можно вернуть, ещё не сделан — он появится в следующей версии.",
       deleteItemBody: "«%1» удалится навсегда. Отменить это будет нельзя.",
@@ -1201,7 +1326,7 @@ dialog::backdrop {
       emptyHint: "Натиснете «+» в горната лента, за да създадете първия списък.",
       dataNewer: "Тези данни са запазени от по-нова версия на TBD. Промените, направени тук, не могат да се запазят.",
       storageBlocked: "TBD не може да запазва промени. Всичко добавено или променено ще изчезне, след като затворите раздела.",
-      helpBody: "TBD пази списъците ви в този браузър — нищо не се изпраща никъде.\nНатиснете «+» в горната лента, напишете името на списъка и натиснете Enter.\nНатиснете «+» вдясно от отворен списък, за да добавите точка.\nОтбележете точка, когато е готова — свършеното става сиво.\nБутоните вдясно отварят или затварят всички списъци наведнъж.\nЗъбното колело пази тема, език, къде се добавят новите записи и размера на страницата.\nАко текст е отрязан, натиснете го, за да го прочетете целия.\nПлъзнете ред надясно, за да го редактирате, наляво — за архив; с клавиатура редактирайте с F2.\nТрите точки вдясно пазят останалото: архив, изтриване, най-отгоре, най-отдолу.",
+      helpBody: "TBD пази списъците ви в този браузър — нищо не се изпраща никъде.\nНатиснете «+» в горната лента, напишете името на списъка и натиснете Enter.\nНатиснете «+» вдясно от отворен списък, за да добавите точка.\nОтбележете точка, когато е готова — свършеното става сиво.\nБутоните вдясно отварят или затварят всички списъци наведнъж.\nЗъбното колело пази тема, език, къде се добавят новите записи и размера на страницата.\nАко текст е отрязан, натиснете го, за да го прочетете целия.\nПлъзнете ред надясно, за да го редактирате, наляво — за архив; с клавиатура редактирайте с F2.\nТрите точки вдясно пазят останалото: архив, изтриване, най-отгоре, най-отдолу.\nЗадръжте ред, за да го плъзнете: подреждайте списъците, местете точка нагоре, надолу или в друг списък.\nГруповият режим е в трите точки: отметете редове, после панелът изтрива, архивира, мести най-отгоре или най-отдолу, или отказва.\nЗадръжте панела и го опънете до който и да е ръб на списъците — той се захваща за най-близкия.\nС клавиатура: Alt+стрелка нагоре или надолу мести реда на фокус; когато на фокус е бутон от панела, Alt+стрелка мести панела към този ръб.",
       archiveSoon: "Архивът още го няма в тази версия. Ще дойде по-късно.",
       edit: "Редактирай",
       save: "Запази",
@@ -1211,6 +1336,10 @@ dialog::backdrop {
       toTop: "Най-отгоре",
       toBottom: "Най-отдолу",
       cancel: "Отказ",
+      bulkMode: "Групов режим",
+      select: "Избери",
+      bulkArchiveBody: "Всичко избрано отива в архива и изчезва от списъците. Екранът на архива, откъдето може да се върне, още не е готов — ще дойде в следващата версия.",
+      bulkDeleteBody: "Всичко избрано ще се изтрие завинаги. Това не може да се отмени.",
       archiveItemBody: "«%1» отива в архива и изчезва от списъците. Екранът на архива, откъдето може да се върне, още не е готов — ще дойде в следващата версия.",
       archiveChecklistBody: "«%1» и всички негови точки отиват в архива и изчезват от списъците. Екранът на архива, откъдето могат да се върнат, още не е готов — ще дойде в следващата версия.",
       deleteItemBody: "«%1» ще се изтрие завинаги. Това не може да се отмени.",
@@ -1254,7 +1383,7 @@ dialog::backdrop {
       emptyHint: "Appuyez sur + dans l’en-tête pour créer votre première liste.",
       dataNewer: "Ces données ont été enregistrées par une version plus récente de TBD. Les modifications effectuées ici ne peuvent pas être enregistrées.",
       storageBlocked: "TBD ne peut pas enregistrer les modifications. Tout ce que vous ajoutez ou modifiez disparaîtra à la fermeture de cet onglet.",
-      helpBody: "TBD garde vos listes dans ce navigateur — rien n’est envoyé nulle part.\nAppuyez sur + dans l’en-tête pour ajouter une liste, tapez son nom puis Entrée.\nAppuyez sur + à droite d’une liste ouverte pour ajouter un élément.\nCochez un élément lorsqu’il est terminé ; ce qui est fini devient gris.\nLes boutons de droite ouvrent ou ferment toutes les listes d’un coup.\nL’engrenage contient le thème, la langue, l’endroit où ajouter les nouveautés et la taille des pages.\nSi un nom ou un élément est tronqué, appuyez dessus pour le lire en entier.\nFaites glisser une ligne vers la droite pour la modifier, vers la gauche pour l’archiver ; au clavier, appuyez sur F2 pour modifier.\nLes trois points à droite d’une ligne contiennent le reste : archives, suppression, déplacer en haut, déplacer en bas.",
+      helpBody: "TBD garde vos listes dans ce navigateur — rien n’est envoyé nulle part.\nAppuyez sur + dans l’en-tête pour ajouter une liste, tapez son nom puis Entrée.\nAppuyez sur + à droite d’une liste ouverte pour ajouter un élément.\nCochez un élément lorsqu’il est terminé ; ce qui est fini devient gris.\nLes boutons de droite ouvrent ou ferment toutes les listes d’un coup.\nL’engrenage contient le thème, la langue, l’endroit où ajouter les nouveautés et la taille des pages.\nSi un nom ou un élément est tronqué, appuyez dessus pour le lire en entier.\nFaites glisser une ligne vers la droite pour la modifier, vers la gauche pour l’archiver ; au clavier, appuyez sur F2 pour modifier.\nLes trois points à droite d’une ligne contiennent le reste : archives, suppression, déplacer en haut, déplacer en bas.\nMaintenez une ligne pour la déplacer : ordonner les listes, monter un élément, le descendre ou le passer dans une autre liste.\nLe mode groupé est dans les trois points : cochez des lignes, puis le panneau supprime, archive, déplace en haut ou en bas, ou annule.\nMaintenez le panneau et tirez-le vers n’importe quel bord des listes ; il s’accroche au plus proche.\nAu clavier : Alt+flèche haut ou bas déplace la ligne en focus ; si un bouton du panneau a le focus, Alt+flèche déplace le panneau vers ce bord.",
       archiveSoon: "L’archive n’est pas encore dans cette version. Elle arrivera plus tard.",
       edit: "Modifier",
       save: "Enregistrer",
@@ -1264,6 +1393,10 @@ dialog::backdrop {
       toTop: "En haut",
       toBottom: "En bas",
       cancel: "Annuler",
+      bulkMode: "Mode groupé",
+      select: "Sélectionner",
+      bulkArchiveBody: "Tout ce qui est sélectionné part dans les archives et disparaît des listes. L’écran des archives, où l’on peut les retrouver, n’est pas encore fait — il arrive dans la prochaine version.",
+      bulkDeleteBody: "Tout ce qui est sélectionné sera supprimé définitivement. Rien ne pourra être annulé.",
       archiveItemBody: "« %1 » part dans les archives et disparaît des listes. L’écran des archives, où l’on peut les retrouver, n’est pas encore fait — il arrive dans la prochaine version.",
       archiveChecklistBody: "« %1 » et tous ses éléments partent dans les archives et disparaissent des listes. L’écran des archives, où l’on peut les retrouver, n’est pas encore fait — il arrive dans la prochaine version.",
       deleteItemBody: "« %1 » sera supprimé définitivement. Rien ne pourra être annulé.",
@@ -1307,7 +1440,7 @@ dialog::backdrop {
       emptyHint: "Pulse + en la cabecera para crear su primera lista.",
       dataNewer: "Estos datos los guardó una versión más reciente de TBD. Los cambios hechos aquí no se pueden guardar.",
       storageBlocked: "TBD no puede guardar cambios. Lo que añada o cambie se perderá al cerrar esta pestaña.",
-      helpBody: "TBD guarda sus listas en este navegador — nada se envía a ningún sitio.\nPulse + en la cabecera para añadir una lista, escriba su nombre y pulse Intro.\nPulse + a la derecha de una lista abierta para añadir un elemento.\nMarque un elemento cuando esté hecho; lo terminado se vuelve gris.\nLos botones de la derecha abren o cierran todas las listas a la vez.\nEl engranaje guarda el tema, el idioma, dónde se añaden las novedades y el tamaño de página.\nSi un nombre o un elemento aparece cortado, púlselo para leerlo entero.\nDeslice una fila a la derecha para editarla, a la izquierda para archivarla; con teclado pulse F2 para editar.\nLos tres puntos a la derecha de una fila guardan lo demás: archivar, eliminar, mover arriba, mover abajo.",
+      helpBody: "TBD guarda sus listas en este navegador — nada se envía a ningún sitio.\nPulse + en la cabecera para añadir una lista, escriba su nombre y pulse Intro.\nPulse + a la derecha de una lista abierta para añadir un elemento.\nMarque un elemento cuando esté hecho; lo terminado se vuelve gris.\nLos botones de la derecha abren o cierran todas las listas a la vez.\nEl engranaje guarda el tema, el idioma, dónde se añaden las novedades y el tamaño de página.\nSi un nombre o un elemento aparece cortado, púlselo para leerlo entero.\nDeslice una fila a la derecha para editarla, a la izquierda para archivarla; con teclado pulse F2 para editar.\nLos tres puntos a la derecha de una fila guardan lo demás: archivar, eliminar, mover arriba, mover abajo.\nMantenga pulsada una fila para arrastrarla: ordene las listas, suba o baje un elemento o páselo a otra lista.\nEl modo múltiple está en los tres puntos: marque filas y el panel elimina, archiva, mueve al principio o al final, o cancela.\nMantenga el panel y arrástrelo a cualquier borde de las listas; se engancha al más cercano.\nCon teclado: Alt+flecha arriba o abajo mueve la fila en foco; con un botón del panel en foco, Alt+flecha mueve el panel a ese borde.",
       archiveSoon: "El archivo aún no está en esta versión. Llegará más adelante.",
       edit: "Editar",
       save: "Guardar",
@@ -1317,6 +1450,10 @@ dialog::backdrop {
       toTop: "Al principio",
       toBottom: "Al final",
       cancel: "Cancelar",
+      bulkMode: "Modo múltiple",
+      select: "Seleccionar",
+      bulkArchiveBody: "Todo lo seleccionado se va al archivo y desaparece de las listas. La pantalla del archivo, donde se puede recuperar, todavía no está hecha; llegará en la próxima versión.",
+      bulkDeleteBody: "Todo lo seleccionado se eliminará para siempre. Esto no se puede deshacer.",
       archiveItemBody: "«%1» se va al archivo y desaparece de las listas. La pantalla del archivo, donde se puede recuperar, todavía no está hecha; llegará en la próxima versión.",
       archiveChecklistBody: "«%1» y todos sus elementos se van al archivo y desaparecen de las listas. La pantalla del archivo, donde se pueden recuperar, todavía no está hecha; llegará en la próxima versión.",
       deleteItemBody: "«%1» se eliminará para siempre. Esto no se puede deshacer.",
@@ -1360,7 +1497,7 @@ dialog::backdrop {
       emptyHint: "Apasă + din antet pentru a crea prima listă.",
       dataNewer: "Aceste date au fost salvate de o versiune mai nouă de TBD. Modificările făcute aici nu pot fi salvate.",
       storageBlocked: "TBD nu poate salva modificările. Orice adaugi sau schimbi va dispărea când închizi această filă.",
-      helpBody: "TBD îți păstrează listele în acest browser — nimic nu este trimis nicăieri.\nApasă + din antet pentru a adăuga o listă, scrie-i numele și apasă Enter.\nApasă + din dreapta unei liste deschise pentru a adăuga un element.\nBifează un element când este gata; ce s-a terminat devine gri.\nButoanele din dreapta deschid sau închid toate listele deodată.\nRotița ține tema, limba, unde se adaugă elementele noi și dimensiunea paginii.\nDacă un nume sau un element este tăiat, apasă pe el ca să-l citești întreg.\nGlisează un rând la dreapta ca să-l editezi, la stânga ca să-l arhivezi; cu tastatura apasă F2 pentru editare.\nCele trei puncte din dreapta unui rând țin restul: arhivare, ștergere, mutare la început, mutare la sfârșit.",
+      helpBody: "TBD îți păstrează listele în acest browser — nimic nu este trimis nicăieri.\nApasă + din antet pentru a adăuga o listă, scrie-i numele și apasă Enter.\nApasă + din dreapta unei liste deschise pentru a adăuga un element.\nBifează un element când este gata; ce s-a terminat devine gri.\nButoanele din dreapta deschid sau închid toate listele deodată.\nRotița ține tema, limba, unde se adaugă elementele noi și dimensiunea paginii.\nDacă un nume sau un element este tăiat, apasă pe el ca să-l citești întreg.\nGlisează un rând la dreapta ca să-l editezi, la stânga ca să-l arhivezi; cu tastatura apasă F2 pentru editare.\nCele trei puncte din dreapta unui rând țin restul: arhivare, ștergere, mutare la început, mutare la sfârșit.\nȚine apăsat un rând ca să-l tragi: rearanjează listele, mută un element sus, jos sau în altă listă.\nModul grup e în cele trei puncte: bifează rânduri, iar panoul șterge, arhivează, mută la început sau la sfârșit, ori anulează.\nȚine panoul și trage-l la orice margine a listelor; el se prinde de cea mai apropiată.\nCu tastatura: Alt+săgeată sus sau jos mută rândul din focus; cu un buton al panoului în focus, Alt+săgeată mută panoul la acea margine.",
       archiveSoon: "Arhiva nu este încă în această versiune. Va apărea mai târziu.",
       edit: "Editează",
       save: "Salvează",
@@ -1370,6 +1507,10 @@ dialog::backdrop {
       toTop: "La început",
       toBottom: "La sfârșit",
       cancel: "Anulează",
+      bulkMode: "Mod grup",
+      select: "Selectează",
+      bulkArchiveBody: "Tot ce e selectat pleacă în arhivă și dispare din liste. Ecranul arhivei, de unde poate fi adus înapoi, nu este gata — apare în versiunea următoare.",
+      bulkDeleteBody: "Tot ce e selectat va fi șters definitiv. Nu se poate anula.",
       archiveItemBody: "«%1» pleacă în arhivă și dispare din liste. Ecranul arhivei, de unde poate fi adus înapoi, nu este gata — apare în versiunea următoare.",
       archiveChecklistBody: "«%1» și toate elementele lui pleacă în arhivă și dispar din liste. Ecranul arhivei, de unde pot fi aduse înapoi, nu este gata — apare în versiunea următoare.",
       deleteItemBody: "«%1» va fi șters definitiv. Nu se poate anula.",
@@ -1413,7 +1554,7 @@ dialog::backdrop {
       emptyHint: "点击顶部的“+”创建第一个清单。",
       dataNewer: "这些数据由更新版本的 TBD 保存，这里的改动无法保存。",
       storageBlocked: "TBD 无法保存改动。关闭此标签页后，新增和修改的内容都会丢失。",
-      helpBody: "TBD 把清单存放在本浏览器里，不会上传到任何地方。\n点击顶部的“+”，输入清单名称后按回车。\n点击已展开清单右侧的“+”来添加条目。\n完成一个条目就勾选它，完成的内容会变灰。\n右侧的按钮可一次展开或折叠所有清单。\n齿轮里有主题、语言、新记录的位置和每页数量。\n名称或条目被截断时，点击它就能读完整内容。\n在某一行上向右滑动可编辑，向左滑动可归档；用键盘时按 F2 编辑。\n每行右侧的三个圆点是其余操作：归档、删除、移到最前、移到最后。",
+      helpBody: "TBD 把清单存放在本浏览器里，不会上传到任何地方。\n点击顶部的“+”，输入清单名称后按回车。\n点击已展开清单右侧的“+”来添加条目。\n完成一个条目就勾选它，完成的内容会变灰。\n右侧的按钮可一次展开或折叠所有清单。\n齿轮里有主题、语言、新记录的位置和每页数量。\n名称或条目被截断时，点击它就能读完整内容。\n在某一行上向右滑动可编辑，向左滑动可归档；用键盘时按 F2 编辑。\n每行右侧的三个圆点是其余操作：归档、删除、移到最前、移到最后。\n按住一行可拖动它：调整清单顺序，把条目上移、下移或移到别的清单。\n批量模式在三个圆点里：勾选若干行，然后用侧栏删除、归档、移到最前或最后，或取消。\n按住侧栏并拖到清单的任意一边，它会贴到最近的一边。\n键盘：Alt+上或下移动当前行；焦点在侧栏按钮上时，Alt+方向键把侧栏移到那一边。",
       archiveSoon: "这个版本还没有归档，以后会加上。",
       edit: "编辑",
       save: "保存",
@@ -1423,6 +1564,10 @@ dialog::backdrop {
       toTop: "移到最前",
       toBottom: "移到最后",
       cancel: "取消",
+      bulkMode: "批量模式",
+      select: "选择",
+      bulkArchiveBody: "所选内容将移入归档，并从清单中消失。用来找回归档内容的归档页面还没做，会在下一个版本推出。",
+      bulkDeleteBody: "所选内容将被彻底删除，无法撤销。",
       archiveItemBody: "“%1”将移入归档，并从清单中消失。用来找回归档内容的归档页面还没做，会在下一个版本推出。",
       archiveChecklistBody: "“%1”及其全部条目将移入归档，并从清单中消失。用来找回归档内容的归档页面还没做，会在下一个版本推出。",
       deleteItemBody: "“%1”将被彻底删除，无法撤销。",
@@ -1466,7 +1611,7 @@ dialog::backdrop {
       emptyHint: "上部の＋を押して最初のチェックリストを作成します。",
       dataNewer: "このデータは新しい版の TBD が保存しました。ここでの変更は保存できません。",
       storageBlocked: "TBD は変更を保存できません。追加や変更はこのタブを閉じると失われます。",
-      helpBody: "TBD はリストをこのブラウザーに保存します。どこにも送信しません。\n上部の＋を押し、名前を入力してから Enter を押します。\n開いているチェックリストの右の＋で項目を追加します。\n終わった項目にチェックを入れると、終わった物は灰色になります。\n右のボタンですべて展開・折りたたみできます。\n歯車にはテーマ、言語、新しい物の追加位置、1ページあたりの数があります。\n名前や項目が省略されたら、そこを押すと全文を読めます。\n行を右にスワイプで編集、左にスワイプでアーカイブ。キーボードでは F2 で編集します。\n行の右の三点リーダーに残りの操作があります：アーカイブ、削除、先頭へ、末尾へ。",
+      helpBody: "TBD はリストをこのブラウザーに保存します。どこにも送信しません。\n上部の＋を押し、名前を入力してから Enter を押します。\n開いているチェックリストの右の＋で項目を追加します。\n終わった項目にチェックを入れると、終わった物は灰色になります。\n右のボタンですべて展開・折りたたみできます。\n歯車にはテーマ、言語、新しい物の追加位置、1ページあたりの数があります。\n名前や項目が省略されたら、そこを押すと全文を読めます。\n行を右にスワイプで編集、左にスワイプでアーカイブ。キーボードでは F2 で編集します。\n行の右の三点リーダーに残りの操作があります：アーカイブ、削除、先頭へ、末尾へ。\n行を長押しするとドラッグできます：チェックリストの並べ替え、項目を上下や別のリストへ移動。\n一括モードは三点リーダーにあります：行にチェックを入れると、バーで削除・アーカイブ・先頭・末尾・キャンセルが使えます。\nバーを長押ししてリストのどの辺にも引っ張れます。一番近い辺に張り付きます。\nキーボード：Alt+上または下でフォーカス中の行を移動。バーのボタンがフォーカス中なら Alt+矢印でバーをその辺へ移動します。",
       archiveSoon: "この版にアーカイブはまだありません。後で追加されます。",
       edit: "編集",
       save: "保存",
@@ -1476,6 +1621,10 @@ dialog::backdrop {
       toTop: "先頭へ",
       toBottom: "末尾へ",
       cancel: "キャンセル",
+      bulkMode: "一括モード",
+      select: "選択",
+      bulkArchiveBody: "選択した物はすべてアーカイブに移って、リストから消えます。アーカイブから戻す画面はまだ作られておらず、次のバージョンで追加されます。",
+      bulkDeleteBody: "選択した物はすべて完全に削除されます。元に戻せません。",
       archiveItemBody: "「%1」はアーカイブに移って、リストから消えます。アーカイブから戻す画面はまだ作られておらず、次のバージョンで追加されます。",
       archiveChecklistBody: "「%1」とその項目はすべてアーカイブに移って、リストから消えます。アーカイブから戻す画面はまだ作られておらず、次のバージョンで追加されます。",
       deleteItemBody: "「%1」は完全に削除されます。元に戻せません。",
@@ -1519,7 +1668,7 @@ dialog::backdrop {
       emptyHint: "Premu la «+» en la suprabreto por krei vian unuan kontrolliston.",
       dataNewer: "Pli nova versio de TBD konservis ĉi tiujn datumojn. Ĉi tie faritaj ŝanĝoj ne konserveblas.",
       storageBlocked: "TBD ne povas konservi ŝanĝojn. Ĉio aldonita aŭ ŝanĝita perdiĝos kiam vi fermos ĉi tiun langeton.",
-      helpBody: "TBD konservas viajn listojn en ĉi tiu retumilo — nenio sendiĝas.\nPremu la «+» en la suprabreto por aldoni kontrolliston, skribu la nomon de la kontrollisto kaj premu Enter.\nPremu la «+» dekstre de malfermita kontrollisto por aldoni punkton.\nMarku punkton kiam ĝi finiĝis; finitaj aĵoj iĝas grizaj.\nLa butonoj dekstre malfermas aŭ fermas ĉiujn kontrollistojn samtempe.\nLa dentrado enhavas la etoson, la lingvon, kien aldoniĝas novaj aĵoj, kaj la paĝgrandecon.\nSe nomo aŭ punkto estas tranĉita, premu ĝin por legi ĝin tute.\nGlitu vicon dekstren por redakti ĝin, maldekstren por arkivi ĝin; kun klavaro premu F2 por redakti.\nLa tri punktoj dekstre de vico enhavas la ceteron: arkivado, forigado, supren, malsupren.",
+      helpBody: "TBD konservas viajn listojn en ĉi tiu retumilo — nenio sendiĝas.\nPremu la «+» en la suprabreto por aldoni kontrolliston, skribu la nomon de la kontrollisto kaj premu Enter.\nPremu la «+» dekstre de malfermita kontrollisto por aldoni punkton.\nMarku punkton kiam ĝi finiĝis; finitaj aĵoj iĝas grizaj.\nLa butonoj dekstre malfermas aŭ fermas ĉiujn kontrollistojn samtempe.\nLa dentrado enhavas la etoson, la lingvon, kien aldoniĝas novaj aĵoj, kaj la paĝgrandecon.\nSe nomo aŭ punkto estas tranĉita, premu ĝin por legi ĝin tute.\nGlitu vicon dekstren por redakti ĝin, maldekstren por arkivi ĝin; kun klavaro premu F2 por redakti.\nLa tri punktoj dekstre de vico enhavas la ceteron: arkivado, forigado, supren, malsupren.\nTenu vicon por treni ĝin: reordigu kontrollistojn, movu punkton supren, malsupren aŭ al alia kontrollisto.\nLa grupreĝimo estas en la tri punktoj: marku vicojn, kaj la panelo forigas, arkivigas, movas supren aŭ malsupren, aŭ nuligas.\nTenu la panelon kaj trenu ĝin al ajna rando de la listoj; ĝi alkroĉiĝas al la plej proksima.\nKlavare: Alt+sago supren aŭ malsupren movas la vicon en fokuso; kun butono de la panelo en fokuso, Alt+sago movas la panelon al tiu rando.",
       archiveSoon: "La arkivo ankoraŭ ne estas en ĉi tiu versio. Ĝi alvenos poste.",
       edit: "Redaktu",
       save: "Konservu",
@@ -1529,6 +1678,10 @@ dialog::backdrop {
       toTop: "Supren",
       toBottom: "Malsupren",
       cancel: "Nuligu",
+      bulkMode: "Grupreĝimo",
+      select: "Elektu",
+      bulkArchiveBody: "Ĉio elektita iras al la arkivo kaj malaperas el la listoj. La arkiva ekrano, el kio ĝi revenas, ankoraŭ ne ekzistas — ĝi alvenos en la sekva versio.",
+      bulkDeleteBody: "Ĉio elektita estos forigita por ĉiam. Oni ne povas malfari ĝin.",
       archiveItemBody: "«%1» iras al la arkivo kaj malaperas el la listoj. La arkiva ekrano, el kio ĝi revenas, ankoraŭ ne ekzistas — ĝi alvenos en la sekva versio.",
       archiveChecklistBody: "«%1» kaj ĉiuj ĝiaj punktoj iras al la arkivo kaj malaperas el la listoj. La arkiva ekrano, el kio ili revenas, ankoraŭ ne ekzistas — ĝi alvenos en la sekva versio.",
       deleteItemBody: "«%1» estos forigita por ĉiam. Oni ne povas malfari ĝin.",
@@ -1572,7 +1725,7 @@ dialog::backdrop {
       emptyHint: "Preme le «+» in le barra superior pro crear tu prime lista de controlo.",
       dataNewer: "Un version plus recente de TBD salvava iste datos. Le modificationes facite hic non pote esser salvate.",
       storageBlocked: "TBD non pote salvar modificationes. Toto que tu adde o cambia disparera quando tu claude iste scheda.",
-      helpBody: "TBD guarda tu listas in iste navigator — nihil es inviate alicubi.\nPreme le «+» in le barra superior, scribe le nomine del lista de controlo e preme Enter.\nPreme le «+» al latere dextre de un lista de controlo aperite pro adder un elemento.\nMarca un elemento quando illo es finite; le cosas finite deveni gris.\nLe buttones al latere dextre aperi o claude omne listas de controlo insimul.\nLe rota dentate contine le thema, le lingua, ubi le nove cosas se adde, e le dimension del pagina.\nSi un nomine o un elemento es truncate, preme lo pro leger lo integre.\nTrahe un fila a dextra pro modificar lo, a sinistra pro archivar lo; con le clavario preme F2 pro modificar.\nLe tres punctos al dextra de un fila contine le resto: archivar, deler, mover al initio, mover al fin.",
+      helpBody: "TBD guarda tu listas in iste navigator — nihil es inviate alicubi.\nPreme le «+» in le barra superior, scribe le nomine del lista de controlo e preme Enter.\nPreme le «+» al latere dextre de un lista de controlo aperite pro adder un elemento.\nMarca un elemento quando illo es finite; le cosas finite deveni gris.\nLe buttones al latere dextre aperi o claude omne listas de controlo insimul.\nLe rota dentate contine le thema, le lingua, ubi le nove cosas se adde, e le dimension del pagina.\nSi un nomine o un elemento es truncate, preme lo pro leger lo integre.\nTrahe un fila a dextra pro modificar lo, a sinistra pro archivar lo; con le clavario preme F2 pro modificar.\nLe tres punctos al dextra de un fila contine le resto: archivar, deler, mover al initio, mover al fin.\nTene un fila premite pro trahe lo: reordina listas de controlo, move un elemento in alto, in basso o ad alter lista de controlo.\nLe modo gruppe es in le tres punctos: marca filias, e le pannel dele, archiva, move al initio o al fin, o cancella.\nTene le pannel e trahe lo a qualque bordo del listas; illo se attacha al plus proxime.\nClavario: Alt+saetta in alto o in basso move le fila in foco; con un button del pannel in foco, Alt+saetta move le pannel a ille bordo.",
       archiveSoon: "Le archivo non es ancora in iste version. Illo venira plus tarde.",
       edit: "Modificar",
       save: "Salvar",
@@ -1582,6 +1735,10 @@ dialog::backdrop {
       toTop: "Al initio",
       toBottom: "Al fin",
       cancel: "Cancellar",
+      bulkMode: "Modo gruppe",
+      select: "Selige",
+      bulkArchiveBody: "Toto le seligite va al archivo e dispare del listas. Le pagina del archivo, ubon on lo pote recuperar, non es ancora facite — illo venira in le version sequente.",
+      bulkDeleteBody: "Toto le seligite essera delite pro sempre. On non pote disface isto.",
       archiveItemBody: "«%1» va al archivo e dispare del listas. Le pagina del archivo, ubon on lo pote recuperar, non es ancora facite — illo venira in le version sequente.",
       archiveChecklistBody: "«%1» e tote su elementos va al archivo e dispare del listas. Le pagina del archivo, ubon on los pote recuperar, non es ancora facite — illo venira in le version sequente.",
       deleteItemBody: "«%1» essera delite pro sempre. On non pote disface isto.",
@@ -1625,7 +1782,7 @@ dialog::backdrop {
       emptyHint: "o luka e '+' lon sewi la sina pali e lipu.",
       dataNewer: "ilo TBD sin li awen e ni. sina ken ala awen e ante lon ni.",
       storageBlocked: "ilo TBD li ken ala awen e ante. o pini e lipu ni la ante ale li weka.",
-      helpBody: "TBD li awen e lipu sina lon ilo ni. ona li pana ala e sona tawa ante.\no luka e '+' lon sewi. o sitelen e nimi lipu. o luka e Enter.\no luka e '+' lon poka pi lipu pali open la pali sin li kama.\no sitelen e pali pini. pali pini li kama pimeja lili.\nilo lon poka li open anu pini e lipu pali ale.\nilo sike li jo e kule en toki en nasin pana en nanpa lipu.\nnimi li suli mute la o luka e ona la sina lukin e nimi ale.\no tawa e luka sina lon linja: tawa poka kama la sina ante e nimi; tawa poka pini la linja li tawa lipu pi tenpo pini; o luka e F2 la sina ante e nimi.\nnanpa tu wan lon poka linja li jo e pali ante: lipu pi tenpo pini, weka, tawa sewi, tawa anpa.",
+      helpBody: "TBD li awen e lipu sina lon ilo ni. ona li pana ala e sona tawa ante.\no luka e '+' lon sewi. o sitelen e nimi lipu. o luka e Enter.\no luka e '+' lon poka pi lipu pali open la pali sin li kama.\no sitelen e pali pini. pali pini li kama pimeja lili.\nilo lon poka li open anu pini e lipu pali ale.\nilo sike li jo e kule en toki en nasin pana en nanpa lipu.\nnimi li suli mute la o luka e ona la sina lukin e nimi ale.\no tawa e luka sina lon linja: tawa poka kama la sina ante e nimi; tawa poka pini la linja li tawa lipu pi tenpo pini; o luka e F2 la sina ante e nimi.\nnanpa tu wan lon poka linja li jo e pali ante: lipu pi tenpo pini, weka, tawa sewi, tawa anpa.\no luka e linja lon tenpo mute la sina ken tawa e ona: o ante e nanpa lipu, o tawa e pali tawa sewi anu anpa anu tawa lipu ante.\nnasin pali mute li lon nanpa tu wan. o luka e linja. o kepeken ilo poka la ona li weka e ona anu li tawa lipu pi tenpo pini anu tawa sewi anu tawa anpa anu li ala e ni.\no luka e ilo poka lon tenpo mute la sina ken tawa e ona tawa poka ale pi lipu. ona li kama tawa poka sinpin.\nkepeken ilo nanpa la: Alt en supa sewi anu anpa li tawa e linja. sina luka e ilo poka la Alt en supa li tawa e ilo poka tawa poka ni.",
       archiveSoon: "tenpo ni la ilo TBD jo ala e lipu pi tenpo pini. tenpo kama la ona li kama.",
       edit: "ante e nimi",
       save: "awen e nimi",
@@ -1635,6 +1792,10 @@ dialog::backdrop {
       toTop: "tawa sewi",
       toBottom: "tawa anpa",
       cancel: "ala",
+      bulkMode: "nasin pali mute",
+      select: "anka",
+      bulkArchiveBody: "ni ale li tawa lipu pi tenpo pini la ona li weka tan lipu sina. tenpo ni la sina ken ala lukin e lipu pi tenpo pini. tenpo kama la ken ni li kama.",
+      bulkDeleteBody: "ni ale li weka pini. sina ken ala kama sin e ona.",
       archiveItemBody: "'%1' li tawa lipu pi tenpo pini la ona li weka tan lipu sina. tenpo ni la sina ken ala lukin e lipu pi tenpo pini. tenpo kama la ken ni li kama.",
       archiveChecklistBody: "lipu '%1' en pali ona ale li tawa lipu pi tenpo pini la ona li weka tan lipu sina. tenpo ni la sina ken ala lukin e lipu pi tenpo pini. tenpo kama la ken ni li kama.",
       deleteItemBody: "'%1' li weka pini. sina ken ala kama sin e ona.",
@@ -1792,13 +1953,23 @@ dialog::backdrop {
     const edit = editingFor("checklist", checklist.id);
     if (edit) return editorNode(edit, checklist.title, t("checklistTitle"));
     const muted = allDone(checklist);
+    const name = checklist.title || t("untitled");
+    const title = el("span", { class: ["cl-title", muted && "is-muted"], text: name });
+    if (ui.bulk) {
+      /* Bulk mode: the accent box takes the chevron's place, and the head selects the
+         checklist instead of folding it — opening and closing is the panel's job while
+         bulk mode is on. A label, not a button: a checkbox cannot live inside one. */
+      const box = el("input", {
+        class: "bulk-box", type: "checkbox", "data-act": "bulk-check",
+        checked: ui.bulk.checklists.has(checklist.id), "aria-label": `${t("select")}: ${name}`,
+      });
+      return el("label", { class: "cl-toggle", title: name }, box, title);
+    }
     /* The arrow keeps its own tooltip: with a cut-off name a click on the name
        opens the full text, so the arrow is what opens and closes the card. */
     const chevron = el("i", {
       class: `bi bi-chevron-${checklist.open ? "up" : "right"}`, "aria-hidden": "true", title: t("toggleList"),
     });
-    const name = checklist.title || t("untitled");
-    const title = el("span", { class: ["cl-title", muted && "is-muted"], text: name });
     return el("button", {
       class: "cl-toggle",
       type: "button",
@@ -1808,15 +1979,20 @@ dialog::backdrop {
     }, chevron, title);
   }
 
-  function itemRow(item) {
+  /* bulk = bulk mode is on: the box selects the row instead of ticking it done. */
+  function itemRow(item, bulk) {
     const edit = editingFor("item", item.id);
     if (edit) return el("li", { class: "item", "data-id": item.id }, editorNode(edit, item.text, t("itemText")));
     const name = item.text || t("untitled");
-    const box = el("input", { type: "checkbox", checked: item.done, "aria-label": name });
+    const selected = bulk === true && ui.bulk.items.has(item.id);
+    const box = el("input", {
+      class: bulk ? "bulk-box" : null, type: "checkbox", "data-act": bulk ? "bulk-check" : null,
+      checked: bulk ? selected : item.done, "aria-label": bulk ? `${t("select")}: ${name}` : name,
+    });
     const text = el("span", { class: "item-text", title: name, text: name });
     /* The menu button sits beside the label, never inside it: a click on it must not
        tick the item on the way to the dialog. */
-    return el("li", { class: ["item", item.done && "is-done"], "data-id": item.id },
+    return el("li", { class: ["item", item.done && "is-done", selected && "is-selected"], "data-id": item.id },
       el("label", { class: "item-row" }, box, text),
       iconButton("menu", `${t("actions")}: ${name}`, "three-dots-vertical"));
   }
@@ -1843,7 +2019,7 @@ dialog::backdrop {
       : ui.pages.items[checklist.id] ?? 1;
     const page = paginate(items, wanted, settings().pageSize);
     ui.pages.items[checklist.id] = page.current;
-    const nodes = [el("ul", { class: "items" }, page.shown.map(itemRow))];
+    const nodes = [el("ul", { class: "items" }, page.shown.map((item) => itemRow(item, ui.bulk !== null)))];
     /* Named after its checklist: "Item pages" alone would not say which list it pages. */
     if (page.pages > 1) nodes.push(pagerNode(checklist.id, `${t("itemPages")}: ${checklist.title || t("untitled")}`, page, false));
     return nodes;
@@ -1858,8 +2034,10 @@ dialog::backdrop {
       iconButton("menu", `${t("actions")}: ${checklist.title || t("untitled")}`, "three-dots-vertical"),
     ];
     const head = el("div", { class: "cl-head" }, el("h2", { class: "cl-heading" }, checklistHeading(checklist)), actions);
-    return el("section", { class: ["cl", checklist.open && "is-open"], "data-id": checklist.id },
-      head, checklist.open ? checklistBody(checklist) : null);
+    return el("section", {
+      class: ["cl", checklist.open && "is-open", ui.bulk?.checklists.has(checklist.id) && "is-selected"],
+      "data-id": checklist.id,
+    }, head, checklist.open ? checklistBody(checklist) : null);
   }
 
   function emptyState() {
@@ -1944,6 +2122,26 @@ dialog::backdrop {
     collapseBtn.disabled = open === 0;
     /* Disabling the focused button drops the keyboard to <body>; hand it to the sibling. */
     if (focused && focused.disabled) (focused === expandBtn ? collapseBtn : expandBtn).focus();
+    syncBulkPanel();
+  }
+
+  /* The group actions live in the panel and only while bulk mode is on; they need
+     something selected. Re-measuring the panel here covers every size change: the
+     buttons appearing, the lists growing, the viewport rotating. */
+  function syncBulkPanel() {
+    const bulk = ui.bulk !== null;
+    for (const node of panelEl.querySelectorAll("[data-bulk]")) node.hidden = !bulk;
+    const any = bulkCount() > 0;
+    /* Same rescue as the two panel buttons above: the action that was just used is the one
+       that gets disabled, and a keyboard left on a disabled button falls to <body>. */
+    const focused = panelEl.querySelector("[data-bulk-action]:focus");
+    for (const btn of panelEl.querySelectorAll("[data-bulk-action]")) btn.disabled = !any;
+    /* A button that just went away with the mode is as good as gone for the keyboard. */
+    if (focused && (focused.disabled || focused.hidden)) {
+      const next = [...panelEl.querySelectorAll("button")].find((btn) => !btn.hidden && !btn.disabled);
+      if (next) next.focus({ preventScroll: true });
+    }
+    layoutPanel();
   }
 
   function syncSettingsForm() {
@@ -1962,18 +2160,22 @@ dialog::backdrop {
   /* Landing after a page change: checklists from their top, items with the pager
      they clicked kept at the bottom of the screen, so nobody is left mid-list. */
   function scrollAfterRender() {
-    const key = ui.scrolledTo;
+    let key = ui.scrolledTo;
     if (!key) return;
     ui.scrolledTo = null;
-    /* Three kinds of landing point: the whole list from its top, a single checklist
-       card from its top ("card:<id>", used by to top / to bottom), or the end of a
-       page, where its pager sits. A list on one page has no pager: aim at the card. */
+    /* Three kinds of landing point: the whole list from its top, a single card or row
+       from its top ("card:<id>", used by to top / to bottom and by a keyboard move), or
+       the end of a page, where its pager sits. A list on one page has no pager: aim at
+       the card. An "end:" prefix asks for the bottom of the landing point instead — a
+       group that was just moved to the end of its list must be on screen. */
+    const toBottom = key.startsWith("end:");
+    if (toBottom) key = key.slice(4);
     const card = key.startsWith("card:");
     const id = card ? key.slice(5) : key;
     const find = (what) => listsEl.querySelector(`[${what}="${CSS.escape(id)}"]`);
     const node = id === "checklists" ? listsEl : find(card ? "data-id" : "data-pager") || find("data-id");
     if (!node) return;
-    const toEnd = !card && id !== "checklists";
+    const toEnd = toBottom || (!card && id !== "checklists");
     node.scrollIntoView({ block: toEnd ? "end" : "start", behavior: motionQuery.matches ? "auto" : "smooth" });
   }
 
@@ -2014,6 +2216,353 @@ dialog::backdrop {
       }
     }
     root.lang = "en";
+  }
+
+  /* -------------------------------------------------------- mini panel */
+
+  const PANEL_BREAK = 840; // px of viewport with room beside the 720px column
+  const PANEL_CONFLICT = 48; // within this of a tie, the panel keeps the edge it is on
+  const PANEL_SIDES = ["top", "right", "bottom", "left"];
+  /* One source for the margin: the token the panel's own CSS uses. */
+  const PANEL_GAP = Number.parseFloat(getComputedStyle(root).getPropertyValue("--panel-gap")) || 14;
+
+  let panelDrag = null; // the panel being dragged, null while idle
+
+  const pxOf = (value) => Number.parseFloat(value) || 0;
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), Math.max(min, max));
+  const panelHorizontal = (side) => side === "top" || side === "bottom";
+
+  /* env() insets cannot be read off :root, so a hidden probe carries them as padding. */
+  function safeInsets() {
+    const style = getComputedStyle(safeProbeEl);
+    return { t: pxOf(style.paddingTop), r: pxOf(style.paddingRight), b: pxOf(style.paddingBottom), l: pxOf(style.paddingLeft) };
+  }
+
+  /* Where the panel goes for one edge, centred on it and slid `slide` px along it:
+     left and right stick to the lists column with a margin and sit outside it where
+     there is room, otherwise over the lists (a phone); bottom sits a margin under the
+     lists where there is room, otherwise low on the screen; top takes the same slot on
+     the other side, which is under the header — there is no room above the lists, and a
+     button under the sticky header could never be pressed.
+     Whatever the edge, the panel stays fully visible. */
+  function panelPlace(side, w, h, slide, insets) {
+    const lists = mainEl.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const outside = vw >= PANEL_BREAK;
+    let x;
+    let y;
+    if (panelHorizontal(side)) {
+      x = (vw - w) / 2 + slide;
+      /* Top: above the lists where there is room for it, otherwise just below the header.
+         Bottom: under the lists where they end on screen, low on the screen when they run
+         past it. */
+      y = side === "top"
+        ? Math.max(lists.top - PANEL_GAP - h, topbarEl.getBoundingClientRect().height + PANEL_GAP)
+        : Math.min(lists.bottom + PANEL_GAP, vh - h - PANEL_GAP - insets.b);
+    } else if (side === "left") {
+      y = (vh - h) / 2 + slide;
+      x = outside ? lists.left - PANEL_GAP - w : PANEL_GAP + insets.l;
+    } else {
+      y = (vh - h) / 2 + slide;
+      x = outside ? lists.right + PANEL_GAP : vw - w - PANEL_GAP - insets.r;
+    }
+    return {
+      x: clamp(x, PANEL_GAP + insets.l, vw - w - PANEL_GAP - insets.r),
+      y: clamp(y, PANEL_GAP + insets.t, vh - h - PANEL_GAP - insets.b),
+      w,
+      h,
+    };
+  }
+
+  function layoutPanel() {
+    if (panelDrag) return; // while it is dragged, movePanelDrag places the panel itself
+    const side = settings().panel;
+    const horizontal = panelHorizontal(side);
+    panelEl.classList.toggle("is-horizontal", horizontal);
+    panelEl.classList.toggle("is-vertical", !horizontal);
+    panelEl.setAttribute("aria-orientation", horizontal ? "horizontal" : "vertical");
+    const w = panelEl.offsetWidth;
+    const h = panelEl.offsetHeight;
+    /* Sliding is clamped to the edge it happens on: the panel cannot be lost off screen. */
+    const room = Math.max(0, (horizontal ? window.innerWidth - w : window.innerHeight - h) / 2 - PANEL_GAP);
+    ui.panelSlide = clamp(ui.panelSlide, -room, room);
+    const at = panelPlace(side, w, h, ui.panelSlide, safeInsets());
+    panelEl.style.left = `${at.x}px`;
+    panelEl.style.top = `${at.y}px`;
+  }
+
+  /* The edge the panel would take if released here. The lists rectangle splits the plane:
+     past one of its sides you are on that side, and inside the rectangle every edge
+     competes on its own distance. A near-tie keeps the edge the panel already has — the
+     axis the user was working on beats a few pixels, and sliding along an edge never
+     drops it. */
+  function edgePick(x, y, current) {
+    const lists = mainEl.getBoundingClientRect();
+    /* Positive outside the rectangle on that side, negative inside it. */
+    const depth = {
+      left: lists.left - x,
+      right: x - lists.right,
+      top: lists.top - y,
+      bottom: y - lists.bottom,
+    };
+    const outside = PANEL_SIDES.filter((side) => depth[side] > 0);
+    const candidates = outside.length ? outside : PANEL_SIDES;
+    const score = (side) => (outside.length ? depth[side] : Math.abs(depth[side]));
+    let best = candidates.includes(current) ? current : candidates[0];
+    for (const side of candidates) if (score(side) < score(best)) best = side;
+    return best !== current && candidates.includes(current) && score(current) - score(best) < PANEL_CONFLICT
+      ? current
+      : best;
+  }
+
+  /* The slot the panel would land in, drawn while it is dragged: the same maths as the
+     resting place, so what the user sees is exactly where it ends up. */
+  function showStickHint(side) {
+    const at = panelPlace(side, panelEl.offsetWidth, panelEl.offsetHeight, ui.panelSlide, safeInsets());
+    stickHintEl.hidden = false;
+    stickHintEl.style.left = `${at.x}px`;
+    stickHintEl.style.top = `${at.y}px`;
+    stickHintEl.style.width = `${at.w}px`;
+    stickHintEl.style.height = `${at.h}px`;
+  }
+
+  function startPanelDrag(x, y, pointerId) {
+    if (panelDrag) return;
+    const rect = panelEl.getBoundingClientRect();
+    /* The grab point stays under the finger, so the panel does not jump sideways. */
+    panelDrag = { pointerId, side: settings().panel, dx: rect.left - x, dy: rect.top - y, px: rect.left, py: rect.top };
+    panelEl.classList.add("is-dragging");
+    showStickHint(panelDrag.side);
+    navigator.vibrate?.(12); // a grab you can feel (Android; iOS ignores it)
+  }
+
+  function movePanelDrag(event) {
+    /* A mouse released outside the window never sends its pointerup: a move with no button
+       held is that release, and the panel takes the slot it is over. */
+    if (event.pointerType === "mouse" && event.buttons === 0) return endPanelDrag();
+    const insets = safeInsets();
+    /* The edge it is on now, not the one stored: the near-tie must protect the edge the
+       user is working on, so sliding along a new edge does not snap it back. */
+    const side = edgePick(event.clientX, event.clientY, panelDrag.side);
+    const horizontal = panelHorizontal(side);
+    panelDrag.side = side;
+    /* The buttons turn as the panel nears a new edge: orientation is part of the answer. */
+    panelEl.classList.toggle("is-horizontal", horizontal);
+    panelEl.classList.toggle("is-vertical", !horizontal);
+    /* Measured after the turn, which can change the shape of the panel itself. */
+    const w = panelEl.offsetWidth;
+    const h = panelEl.offsetHeight;
+    panelDrag.px = clamp(event.clientX + panelDrag.dx, PANEL_GAP + insets.l, window.innerWidth - w - PANEL_GAP - insets.r);
+    panelDrag.py = clamp(event.clientY + panelDrag.dy, PANEL_GAP + insets.t, window.innerHeight - h - PANEL_GAP - insets.b);
+    panelEl.style.left = `${panelDrag.px}px`;
+    panelEl.style.top = `${panelDrag.py}px`;
+    showStickHint(side);
+  }
+
+  function endPanelDrag() {
+    const d = panelDrag;
+    panelDrag = null;
+    panelEl.classList.remove("is-dragging");
+    stickHintEl.hidden = true;
+    gestureAt = Date.now();
+    /* Where it was dropped becomes its new slide offset along the new edge; the edge
+       itself is a setting, so it survives a reload and syncs between windows. */
+    const w = panelEl.offsetWidth;
+    const h = panelEl.offsetHeight;
+    const centre = panelHorizontal(d.side) ? (window.innerWidth - w) / 2 : (window.innerHeight - h) / 2;
+    ui.panelSlide = (panelHorizontal(d.side) ? d.px : d.py) - centre;
+    if (d.side === settings().panel) layoutPanel(); // straight back: no setting changed, no event
+    else settingsStore.patch({ panel: d.side });
+  }
+
+  function bindPanel() {
+    panelEl.addEventListener("pointerdown", (event) => {
+      if ((event.pointerType === "mouse" && event.button !== 0) || event.target.closest(".sep")) return;
+      armHold(event, startPanelDrag);
+    });
+    /* The release of a drag lands on the button it started from; that click belongs to
+       the drag, not to the button. Capture, not bubble: each button has its own click
+       listener, and one on the container would only be reached after they have run. */
+    panelEl.addEventListener("click", (event) => {
+      if (!justDragged()) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    /* Alt+arrow is the keyboard twin of the drag (WCAG 2.5.7): one key press per edge,
+       no dragging required. */
+    panelEl.addEventListener("keydown", (event) => {
+      if (!event.altKey || !PANEL_SIDES.includes(KEY_EDGE[event.key] ?? "")) return;
+      event.preventDefault();
+      ui.panelSlide = 0;
+      settingsStore.patch({ panel: KEY_EDGE[event.key] });
+    });
+  }
+
+  const KEY_EDGE = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" };
+
+  /* ---------------------------------------------------------- bulk mode */
+
+  /* Selection of checklists, plus selection of the items of one list — the list whose
+     box or rows were used last. Items of two lists are never selected together: the
+     area of item selection is a single checklist (spec.md). */
+  function enterBulk(kind, id) {
+    const bulk = { checklistId: null, checklists: new Set(), items: new Set() };
+    if (kind === "checklist") {
+      bulk.checklistId = id;
+      bulk.checklists.add(id);
+    } else {
+      bulk.checklistId = locate(db(), { kind: "item", id }).checklistId ?? null;
+      if (bulk.checklistId) bulk.items.add(id);
+    }
+    ui.bulk = bulk;
+    render();
+  }
+
+  function exitBulk() {
+    const back = ui.bulk?.checklistId;
+    ui.bulk = null;
+    ui.focusAfter = back ? { id: back } : null; // the keyboard goes back to the lists
+    render();
+  }
+
+  /* Rows are marked in place: a tap on a selection box must not pay for rebuilding a
+     long list, only the panel's enabled state follows the selection. */
+  function toggleBulkSelect(kind, id) {
+    const bulk = ui.bulk;
+    if (!bulk) return;
+    if (kind === "checklist") {
+      const selected = !bulk.checklists.has(id);
+      if (selected) bulk.checklists.add(id);
+      else bulk.checklists.delete(id);
+      markRowSelected(kind, id, selected);
+      /* The items you can pick belong to the list you touched last, and a selected
+         checklist already covers its own rows — picking it drops their picks. */
+      if (bulk.checklistId !== id || selected) {
+        bulk.checklistId = id;
+        clearItemSelected();
+      }
+      syncBulkPanel();
+      return;
+    }
+    const parentId = locate(db(), { kind: "item", id }).checklistId;
+    if (parentId === undefined) return; // its checklist is gone (other window)
+    if (bulk.checklistId !== parentId) {
+      bulk.checklistId = parentId;
+      clearItemSelected();
+    }
+    const selected = !bulk.items.has(id);
+    if (selected) bulk.items.add(id);
+    else bulk.items.delete(id);
+    markRowSelected(kind, id, selected);
+    syncBulkPanel();
+  }
+
+  function markRowSelected(kind, id, selected) {
+    const node = listsEl.querySelector(`${kind === "checklist" ? "section.cl" : ".item"}[data-id="${CSS.escape(id)}"]`);
+    if (!node) return;
+    node.classList.toggle("is-selected", selected);
+    /* The box under a label is already flipped by the browser; putting the value in by
+       hand keeps it in step with the model whichever way the click arrived. */
+    const box = node.querySelector('input[data-act="bulk-check"]');
+    if (box) box.checked = selected;
+  }
+
+  function clearItemSelected() {
+    ui.bulk.items.clear();
+    for (const row of listsEl.querySelectorAll(".item.is-selected")) {
+      row.classList.remove("is-selected");
+      const box = row.querySelector('input[data-act="bulk-check"]');
+      if (box) box.checked = false; // the browser ticked it on click: the model says otherwise
+    }
+  }
+
+  /* How many selected entities still exist: a row deleted in the other window leaves its
+     id behind, and a stale id must not keep an action button enabled. */
+  function bulkCount() {
+    const bulk = ui.bulk;
+    if (!bulk) return 0;
+    let count = 0;
+    for (const checklist of db().checklists) {
+      if (bulk.checklists.has(checklist.id)) count += 1;
+      if (checklist.id === bulk.checklistId) count += checklist.items.filter((item) => bulk.items.has(item.id)).length;
+    }
+    return count;
+  }
+
+  /* The names the confirmation is about, so it says what it destroys. Count-free on
+     purpose: one sentence, grammatical in all eleven languages. */
+  function bulkNames() {
+    const bulk = ui.bulk;
+    const names = [];
+    for (const checklist of db().checklists) {
+      if (bulk.checklists.has(checklist.id)) names.push(checklist.title || t("untitled"));
+      if (checklist.id === bulk.checklistId) {
+        for (const item of checklist.items) if (bulk.items.has(item.id)) names.push(item.text || t("untitled"));
+      }
+    }
+    const shown = names.slice(0, 5).map((name) => `“${name}”`).join(", ");
+    return names.length > 5 ? `${shown} …` : shown;
+  }
+
+  const bulkBody = (key) => `${bulkNames()}\n${t(key)}`;
+
+  function bulkArchive() {
+    if (!bulkCount()) return;
+    const bulk = ui.bulk;
+    askConfirm(t("archiveAction"), bulkBody("bulkArchiveBody"), () => {
+      data.update((store) => {
+        const stamp = Date.now();
+        for (const checklist of store.checklists) {
+          if (bulk.checklists.has(checklist.id)) checklist.archivedAt = stamp;
+          if (checklist.id !== bulk.checklistId) continue;
+          for (const item of checklist.items) if (bulk.items.has(item.id)) item.archivedAt = stamp;
+        }
+      });
+      clearItemSelected();
+      bulk.checklists.clear();
+      syncBulkPanel();
+    });
+  }
+
+  /* Deleting a selected checklist drops its record, items included (see deleteEntity). */
+  function bulkDelete() {
+    if (!bulkCount()) return;
+    const bulk = ui.bulk;
+    askConfirm(t("delete"), bulkBody("bulkDeleteBody"), () => {
+      data.update((store) => {
+        const gone = store.checklists.filter((checklist) => bulk.checklists.has(checklist.id));
+        store.checklists.splice(0, store.checklists.length, ...store.checklists.filter((checklist) => !bulk.checklists.has(checklist.id)));
+        for (const checklist of gone) delete ui.pages.items[checklist.id]; // its page counter is gone with it
+        for (const checklist of store.checklists) takeByIds(checklist.items, bulk.items); // the selected rows
+      });
+      clearItemSelected();
+      bulk.checklists.clear();
+      syncBulkPanel();
+    });
+  }
+
+  /* Both groups go to the same end of their own lists, each keeping the order it had;
+     then the page that holds them is shown. */
+  function bulkMove(bottom) {
+    const bulk = ui.bulk;
+    if (!bulk || !bulkCount()) return;
+    const position = bottom ? "bottom" : "top";
+    const current = db().checklists.find((checklist) => checklist.id === bulk.checklistId);
+    const shown = current ? current.items.filter((item) => item.archivedAt === null).length : 0;
+    if (current && bulk.items.size) {
+      ui.pages.items[current.id] = pageForPosition(shown, position);
+      ui.scrolledTo = bottom ? `end:${current.id}` : `card:${current.id}`;
+    } else if (bulk.checklists.size) {
+      ui.pages.checklists = pageForPosition(activeChecklists().length, position);
+      ui.scrolledTo = `${bottom ? "end:" : ""}checklists`;
+    }
+    ui.focusAfter = null;
+    data.update((store) => {
+      if (bulk.checklists.size) insertGroup(store.checklists, takeByIds(store.checklists, bulk.checklists), null, bottom);
+      const dest = store.checklists.find((checklist) => checklist.id === bulk.checklistId);
+      if (dest && bulk.items.size) insertGroup(dest.items, takeByIds(dest.items, bulk.items), null, bottom);
+    });
   }
 
   /* ----------------------------------------------------------- actions */
@@ -2206,6 +2755,38 @@ dialog::backdrop {
     });
   }
 
+  /* Lift the given entities out of `list`, keeping the order they had. */
+  function takeByIds(list, ids) {
+    const taken = [];
+    for (let index = list.length - 1; index >= 0; index -= 1) {
+      if (ids.has(list[index].id)) taken.unshift(...list.splice(index, 1));
+    }
+    return taken;
+  }
+
+  /* Put `moving` into `dest` before (or after) the row `refId` was on, keeping their
+     internal order: picking 3 and 7 of 1..8 and dropping them at position 2 gives
+     [1,3,7,2,4,…] (spec.md). A reference row can itself be part of the group — the slot
+     is then the first row after it that stays put — and a reference that has vanished
+     (other window) means the end. */
+  function insertGroup(dest, moving, refId, after) {
+    const rest = dest.filter((entity) => !moving.includes(entity));
+    const from = refId ? dest.findIndex((entity) => entity.id === refId) : -1;
+    let index = rest.length;
+    if (!refId) index = after ? rest.length : 0; // to top / to bottom: no reference row at all
+    if (from !== -1) {
+      for (let i = after ? from + 1 : from; i < dest.length; i += 1) {
+        const at = rest.indexOf(dest[i]);
+        if (at !== -1) {
+          index = at;
+          break;
+        }
+      }
+    }
+    rest.splice(index, 0, ...moving);
+    dest.splice(0, dest.length, ...rest);
+  }
+
   /* To top / to bottom inside the entity's own list, then show the page it moved to.
      The destination is worked out before the move — moving changes no counts — so the
      page and the scroll target are already in place when the store renders. */
@@ -2238,6 +2819,31 @@ dialog::backdrop {
       if (bottom) list.push(entity);
       else list.unshift(entity);
     });
+  }
+
+  /* Alt+up / Alt+down: the keyboard twin of drag and drop (WCAG 2.5.7 — nothing here
+     should need a dragging gesture). One neighbour per press, inside the entity's own
+     list; the page follows the row when the swap moves it off the page it was shown on. */
+  function moveByKeyboard(kind, id, down) {
+    const parent = kind === "checklist" ? null : db().checklists.find((checklist) => checklist.items.some((item) => item.id === id));
+    const list = kind === "checklist" ? db().checklists : parent.items;
+    const index = list.findIndex((entity) => entity.id === id);
+    const neighbour = list[index + (down ? 1 : -1)];
+    if (index === -1 || !neighbour) return; // already at that end
+    const scope = kind === "checklist" ? listsEl : listsEl.querySelector(`section.cl[data-id="${CSS.escape(parent.id)}"]`);
+    const rows = scope ? [...scope.querySelectorAll(kind === "checklist" ? ":scope > section.cl" : ".item")] : [];
+    if (rows.length && (rows.findIndex((node) => node.dataset.id === id) === (down ? rows.length - 1 : 0))) {
+      if (kind === "checklist") ui.pages.checklists += down ? 1 : -1;
+      else ui.pages.items[parent.id] += down ? 1 : -1;
+      ui.scrolledTo = `card:${id}`; // land with the row at the top, not mid-page
+    }
+    const before = captureRects(kind);
+    ui.focusAfter = { id }; // the row moves under the keyboard: keep it focused
+    data.update((store) => {
+      const target = kind === "checklist" ? store.checklists : store.checklists.find((checklist) => checklist.id === parent.id)?.items;
+      if (target) insertGroup(target, takeByIds(target, new Set([id])), neighbour.id, down);
+    });
+    playFlip(before);
   }
 
   /* ------------------------------------------------------------ dialogs */
@@ -2296,6 +2902,8 @@ dialog::backdrop {
       el("div", { class: "sep" }),
       menuRow("arrow-bar-up", t("toTop"), () => moveTo(kind, id, false)),
       menuRow("arrow-bar-down", t("toBottom"), () => moveTo(kind, id, true)),
+      el("div", { class: "sep" }),
+      menuRow("list-check", t("bulkMode"), () => enterBulk(kind, id)),
     );
     showDialog(menuDialog);
   }
@@ -2372,6 +2980,20 @@ dialog::backdrop {
   function bindToolbar() {
     expandBtn.addEventListener("click", () => setAllOpen(true));
     collapseBtn.addEventListener("click", () => setAllOpen(false));
+    /* The group actions of the panel; the destructive ones ask first, exactly as the
+       3-dot menu does for a single row. */
+    $("#btn-bulk-delete").addEventListener("click", () => bulkDelete());
+    $("#btn-bulk-archive").addEventListener("click", () => bulkArchive());
+    $("#btn-bulk-top").addEventListener("click", () => bulkMove(false));
+    $("#btn-bulk-bottom").addEventListener("click", () => bulkMove(true));
+    $("#btn-bulk-cancel").addEventListener("click", () => exitBulk());
+    /* Esc leaves bulk mode — the panel's Cancel is its visible twin. */
+    doc.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !ui.bulk || ui.editing || ui.settingsOpen) return;
+      if (doc.querySelector("dialog[open]")) return; // a window's own Esc wins
+      event.preventDefault();
+      exitBulk();
+    });
   }
 
   function bindDialogs() {
@@ -2428,7 +3050,8 @@ dialog::backdrop {
        swallowed — the checklist title lives inside its own fold button, so an echo there
        would fold the list under the dialog that asks about archiving.
        shortcut: a deliberate press on the row's text, its checkbox or its icons inside
-       ECHO_MS is still read as an echo; revisit with the drag of task 4. */
+       ECHO_MS is still read as an echo; a drag release is swallowed the same way, by
+       justDragged(). */
     if (event.target.closest('[data-act="save-edit"], [data-act="page"]')) return false;
     cutPress = null; // the press that became a swipe never asks for full text
     event.preventDefault(); // a click on an item's label ticks its checkbox without asking us
@@ -2506,10 +3129,45 @@ dialog::backdrop {
   const SWIPE_RATIO = 1.4; // …and it must beat the vertical travel by this much
   const SWIPE_SHOW = 8; // px of sideways travel before the row starts following
   const SWIPE_MAX = 120; // how far a row visually travels; the gesture keeps going
-  const ECHO_MS = 300; // a click this soon after a swipe is the swipe's own echo
+  const ECHO_MS = 300; // a click this soon after a gesture is that gesture's own echo
   const DBLCLICK_MS = 600; // long enough for the slowest double click the platform reports
+  const HOLD_MS = 380; // pressed and held still this long, it becomes a drag
+  const DRAG_EDGE = 48; // px from the top or bottom of the window where a drag scrolls
+  const FLIP_MS = 180; // the settle animation of rows that moved
 
   let swipe = null; // the press being tracked, null while idle
+  let drag = null; // the row or group lifted by a long-press, null while idle
+  let hold = null; // an armed long-press, see armHold()
+  let gestureAt = 0; // when a drag ended: its release click must not press anything
+
+  const justDragged = () => Date.now() - gestureAt < ECHO_MS;
+
+  /* Long-press, shared by the rows and the panel: fires once, while the finger is still
+     where it landed. Any new press, or travel enough to start a swipe, cancels it. */
+  function armHold(event, fire) {
+    holdEnd();
+    if (drag || panelDrag) return; // one gesture at a time
+    hold = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      timer: setTimeout(() => {
+        const armed = hold;
+        hold = null;
+        if (armed) fire(armed.x, armed.y, armed.pointerId);
+      }, HOLD_MS),
+    };
+  }
+
+  function holdEnd() {
+    if (hold) clearTimeout(hold.timer);
+    hold = null;
+  }
+
+  function holdMove(event) {
+    if (!hold || event.pointerId !== hold.pointerId) return;
+    if (Math.abs(event.clientX - hold.x) > SWIPE_SHOW || Math.abs(event.clientY - hold.y) > SWIPE_SHOW) holdEnd();
+  }
 
   /* Travel worth acting on, as -1 or 1: far enough sideways and clearly more sideways
      than up or down; 0 for anything else, including a swipe pulled back to the start. */
@@ -2538,11 +3196,166 @@ dialog::backdrop {
     swipe = null;
   }
 
+  /* --------------------------------------------------- drag and drop */
+
+  /* Lift the pressed row — or, in bulk mode, the whole selection of its kind it belongs
+     to — and follow the pointer. A group travels as one block because every selected row
+     moves by the same offset. */
+  /* The selection a row of this kind would drag along with it, null outside bulk mode. */
+  function bulkGroup(kind) {
+    if (!ui.bulk) return null;
+    return kind === "checklist" ? ui.bulk.checklists : ui.bulk.items;
+  }
+
+  function startDrag(row, x, y, pointerId) {
+    if (drag || !row.node.isConnected) return;
+    dropSwipe(); // the swipe and the drag share the press; the drag won it
+    const group = bulkGroup(row.kind);
+    const ids = new Set(group?.has(row.entityId) ? [...group] : [row.entityId]);
+    const nodes = [...listsEl.querySelectorAll(row.kind === "checklist" ? "section.cl" : ".item")]
+      .filter((node) => ids.has(node.dataset.id));
+    drag = { kind: row.kind, ids, nodes, pointerId, x, y, px: x, py: y, drop: null, raf: 0 };
+    for (const node of nodes) node.classList.add("is-dragging");
+    /* touch-action was decided when the finger landed, so the only thing that keeps the
+       page from scrolling away under a drag is a non-passive touchmove; the drag scrolls
+       by itself instead (dragTick). Added for the duration only, so ordinary scrolling
+       stays passive. */
+    doc.addEventListener("touchmove", blockTouchMove, { passive: false });
+    navigator.vibrate?.(12); // a grab you can feel (Android; iOS ignores it)
+    drag.raf = requestAnimationFrame(dragTick);
+  }
+
+  const blockTouchMove = (event) => {
+    if (drag) event.preventDefault();
+  };
+
+  function moveDrag(event) {
+    if (event.pointerType === "mouse" && event.buttons === 0) return endDrag(); // released outside the window
+    const offset = `translate(${event.clientX - drag.x}px, ${event.clientY - drag.y}px)`;
+    for (const node of drag.nodes) node.style.transform = offset;
+    drag.px = event.clientX;
+    drag.py = event.clientY;
+    resolveDrop();
+  }
+
+  const midY = (node) => {
+    const rect = node.getBoundingClientRect();
+    return rect.top + rect.height / 2;
+  };
+
+  /* The slot under the pointer. Rows being dragged ignore the pointer (.is-dragging), so
+     what is found is what is underneath: an item lands beside another item, or on a
+     checklist's own card, which means its end; a checklist lands among checklists only. */
+  function resolveDrop() {
+    const under = doc.elementFromPoint(drag.px, drag.py);
+    const card = under?.closest("section.cl");
+    if (drag.kind === "checklist") {
+      if (card && !drag.ids.has(card.dataset.id)) return markDrop(card, card.dataset.id, drag.py > midY(card), null);
+      return clearDrop();
+    }
+    const item = under?.closest(".item");
+    if (item && !drag.ids.has(item.dataset.id)) {
+      return markDrop(item, item.dataset.id, drag.py > midY(item), item.closest(".cl")?.dataset.id);
+    }
+    /* A card's head, its pager or an empty list: the end of that list. */
+    if (card && !drag.ids.has(card.dataset.id)) return markDrop(card, null, true, card.dataset.id);
+    /* Nowhere to land under the pointer: the slot goes away, so a user who carries a row
+       off the lists and lets go there puts it back where it was. */
+    return clearDrop();
+  }
+
+  function clearDrop() {
+    if (!drag || !drag.drop) return;
+    drag.drop.node.classList.remove(drag.drop.after ? "is-drop-after" : "is-drop-before");
+    drag.drop = null;
+  }
+
+  function markDrop(node, refId, after, checklistId) {
+    const last = drag.drop;
+    if (last?.node === node && last.after === after) return;
+    if (last) last.node.classList.remove(last.after ? "is-drop-after" : "is-drop-before");
+    drag.drop = { node, refId, after, checklistId };
+    node.classList.add(after ? "is-drop-after" : "is-drop-before");
+  }
+
+  /* Scroll on while the pointer sits near the top or bottom edge, so a long list can be
+     reordered in one drag; the slot is worked out again after every step. */
+  function dragTick() {
+    if (!drag) return;
+    let speed = 0;
+    if (drag.py < DRAG_EDGE) speed = (drag.py - DRAG_EDGE) / 3;
+    else if (drag.py > window.innerHeight - DRAG_EDGE) speed = (drag.py + DRAG_EDGE - window.innerHeight) / 3;
+    if (speed) {
+      window.scrollBy(0, speed);
+      resolveDrop(); // the slot under the pointer moved with the page
+    }
+    drag.raf = requestAnimationFrame(dragTick);
+  }
+
+  function endDrag() {
+    const d = drag;
+    drag = null;
+    cancelAnimationFrame(d.raf);
+    doc.removeEventListener("touchmove", blockTouchMove);
+    gestureAt = Date.now(); // the click this release sends belongs to the drag
+    if (!d.drop) return render(); // nowhere to land: the rows go straight back
+    const { refId, after, checklistId } = d.drop;
+    d.drop.node.classList.remove(d.drop.after ? "is-drop-after" : "is-drop-before");
+    const before = captureRects(d.kind);
+    for (const node of d.nodes) {
+      node.style.transition = "none"; // no easing back to the origin: FLIP animates the landing
+      node.classList.remove("is-dragging");
+      node.style.transform = "";
+    }
+    data.update((store) => moveEntities(store, d.kind, d.ids, checklistId, refId, after));
+    playFlip(before);
+  }
+
+  /* The move itself: out of wherever they are, into the list the slot is in. */
+  function moveEntities(store, kind, ids, checklistId, refId, after) {
+    if (kind === "checklist") {
+      insertGroup(store.checklists, takeByIds(store.checklists, ids), refId, after);
+      return;
+    }
+    const dest = store.checklists.find((checklist) => checklist.id === checklistId);
+    if (!dest) return; // the list disappeared (other window) while the row was in the air
+    const moving = [];
+    for (const checklist of store.checklists) moving.push(...takeByIds(checklist.items, ids));
+    insertGroup(dest.items, moving, refId, after);
+  }
+
+  /* FLIP: where the rows of this kind sit now, … */
+  function captureRects(kind) {
+    const rects = new Map();
+    const selector = kind === "checklist" ? ":scope > section.cl" : ".item";
+    for (const node of listsEl.querySelectorAll(selector)) rects.set(node.dataset.id, node.getBoundingClientRect());
+    return rects;
+  }
+
+  /* … and the “play”: each row that moved starts at its old place and is animated into
+     its new one, so the eye follows the move instead of a jump cut. WAAPI leaves no
+     inline style behind for a later swipe to trip over. */
+  function playFlip(rects) {
+    if (motionQuery.matches) return;
+    for (const [id, rect] of rects) {
+      const node = listsEl.querySelector(`[data-id="${CSS.escape(id)}"]`);
+      if (!node) continue;
+      const now = node.getBoundingClientRect();
+      const dx = rect.left - now.left;
+      const dy = rect.top - now.top;
+      if (!dx && !dy) continue;
+      node.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: FLIP_MS, easing: "ease-out" });
+    }
+  }
+
   function bindGestures() {
     /* Capture phase, so it runs before a press of our own below: any new press ends the
        one before it, including a release we never saw (off the window) — a press on the
        header, the panel or a dialog must not leave a row waiting for it. */
-    doc.addEventListener("pointerdown", dropSwipe, true);
+    doc.addEventListener("pointerdown", () => {
+      holdEnd();
+      dropSwipe();
+    }, true);
 
     listsEl.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -2552,6 +3365,7 @@ dialog::backdrop {
           ...row, x: event.clientX, y: event.clientY, pointerId: event.pointerId,
           dx: 0, dy: 0, shown: false, armed: false,
         };
+        armHold(event, startDrag.bind(null, row));
       }
     });
 
@@ -2560,38 +3374,21 @@ dialog::backdrop {
        34px of lists to its left on a phone — less than a gesture needs. Travel must not
        depend on how much room there is inside the lists. Idle cost is one test. */
     doc.addEventListener("pointermove", (event) => {
-      if (!swipe || event.pointerId !== swipe.pointerId) return;
-      if (!swipe.node.isConnected) return dropSwipe(); // something rebuilt the lists under the finger
-      swipe.dx = event.clientX - swipe.x;
-      swipe.dy = event.clientY - swipe.y;
-      if (Math.abs(swipe.dy) > SWIPE_MIN && Math.abs(swipe.dy) > Math.abs(swipe.dx)) {
-        return dropSwipe(); // scrolling the page wins over a gesture
+      if (panelDrag) return movePanelDrag(event);
+      if (drag) {
+        if (event.pointerId === drag.pointerId) moveDrag(event);
+        return;
       }
-      if (!swipe.shown) {
-        if (Math.abs(swipe.dx) < SWIPE_SHOW || Math.abs(swipe.dx) < Math.abs(swipe.dy) * SWIPE_RATIO) return;
-        swipe.shown = true; // the row starts following; a click is still a click at this travel
-      }
-      if (!swipe.armed && swipeDir(swipe.dx, swipe.dy)) {
-        /* Past this distance the gesture owns the pointer: keep its events even when it
-           drifts off the row, and drop the text selection the drag started. Capturing any
-           earlier would take the click of a slightly shaky tap away from its checkbox. */
-        swipe.armed = true;
-        try { listsEl.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
-        doc.getSelection()?.removeAllRanges();
-      }
-      /* The row follows the whole way, back and forth: pulling towards the start pulls
-         the row back, so the user sees a gesture being given up. */
-      const dir = Math.sign(swipe.dx);
-      swipe.node.classList.add("is-swiping");
-      /* toggled, never only added — the finger can cross over to the other side */
-      swipe.node.classList.toggle("swipe-edit", dir > 0);
-      swipe.node.classList.toggle("swipe-archive", dir < 0);
-      swipe.node.style.transform = `translateX(${dir * Math.min(Math.abs(swipe.dx), SWIPE_MAX)}px)`;
+      holdMove(event);
+      if (swipe && event.pointerId === swipe.pointerId) moveSwipe(event);
     });
 
     /* On the document, not on the lists: released past the edge of a card on a wide
        screen the gesture still has to end, and decide, here. */
     doc.addEventListener("pointerup", (event) => {
+      holdEnd(); // a press that was let go is not a long-press, whenever its release arrives
+      if (panelDrag && event.pointerId === panelDrag.pointerId) return endPanelDrag();
+      if (drag && event.pointerId === drag.pointerId) return endDrag();
       if (!swipe || event.pointerId !== swipe.pointerId) return;
       const { dx, dy, kind, entityId } = swipe;
       dropSwipe();
@@ -2605,9 +3402,49 @@ dialog::backdrop {
       else askArchive(kind, entityId);
     });
 
+    /* A cancelled pointer ends everything: a drag with no release gets its rows back. */
     doc.addEventListener("pointercancel", (event) => {
+      holdEnd();
+      if (panelDrag && event.pointerId === panelDrag.pointerId) return endPanelDrag();
+      if (drag && event.pointerId === drag.pointerId) return endDrag();
       if (swipe && event.pointerId === swipe.pointerId) dropSwipe();
     });
+
+    /* A long-press is a drag here, not a request for the browser's copy menu — but only
+       right after one, so right-clicking a row to copy its text still works. */
+    listsEl.addEventListener("contextmenu", (event) => {
+      if (drag || panelDrag || justDragged() || (swipe && swipe.shown)) event.preventDefault();
+    });
+  }
+
+  /* The swipe half of a press — a pointer that moved sideways instead of holding still.
+     The row follows the whole way, back and forth: pulling towards the start pulls the
+     row back, so the user sees a gesture being given up. */
+  function moveSwipe(event) {
+    if (!swipe.node.isConnected) return dropSwipe(); // something rebuilt the lists under the finger
+    swipe.dx = event.clientX - swipe.x;
+    swipe.dy = event.clientY - swipe.y;
+    if (Math.abs(swipe.dy) > SWIPE_MIN && Math.abs(swipe.dy) > Math.abs(swipe.dx)) {
+      return dropSwipe(); // scrolling the page wins over a gesture
+    }
+    if (!swipe.shown) {
+      if (Math.abs(swipe.dx) < SWIPE_SHOW || Math.abs(swipe.dx) < Math.abs(swipe.dy) * SWIPE_RATIO) return;
+      swipe.shown = true; // the row starts following; a click is still a click at this travel
+    }
+    if (!swipe.armed && swipeDir(swipe.dx, swipe.dy)) {
+      /* Past this distance the gesture owns the pointer: keep its events even when it
+         drifts off the row, and drop the text selection the drag started. Capturing any
+         earlier would take the click of a slightly shaky tap away from its checkbox. */
+      swipe.armed = true;
+      try { listsEl.setPointerCapture(event.pointerId); } catch (_error) { /* pointer already gone */ }
+      doc.getSelection()?.removeAllRanges();
+    }
+    const dir = Math.sign(swipe.dx);
+    swipe.node.classList.add("is-swiping");
+    /* toggled, never only added — the finger can cross over to the other side */
+    swipe.node.classList.toggle("swipe-edit", dir > 0);
+    swipe.node.classList.toggle("swipe-archive", dir < 0);
+    swipe.node.style.transform = `translateX(${dir * Math.min(Math.abs(swipe.dx), SWIPE_MAX)}px)`;
   }
 
   function bindLists() {
@@ -2622,7 +3459,19 @@ dialog::backdrop {
        still reaches this handler; the change event it fires would not. */
     listsEl.addEventListener("click", (event) => {
       if (consumeSwipeClick(event)) return;
+      if (justDragged()) {
+        /* The click a drag release sends would open, fold or tick whatever the row was
+           dropped onto. A label ticks its box even without a handler, so block it. */
+        event.preventDefault();
+        return;
+      }
       if (revealCutText(event)) return;
+      /* Bulk boxes select instead of ticking: before tickItem, which takes any checkbox. */
+      if (event.target.matches('input[type="checkbox"][data-act="bulk-check"]')) {
+        const holder = event.target.closest("[data-id]");
+        if (holder) toggleBulkSelect(rowKind(holder), holder.dataset.id);
+        return;
+      }
       if (tickItem(event)) return;
       const trigger = event.target.closest("[data-act]");
       if (!trigger) return;
@@ -2677,6 +3526,14 @@ dialog::backdrop {
       event.preventDefault();
       startEdit(rowKind(holder), holder.dataset.id);
     });
+    listsEl.addEventListener("keydown", (event) => {
+      if (!event.altKey || !(event.key === "ArrowUp" || event.key === "ArrowDown")) return;
+      if (event.target.closest("[data-pager], .editor")) return;
+      const holder = event.target.closest("[data-id]");
+      if (!holder) return;
+      event.preventDefault();
+      moveByKeyboard(rowKind(holder), holder.dataset.id, event.key === "ArrowDown");
+    });
   }
 
   /* The <option>s themselves are built by applyStrings: they carry translated text. */
@@ -2696,6 +3553,7 @@ dialog::backdrop {
   function init() {
     bindHeader();
     bindToolbar();
+    bindPanel();
     bindDialogs();
     bindGestures();
     bindLists();
@@ -2727,6 +3585,9 @@ dialog::backdrop {
     const measureTopbar = () => root.style.setProperty("--topbar-h", `${topbarEl.getBoundingClientRect().height}px`);
     if (window.ResizeObserver) new ResizeObserver(measureTopbar).observe(topbarEl);
     else measureTopbar(); // Safari before 13.4: measured once, no live update
+    /* The panel is placed against the lists column and the viewport: a rotation, a
+       window resize or a soft keyboard changes one of them without touching the data. */
+    window.addEventListener("resize", layoutPanel);
     applyTheme();
     applyLanguage();
     render();
