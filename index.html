@@ -1,0 +1,3731 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>TBD</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --surface: #fff;
+    --surface-2: #eceef2;
+    --surface-3: #e0e3e9;
+    --text: #12151a;
+    --muted: #767e8c;
+    --line: #e1e4ea;
+    --accent: #4a5cff;
+    --accent-soft: rgb(74 92 255 / 0.14);
+    --on-accent: #fff;
+    --danger: #d1453b;
+    --shadow: 0 1px 2px rgb(16 20 28 / 0.07), 0 12px 32px rgb(16 20 28 / 0.10);
+    --gutter: clamp(12px, 4vw, 20px);
+    --wrap: 720px;
+    --topbar-h: calc(56px + env(safe-area-inset-top));
+    --r: 14px;
+    --r-sm: 10px;
+    --ic: 20px;
+    --dur: 180ms;
+    --gap: 10px;
+
+    color-scheme: light;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+
+    /* stylelint-disable-next-line property-no-vendor-prefix */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  [data-theme="dark"] {
+    --bg: #0e1116;
+    --surface: #171b21;
+    --surface-2: #22272f;
+    --surface-3: #2c323b;
+    --text: #e8eaf0;
+    --muted: #8b94a3;
+    --line: #262c35;
+    --accent: #8091ff;
+    --accent-soft: rgb(128 145 255 / 0.20);
+    --on-accent: #0e1116;
+    --danger: #f0776c;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
+
+    color-scheme: dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root[data-theme="system"] {
+      --bg: #0e1116;
+      --surface: #171b21;
+      --surface-2: #22272f;
+      --surface-3: #2c323b;
+      --text: #e8eaf0;
+      --muted: #8b94a3;
+      --line: #262c35;
+      --accent: #8091ff;
+      --accent-soft: rgb(128 145 255 / 0.20);
+      --on-accent: #0e1116;
+      --danger: #f0776c;
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
+
+      color-scheme: dark;
+    }
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+  }
+
+  body {
+    min-height: 100dvh;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  html.is-locked,
+  html.is-locked body {
+    overflow: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  p,
+  ul,
+  ol {
+    margin: 0;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  button {
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    margin: 0;
+    padding: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font: inherit;
+  }
+
+  .ic {
+    background: currentcolor;
+    display: block;
+    flex: none;
+    height: var(--ic);
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: contain;
+    width: var(--ic);
+  }
+
+  .ic--plus { mask-image: var(--ic-plus, none); }
+  .ic--settings { mask-image: var(--ic-settings, none); }
+  .ic--help { mask-image: var(--ic-help, none); }
+  .ic--chevron-right { mask-image: var(--ic-chevron-right, none); }
+  .ic--chevron-down { mask-image: var(--ic-chevron-down, none); }
+  .ic--chevron-left { mask-image: var(--ic-chevron-left, none); }
+  .ic--pencil { mask-image: var(--ic-pencil, none); }
+  .ic--menu { mask-image: var(--ic-menu, none); }
+  .ic--archive { mask-image: var(--ic-archive, none); }
+  .ic--restore { mask-image: var(--ic-restore, none); }
+  .ic--trash { mask-image: var(--ic-trash, none); }
+  .ic--top { mask-image: var(--ic-top, none); }
+  .ic--bottom { mask-image: var(--ic-bottom, none); }
+  .ic--expand { mask-image: var(--ic-expand, none); }
+  .ic--collapse { mask-image: var(--ic-collapse, none); }
+  .ic--check { mask-image: var(--ic-check, none); }
+  .ic--close { mask-image: var(--ic-close, none); }
+  .ic--bulk { mask-image: var(--ic-bulk, none); }
+
+  /* Fallback glyphs stay hidden until the icon hosts are confirmed reachable. */
+  .ic-alt {
+    display: block;
+    font-size: 18px;
+    line-height: 1;
+    text-align: center;
+    width: var(--ic);
+  }
+
+  .icons-off .ic {
+    display: none;
+  }
+
+  .icons-on .ic-alt {
+    display: none;
+  }
+
+  .btn {
+    align-items: center;
+    border-radius: 50%;
+    display: inline-flex;
+    height: 40px;
+    justify-content: center;
+    transition: background var(--dur) ease;
+    width: 40px;
+  }
+
+  .btn:hover {
+    background: var(--surface-2);
+  }
+
+  .btn:disabled {
+    color: var(--muted);
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  .btn--danger {
+    color: var(--danger);
+  }
+
+  .topbar {
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    height: var(--topbar-h);
+    padding: env(safe-area-inset-top) var(--gutter) 0;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .topbar__inner {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    height: 56px;
+    margin-inline: auto;
+    max-width: var(--wrap);
+  }
+
+  .topbar__title {
+    flex: 1;
+    font-size: 20px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    min-width: 0;
+  }
+
+  .wrap {
+    margin-inline: auto;
+    max-width: var(--wrap);
+    padding: var(--gap) var(--gutter) 40px;
+  }
+
+  .lists {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+  }
+
+  .empty {
+    border: 1px dashed var(--line);
+    border-radius: var(--r);
+    color: var(--muted);
+    padding: 22px 18px;
+    text-align: center;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+  }
+
+  .card__head {
+    border-radius: var(--r);
+    position: sticky;
+    top: var(--topbar-h);
+    touch-action: pan-y;
+    z-index: 2;
+  }
+
+  .card__row {
+    align-items: center;
+    background: var(--surface);
+    border-radius: inherit;
+    display: flex;
+    gap: 2px;
+    min-height: 52px;
+    padding: 2px 4px 2px 6px;
+    position: relative;
+    transition: transform var(--dur) ease;
+    z-index: 1;
+  }
+
+  .card.is-open > .card__head {
+    border-radius: var(--r) var(--r) 0 0;
+  }
+
+  .card__title {
+    cursor: pointer;
+    flex: 1;
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    padding-block: 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card.is-muted > .card__head .card__title {
+    color: var(--muted);
+  }
+
+  .card__body {
+    border-top: 1px solid var(--line);
+    padding: 4px;
+  }
+
+  .items {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .item {
+    position: relative;
+    touch-action: pan-y;
+  }
+
+  .item__row {
+    align-items: center;
+    background: var(--surface);
+    border-radius: var(--r-sm);
+    display: flex;
+    gap: 2px;
+    min-height: 44px;
+    padding: 0 4px 0 6px;
+    position: relative;
+    transition: transform var(--dur) ease;
+    z-index: 1;
+  }
+
+  .item__text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    padding-block: 4px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item.is-done .item__text {
+    color: var(--muted);
+  }
+
+  .swipe-bg {
+    align-items: center;
+    bottom: 2px;
+    display: flex;
+    opacity: 0;
+    padding-inline: 14px;
+    position: absolute;
+    top: 2px;
+  }
+
+  .swipe-bg--left {
+    border-radius: var(--r-sm);
+    color: var(--muted);
+    right: 0;
+  }
+
+  .swipe-bg--right {
+    border-radius: var(--r-sm);
+    color: var(--muted);
+    left: 0;
+  }
+
+  .mark {
+    align-items: center;
+    display: inline-flex;
+    flex: none;
+    height: 36px;
+    justify-content: center;
+    width: 36px;
+  }
+
+  .mark__box {
+    align-items: center;
+    border: 2px solid var(--muted);
+    border-radius: 6px;
+    color: var(--on-accent);
+    display: inline-flex;
+    height: 20px;
+    justify-content: center;
+    width: 20px;
+  }
+
+  .mark__box .ic,
+  .mark__box .ic-alt {
+    --ic: 14px;
+  }
+
+  .mark--bulk .mark__box {
+    border-color: var(--accent);
+  }
+
+  .is-on .mark__box {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .is-on.mark--check .mark__box {
+    background: var(--muted);
+    border-color: var(--muted);
+  }
+
+  .act {
+    align-items: center;
+    color: var(--muted);
+    display: inline-flex;
+    flex: none;
+    height: 36px;
+    justify-content: center;
+    transition: color var(--dur) ease;
+    width: 36px;
+  }
+
+  .act:hover {
+    color: var(--text);
+  }
+
+  .act--edit {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .card__row:hover .act--edit,
+  .act--edit:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .more {
+    color: var(--muted);
+    flex: none;
+    font-size: 15px;
+    line-height: 1;
+    padding: 6px 2px;
+  }
+
+  .more:hover {
+    color: var(--text);
+  }
+
+  .row-edit {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+    padding-block: 6px;
+  }
+
+  .input {
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+  }
+
+  .input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .act--save {
+    color: var(--accent);
+  }
+
+  .drop-gap {
+    border: 2px dashed var(--accent);
+    border-radius: var(--r-sm);
+    flex: none;
+  }
+
+  .is-drag-src {
+    display: none;
+  }
+
+  .drag-clone {
+    left: 0;
+    opacity: 0.95;
+    pointer-events: none;
+    position: fixed;
+    top: 0;
+    z-index: 60;
+  }
+
+  .drag-clone > * {
+    box-shadow: var(--shadow);
+    margin: 0;
+  }
+
+  .is-flash {
+    animation: flash 900ms ease-out;
+  }
+
+  @keyframes flash {
+    from {
+      background: var(--accent-soft);
+    }
+
+    to {
+      background: transparent;
+    }
+  }
+
+  .pager {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    margin-top: 14px;
+  }
+
+  .pager__nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .pager__info {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px;
+    position: fixed;
+    top: 0;
+    transition: transform var(--dur) ease;
+    z-index: 25;
+  }
+
+  .panel.is-hidden {
+    display: none;
+  }
+
+  .panel.is-dragging {
+    transition: none;
+  }
+
+  .panel__sep {
+    background: var(--line);
+    height: 1px;
+    margin-block: 3px;
+  }
+
+  .panel-ghost {
+    background: var(--accent);
+    border-radius: 999px;
+    opacity: 0.28;
+    pointer-events: none;
+    position: fixed;
+    z-index: 24;
+  }
+
+  .layer {
+    inset: 0;
+    pointer-events: none;
+    position: fixed;
+    z-index: 40;
+  }
+
+  .layer > * {
+    pointer-events: auto;
+  }
+
+  .layer__backdrop {
+    animation: fade 140ms ease-out;
+    background: rgb(8 10 14 / 0.5);
+    inset: 0;
+    position: absolute;
+  }
+
+  .modal {
+    animation: pop 160ms ease-out;
+    background: var(--surface);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    left: 50%;
+    max-width: min(460px, calc(100vw - 28px));
+    padding: 18px;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: max-content;
+  }
+
+  .modal--sheet {
+    border-radius: 0;
+    max-width: none;
+    max-height: none;
+    height: 100dvh;
+    width: 100vw;
+    inset: 0;
+    overflow: auto;
+    padding: max(18px, env(safe-area-inset-top)) var(--gutter) 28px;
+    transform: none;
+  }
+
+  .modal__title {
+    font-size: 18px;
+    font-weight: 650;
+    margin-bottom: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .modal__body {
+    color: var(--text);
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+  }
+
+  .modal__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 18px;
+  }
+
+  .modal--sheet .modal__actions {
+    background: var(--surface);
+    bottom: 0;
+    padding-block: 12px;
+    position: sticky;
+  }
+
+  .menu-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .menu-list__item {
+    align-items: center;
+    border-radius: var(--r-sm);
+    display: flex;
+    gap: 10px;
+    padding: 11px 10px;
+    text-align: start;
+    width: 100%;
+  }
+
+  .menu-list__item:hover {
+    background: var(--surface-2);
+  }
+
+  .menu-list__sep {
+    background: var(--line);
+    height: 1px;
+    margin-block: 6px;
+  }
+
+  .tabs {
+    background: var(--surface-2);
+    border-radius: 999px;
+    display: inline-flex;
+    gap: 2px;
+    margin-bottom: 14px;
+    padding: 3px;
+  }
+
+  .tabs__tab {
+    border-radius: 999px;
+    padding: 7px 16px;
+  }
+
+  .tabs__tab.is-active {
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 18px;
+  }
+
+  .rows__row {
+    align-items: center;
+    border-radius: var(--r-sm);
+    display: flex;
+    gap: 10px;
+    padding: 8px 6px;
+    text-align: start;
+  }
+
+  .rows__row:hover {
+    background: var(--surface-2);
+  }
+
+  .rows__label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sheet {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    padding: 12px 14px 14px;
+    position: fixed;
+    width: min(320px, calc(100vw - 24px));
+    z-index: 35;
+  }
+
+  .field {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr auto;
+    padding-block: 7px;
+  }
+
+  .field__label {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .select {
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 6px 8px;
+  }
+
+  .seg {
+    background: var(--surface-2);
+    border-radius: 999px;
+    display: inline-flex;
+    padding: 2px;
+    position: relative;
+  }
+
+  .seg label {
+    position: relative;
+  }
+
+  .seg input {
+    appearance: none;
+    inset: 0;
+    position: absolute;
+  }
+
+  .seg span {
+    border-radius: 999px;
+    display: block;
+    padding: 5px 12px;
+  }
+
+  .seg input:checked + span {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .seg input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .banner {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    bottom: max(14px, env(safe-area-inset-bottom));
+    box-shadow: var(--shadow);
+    color: var(--muted);
+    font-size: 14px;
+    left: 50%;
+    max-width: min(460px, calc(100vw - 24px));
+    padding: 12px 14px;
+    position: fixed;
+    text-align: center;
+    transform: translateX(-50%);
+    z-index: 45;
+  }
+
+  .btn--wide {
+    background: var(--surface-2);
+    border-radius: var(--r-sm);
+    gap: 10px;
+    height: auto;
+    justify-content: flex-start;
+    padding: 11px 14px;
+    width: 100%;
+  }
+
+  .btn--primary {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  .btn--primary:hover {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+
+  .btn--pill {
+    border-radius: 999px;
+    gap: 8px;
+    padding-inline: 16px;
+    width: auto;
+  }
+
+  .help h3 {
+    font-size: 14px;
+    margin-block: 16px 6px;
+    text-transform: uppercase;
+  }
+
+  .help li {
+    margin-bottom: 6px;
+  }
+
+  @media (width <= 560px) {
+    .modal {
+      border-radius: var(--r);
+      left: 0;
+      max-width: none;
+      top: auto;
+      transform: none;
+      width: 100vw;
+      bottom: 0;
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -46%) scale(0.98);
+    }
+  }
+</style>
+</head>
+
+<body>
+<header class="topbar">
+  <div class="topbar__inner">
+    <h1 class="topbar__title">TBD</h1>
+    <button class="btn" id="btn-add" type="button"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
+    <button class="btn" id="btn-settings" type="button" aria-haspopup="true" aria-expanded="false"><span class="ic ic--settings"></span><span class="ic-alt" aria-hidden="true">&#9881;</span></button>
+    <button class="btn" id="btn-help" type="button"><span class="ic ic--help"></span><span class="ic-alt" aria-hidden="true">?</span></button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="lists" id="lists"></div>
+  <p class="empty" id="empty" hidden></p>
+  <nav class="pager" id="pager" hidden>
+    <div class="pager__nav">
+      <button class="btn" id="page-prev" type="button"><span class="ic ic--chevron-left"></span><span class="ic-alt" aria-hidden="true">&#8249;</span></button>
+      <button class="btn" id="page-next" type="button"><span class="ic ic--chevron-right"></span><span class="ic-alt" aria-hidden="true">&#8250;</span></button>
+    </div>
+    <span class="pager__info" id="page-info"></span>
+  </nav>
+</main>
+
+<aside class="panel is-hidden" id="panel"></aside>
+<div class="layer" id="layer"></div>
+<p class="banner" id="banner" hidden></p>
+
+<template id="tpl-checklist">
+  <section class="card">
+    <div class="card__head">
+      <div class="swipe-bg swipe-bg--left"><span class="ic ic--archive"></span></div>
+      <div class="swipe-bg swipe-bg--right"><span class="ic ic--pencil"></span></div>
+      <div class="card__row">
+        <button class="mark mark--toggle" type="button" data-act="toggle"><span class="ic"></span><span class="ic-alt" aria-hidden="true">&#8250;</span></button>
+        <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
+        <span class="card__title" data-act="toggle"></span>
+        <button class="more" type="button" hidden data-act="full">&#8230;</button>
+        <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
+        <button class="act act--edit" type="button" data-act="edit"><span class="ic ic--pencil"></span><span class="ic-alt" aria-hidden="true">&#9998;</span></button>
+        <button class="act act--add" type="button" data-act="add-item"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
+        <button class="act act--menu" type="button" data-act="menu"><span class="ic ic--menu"></span><span class="ic-alt" aria-hidden="true">&#8942;</span></button>
+      </div>
+    </div>
+    <div class="card__body" hidden>
+      <ul class="items"></ul>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-item">
+  <li class="item">
+    <div class="swipe-bg swipe-bg--left"><span class="ic ic--archive"></span></div>
+    <div class="swipe-bg swipe-bg--right"><span class="ic ic--pencil"></span></div>
+    <div class="item__row">
+      <button class="mark mark--check" type="button" data-act="toggle-done"><span class="mark__box"></span></button>
+      <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
+      <span class="item__text"></span>
+      <button class="more" type="button" hidden data-act="full">&#8230;</button>
+      <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
+      <button class="act act--menu" type="button" data-act="menu"><span class="ic ic--menu"></span><span class="ic-alt" aria-hidden="true">&#8942;</span></button>
+    </div>
+  </li>
+</template>
+
+<script type="module">
+const LUCIDE_VERSION = "1.59.0";
+
+const ICON_HOSTS = [
+  `https://cdn.jsdelivr.net/npm/lucide-static@${LUCIDE_VERSION}/icons`,
+  `https://unpkg.com/lucide-static@${LUCIDE_VERSION}/icons`,
+  `https://cdn.statically.io/npm/lucide-static@${LUCIDE_VERSION}/icons`,
+];
+
+const ICON_FILES = {
+  plus: "plus",
+  settings: "settings",
+  help: "circle-help",
+  "chevron-right": "chevron-right",
+  "chevron-down": "chevron-down",
+  "chevron-left": "chevron-left",
+  pencil: "pencil",
+  menu: "ellipsis-vertical",
+  archive: "archive",
+  restore: "archive-restore",
+  trash: "trash-2",
+  top: "arrow-up-to-line",
+  bottom: "arrow-down-to-line",
+  expand: "unfold-vertical",
+  collapse: "fold-vertical",
+  check: "check",
+  close: "x",
+  bulk: "list-checks",
+};
+
+/* ---------- icons ---------- */
+
+function loadIcons() {
+  const root = document.documentElement;
+  const apply = (base) => {
+    for (const [name, file] of Object.entries(ICON_FILES)) {
+      root.style.setProperty(`--ic-${name}`, `url("${base}/${file}.svg")`);
+    }
+    root.classList.remove("icons-off");
+    root.classList.add("icons-on");
+  };
+  const probe = (index) => {
+    if (index >= ICON_HOSTS.length) {
+      root.classList.remove("icons-on");
+      root.classList.add("icons-off");
+      return;
+    }
+    const img = new Image();
+    img.onload = () => apply(ICON_HOSTS[index]);
+    img.onerror = () => probe(index + 1);
+    img.src = `${ICON_HOSTS[index]}/check.svg`;
+  };
+  probe(0);
+}
+
+const GESTURE = {
+  press: 350,
+  slop: 10,
+  swipeMin: 40,
+  ratio: 1.8,
+  trigger: 96,
+  hover: 600,
+  edge: 24,
+  speed: 900,
+  gap: 12,
+};
+
+const PAGE_SIZES = ["all", 10, 20, 30, 50, 80, 130, 210];
+const LANGUAGES = [
+  ["auto", "Auto"],
+  ["ru", "Русский"],
+  ["bg", "Български"],
+  ["en", "English"],
+  ["fr", "Français"],
+  ["es", "Español"],
+  ["ro", "Română"],
+  ["zh", "中文"],
+  ["ja", "日本語"],
+  ["eo", "Esperanto"],
+  ["ia", "Interlingua"],
+  ["tok", "Toki Pona"],
+];
+
+/* ---------- i18n ---------- */
+
+const EN = {
+  add_list: "New checklist",
+  settings: "Settings",
+  help: "Help",
+  expand_all: "Expand all",
+  collapse_all: "Collapse all",
+  a_archive: "Archive",
+  a_delete: "Delete",
+  a_restore: "Restore",
+  a_top: "To top",
+  a_bottom: "To bottom",
+  a_cancel: "Cancel",
+  a_edit: "Edit",
+  a_save: "Save",
+  a_ok: "OK",
+  a_menu: "Menu",
+  a_full: "Show full text",
+  set_theme: "Theme",
+  theme_system: "System",
+  theme_dark: "Dark",
+  theme_light: "Light",
+  set_lang: "Language",
+  lang_auto: "Auto",
+  set_new_list: "New checklist",
+  set_new_item: "New item",
+  pos_top: "Top",
+  pos_bottom: "Bottom",
+  set_page_size: "Checklists per page",
+  page_all: "All",
+  page_of: "Page {n} of {m}",
+  prev_page: "Previous page",
+  next_page: "Next page",
+  empty: "Nothing here yet. Tap + to create a checklist.",
+  add_item: "Add item",
+  new_item_ph: "New item",
+  new_list_ph: "New checklist",
+  archive_title: "Archive",
+  tab_lists: "Checklists",
+  tab_items: "Items",
+  archive_empty: "Nothing archived",
+  bulk: "Bulk mode",
+  selected_n: "{n} selected",
+  c_archive_list: "Archive this checklist?",
+  c_archive_item: "Archive this item?",
+  c_archive_n: "Archive {n}?",
+  c_delete_list: "Delete this checklist and its items?",
+  c_delete_item: "Delete this item?",
+  c_delete_n: "Delete {n}?",
+  storage_error: "Storage is unavailable — changes stay in this tab only.",
+  help_m: "Mobile",
+  help_d: "Desktop",
+  help_drag: "Long-press a row to move it. Drop items into another checklist.",
+  help_swipe_l: "Swipe left to archive.",
+  help_swipe_r: "Swipe right to edit.",
+  help_dbl: "Double-tap an item to edit it.",
+  help_menu: "Three dots: archive, delete, reorder, bulk mode.",
+  help_panel: "Drag the side panel to dock it on either edge.",
+};
+
+const DICTS = {
+  en: EN,
+  ru: {
+    add_list: "Новый чек-лист",
+    settings: "Настройки",
+    help: "Помощь",
+    expand_all: "Развернуть все",
+    collapse_all: "Свернуть все",
+    a_archive: "В архив",
+    a_delete: "Удалить",
+    a_restore: "Восстановить",
+    a_top: "В начало",
+    a_bottom: "В конец",
+    a_cancel: "Отмена",
+    a_edit: "Изменить",
+    a_save: "Сохранить",
+    a_ok: "Понятно",
+    a_menu: "Меню",
+    a_full: "Показать полностью",
+    set_theme: "Тема",
+    theme_system: "Системная",
+    theme_dark: "Тёмная",
+    theme_light: "Светлая",
+    set_lang: "Язык",
+    lang_auto: "Авто",
+    set_new_list: "Новый чек-лист",
+    set_new_item: "Новый пункт",
+    pos_top: "Сверху",
+    pos_bottom: "Снизу",
+    set_page_size: "Чек-листов на странице",
+    page_all: "Все",
+    page_of: "Страница {n} из {m}",
+    prev_page: "Предыдущая страница",
+    next_page: "Следующая страница",
+    empty: "Пока пусто. Нажмите +, чтобы создать чек-лист.",
+    add_item: "Добавить пункт",
+    new_item_ph: "Новый пункт",
+    new_list_ph: "Новый чек-лист",
+    archive_title: "Архив",
+    tab_lists: "Чек-листы",
+    tab_items: "Пункты",
+    archive_empty: "Ничего нет",
+    bulk: "Групповой режим",
+    selected_n: "Выбрано: {n}",
+    c_archive_list: "Архивировать этот чек-лист?",
+    c_archive_item: "Архивировать этот пункт?",
+    c_archive_n: "Архивировать ({n})?",
+    c_delete_list: "Удалить этот чек-лист и его пункты?",
+    c_delete_item: "Удалить этот пункт?",
+    c_delete_n: "Удалить ({n})?",
+    storage_error: "Хранилище недоступно — изменения останутся только в этой вкладке.",
+    help_m: "Телефон",
+    help_d: "Компьютер",
+    help_drag: "Зажмите строку, чтобы переместить. Пункты можно бросать в другой чек-лист.",
+    help_swipe_l: "Свайп влево — в архив.",
+    help_swipe_r: "Свайп вправо — изменить.",
+    help_dbl: "Двойное касание пункта — изменить.",
+    help_menu: "Три точки: архив, удаление, порядок, групповой режим.",
+    help_panel: "Перетащите боковую панель к любой границе.",
+  },
+  bg: {
+    add_list: "Нов списък",
+    settings: "Настройки",
+    help: "Помощ",
+    expand_all: "Разгъни всички",
+    collapse_all: "Сгъни всички",
+    a_archive: "Архивирай",
+    a_delete: "Изтрий",
+    a_restore: "Възстанови",
+    a_top: "Към началото",
+    a_bottom: "Към края",
+    a_cancel: "Отказ",
+    a_edit: "Редактирай",
+    a_save: "Запази",
+    a_ok: "Разбрано",
+    a_menu: "Меню",
+    a_full: "Покажи пълния текст",
+    set_theme: "Тема",
+    theme_system: "Системна",
+    theme_dark: "Тъмна",
+    theme_light: "Светла",
+    set_lang: "Език",
+    lang_auto: "Авто",
+    set_new_list: "Нов списък",
+    set_new_item: "Нова точка",
+    pos_top: "Отгоре",
+    pos_bottom: "Отдолу",
+    set_page_size: "Списъци на страница",
+    page_all: "Всички",
+    page_of: "Страница {n} от {m}",
+    prev_page: "Предишна страница",
+    next_page: "Следваща страница",
+    empty: "Все още няма нищо. Натисни + за нов списък.",
+    add_item: "Добави точка",
+    new_item_ph: "Нова точка",
+    new_list_ph: "Нов списък",
+    archive_title: "Архив",
+    tab_lists: "Списъци",
+    tab_items: "Точки",
+    archive_empty: "Нищо в архива",
+    bulk: "Групов режим",
+    selected_n: "{n} избрани",
+    c_archive_list: "Архивирай ли този списък?",
+    c_archive_item: "Архивирай ли тази точка?",
+    c_archive_n: "Архивирай ли {n}?",
+    c_delete_list: "Изтрий ли този списък и точките в него?",
+    c_delete_item: "Изтрий ли тази точка?",
+    c_delete_n: "Изтрий ли {n}?",
+    storage_error: "Хранилището е недостъпно — промените остават само в този раздел.",
+    help_m: "Мобилно",
+    help_d: "Десктоп",
+    help_drag: "Натисни и задред ред, за да го преместиш. Пускай точки в друг списък.",
+    help_swipe_l: "Плъзни наляво за архивиране.",
+    help_swipe_r: "Плъзни надясно за редактиране.",
+    help_dbl: "Докосни два пъти точка, за да я редактираш.",
+    help_menu: "Три точки: архивиране, изтриване, подредба, групов режим.",
+    help_panel: "Провлакни страничния панел към който и да е ръб.",
+  },
+  es: {
+    add_list: "Nueva lista",
+    settings: "Ajustes",
+    help: "Ayuda",
+    expand_all: "Expandir todo",
+    collapse_all: "Plegar todo",
+    a_archive: "Archivar",
+    a_delete: "Eliminar",
+    a_restore: "Restaurar",
+    a_top: "Al inicio",
+    a_bottom: "Al final",
+    a_cancel: "Cancelar",
+    a_edit: "Editar",
+    a_save: "Guardar",
+    a_ok: "Entendido",
+    a_menu: "Menú",
+    a_full: "Ver el texto completo",
+    set_theme: "Tema",
+    theme_system: "Sistema",
+    theme_dark: "Oscuro",
+    theme_light: "Claro",
+    set_lang: "Idioma",
+    lang_auto: "Automático",
+    set_new_list: "Nueva lista",
+    set_new_item: "Nuevo elemento",
+    pos_top: "Arriba",
+    pos_bottom: "Abajo",
+    set_page_size: "Listas por página",
+    page_all: "Todas",
+    page_of: "Página {n} de {m}",
+    prev_page: "Página anterior",
+    next_page: "Página siguiente",
+    empty: "Nada todavía. Toca + para crear una lista.",
+    add_item: "Añadir elemento",
+    new_item_ph: "Nuevo elemento",
+    new_list_ph: "Nueva lista",
+    archive_title: "Archivo",
+    tab_lists: "Listas",
+    tab_items: "Elementos",
+    archive_empty: "Nada archivado",
+    bulk: "Modo múltiple",
+    selected_n: "{n} seleccionados",
+    c_archive_list: "¿Archivar esta lista?",
+    c_archive_item: "¿Archivar este elemento?",
+    c_archive_n: "¿Archivar {n}?",
+    c_delete_list: "¿Eliminar esta lista y sus elementos?",
+    c_delete_item: "¿Eliminar este elemento?",
+    c_delete_n: "¿Eliminar {n}?",
+    storage_error: "Almacenamiento no disponible: los cambios solo quedan en esta pestaña.",
+    help_m: "Móvil",
+    help_d: "Escritorio",
+    help_drag: "Mantén pulsada una fila para moverla. Suelta elementos en otra lista.",
+    help_swipe_l: "Desliza a la izquierda para archivar.",
+    help_swipe_r: "Desliza a la derecha para editar.",
+    help_dbl: "Toca dos veces un elemento para editarlo.",
+    help_menu: "Tres puntos: archivar, eliminar, ordenar, modo múltiple.",
+    help_panel: "Arrastra el panel lateral a cualquier borde.",
+  },
+  fr: {
+    add_list: "Nouvelle liste",
+    settings: "Réglages",
+    help: "Aide",
+    expand_all: "Tout dérouler",
+    collapse_all: "Tout replier",
+    a_archive: "Archiver",
+    a_delete: "Supprimer",
+    a_restore: "Restaurer",
+    a_top: "En haut",
+    a_bottom: "En bas",
+    a_cancel: "Annuler",
+    a_edit: "Modifier",
+    a_save: "Enregistrer",
+    a_ok: "Compris",
+    a_menu: "Menu",
+    a_full: "Afficher le texte complet",
+    set_theme: "Thème",
+    theme_system: "Système",
+    theme_dark: "Sombre",
+    theme_light: "Clair",
+    set_lang: "Langue",
+    lang_auto: "Auto",
+    set_new_list: "Nouvelle liste",
+    set_new_item: "Nouvel élément",
+    pos_top: "En haut",
+    pos_bottom: "En bas",
+    set_page_size: "Listes par page",
+    page_all: "Toutes",
+    page_of: "Page {n} sur {m}",
+    prev_page: "Page précédente",
+    next_page: "Page suivante",
+    empty: "Rien pour l’instant. Touchez + pour créer une liste.",
+    add_item: "Ajouter un élément",
+    new_item_ph: "Nouvel élément",
+    new_list_ph: "Nouvelle liste",
+    archive_title: "Archives",
+    tab_lists: "Listes",
+    tab_items: "Éléments",
+    archive_empty: "Rien d’archivé",
+    bulk: "Mode groupé",
+    selected_n: "{n} sélectionné(s)",
+    c_archive_list: "Archiver cette liste ?",
+    c_archive_item: "Archiver cet élément ?",
+    c_archive_n: "Archiver {n} ?",
+    c_delete_list: "Supprimer cette liste et ses éléments ?",
+    c_delete_item: "Supprimer cet élément ?",
+    c_delete_n: "Supprimer {n} ?",
+    storage_error: "Stockage indisponible — les modifications restent dans cet onglet.",
+    help_m: "Mobile",
+    help_d: "Ordinateur",
+    help_drag: "Appui long sur une ligne pour la déplacer. Déposez un élément dans une autre liste.",
+    help_swipe_l: "Glisser à gauche pour archiver.",
+    help_swipe_r: "Glisser à droite pour modifier.",
+    help_dbl: "Double-tap sur un élément pour le modifier.",
+    help_menu: "Trois points : archiver, supprimer, ordonner, mode groupé.",
+    help_panel: "Faites glisser le panneau latéral vers un bord.",
+  },
+  ro: {
+    add_list: "Listă nouă",
+    settings: "Setări",
+    help: "Ajutor",
+    expand_all: "Deschide tot",
+    collapse_all: "Închide tot",
+    a_archive: "Arhivează",
+    a_delete: "Șterge",
+    a_restore: "Restaurează",
+    a_top: "La început",
+    a_bottom: "La sfârșit",
+    a_cancel: "Anulează",
+    a_edit: "Editează",
+    a_save: "Salvează",
+    a_ok: "Am înțeles",
+    a_menu: "Meniu",
+    a_full: "Arată textul complet",
+    set_theme: "Temă",
+    theme_system: "Sistem",
+    theme_dark: "Întunecată",
+    theme_light: "Luminosă",
+    set_lang: "Limbă",
+    lang_auto: "Auto",
+    set_new_list: "Listă nouă",
+    set_new_item: "Element nou",
+    pos_top: "Sus",
+    pos_bottom: "Jos",
+    set_page_size: "Liste pe pagină",
+    page_all: "Toate",
+    page_of: "Pagina {n} din {m}",
+    prev_page: "Pagina anterioară",
+    next_page: "Pagina următoare",
+    empty: "Încă nimic. Atinge + pentru o listă nouă.",
+    add_item: "Adaugă element",
+    new_item_ph: "Element nou",
+    new_list_ph: "Listă nouă",
+    archive_title: "Arhivă",
+    tab_lists: "Liste",
+    tab_items: "Elemente",
+    archive_empty: "Nimic arhivat",
+    bulk: "Mod grup",
+    selected_n: "{n} selectate",
+    c_archive_list: "Arhivezi această listă?",
+    c_archive_item: "Arhivezi acest element?",
+    c_archive_n: "Arhivezi {n}?",
+    c_delete_list: "Ștergi această listă și elementele ei?",
+    c_delete_item: "Ștergi acest element?",
+    c_delete_n: "Ștergi {n}?",
+    storage_error: "Stocarea nu e disponibilă — modificările rămân doar în acest tab.",
+    help_m: "Mobil",
+    help_d: "Desktop",
+    help_drag: "Ține apăsat un rând ca să-l muți. Pune elementele în altă listă.",
+    help_swipe_l: "Glisează spre stânga pentru arhivare.",
+    help_swipe_r: "Glisează spre dreapta pentru editare.",
+    help_dbl: "Atinge de două ori un element pentru editare.",
+    help_menu: "Trei puncte: arhivare, ștergere, ordonare, mod grup.",
+    help_panel: "Trage panoul lateral spre orice margine.",
+  },
+  zh: {
+    add_list: "新建清单",
+    settings: "设置",
+    help: "帮助",
+    expand_all: "全部展开",
+    collapse_all: "全部折叠",
+    a_archive: "归档",
+    a_delete: "删除",
+    a_restore: "恢复",
+    a_top: "移到最前",
+    a_bottom: "移到最后",
+    a_cancel: "取消",
+    a_edit: "编辑",
+    a_save: "保存",
+    a_ok: "知道了",
+    a_menu: "菜单",
+    a_full: "查看完整内容",
+    set_theme: "主题",
+    theme_system: "跟随系统",
+    theme_dark: "深色",
+    theme_light: "浅色",
+    set_lang: "语言",
+    lang_auto: "自动",
+    set_new_list: "新建清单",
+    set_new_item: "新建条目",
+    pos_top: "最上方",
+    pos_bottom: "最下方",
+    set_page_size: "每页清单数",
+    page_all: "全部",
+    page_of: "第 {n} / {m} 页",
+    prev_page: "上一页",
+    next_page: "下一页",
+    empty: "还没有内容，点 + 新建清单。",
+    add_item: "添加条目",
+    new_item_ph: "新条目",
+    new_list_ph: "新清单",
+    archive_title: "归档记录",
+    tab_lists: "清单",
+    tab_items: "条目",
+    archive_empty: "暂无归档",
+    bulk: "批量模式",
+    selected_n: "已选 {n} 项",
+    c_archive_list: "归档这个清单？",
+    c_archive_item: "归档这个条目？",
+    c_archive_n: "归档 {n} 项？",
+    c_delete_list: "删除这个清单及其条目？",
+    c_delete_item: "删除这个条目？",
+    c_delete_n: "删除 {n} 项？",
+    storage_error: "本地存储不可用 — 更改仅保存在当前标签页。",
+    help_m: "手机",
+    help_d: "电脑",
+    help_drag: "长按某一行即可移动，条目可拖入其他清单。",
+    help_swipe_l: "左滑归档。",
+    help_swipe_r: "右滑编辑。",
+    help_dbl: "双击条目可编辑。",
+    help_menu: "三个点：归档、删除、排序、批量模式。",
+    help_panel: "拖动侧边面板可停靠到任意一侧。",
+  },
+  ja: {
+    add_list: "新しいリスト",
+    settings: "設定",
+    help: "ヘルプ",
+    expand_all: "すべて開く",
+    collapse_all: "すべて閉じる",
+    a_archive: "アーカイブ",
+    a_delete: "削除",
+    a_restore: "復元",
+    a_top: "先頭へ",
+    a_bottom: "末尾へ",
+    a_cancel: "キャンセル",
+    a_edit: "編集",
+    a_save: "保存",
+    a_ok: "OK",
+    a_menu: "メニュー",
+    a_full: "全文を表示",
+    set_theme: "テーマ",
+    theme_system: "システム",
+    theme_dark: "ダーク",
+    theme_light: "ライト",
+    set_lang: "言語",
+    lang_auto: "自動",
+    set_new_list: "新しいリスト",
+    set_new_item: "新しい項目",
+    pos_top: "上",
+    pos_bottom: "下",
+    set_page_size: "1ページ内のリスト",
+    page_all: "すべて",
+    page_of: "{m} ページ中 {n} ページ",
+    prev_page: "前のページ",
+    next_page: "次のページ",
+    empty: "まだ何もありません。+ をタップしてリストを作成。",
+    add_item: "項目を追加",
+    new_item_ph: "新しい項目",
+    new_list_ph: "新しいリスト",
+    archive_title: "アーカイブ",
+    tab_lists: "リスト",
+    tab_items: "項目",
+    archive_empty: "アーカイブはありません",
+    bulk: "一括モード",
+    selected_n: "{n} 件選択",
+    c_archive_list: "このリストをアーカイブしますか？",
+    c_archive_item: "この項目をアーカイブしますか？",
+    c_archive_n: "{n} 件をアーカイブしますか？",
+    c_delete_list: "このリストと項目を削除しますか？",
+    c_delete_item: "この項目を削除しますか？",
+    c_delete_n: "{n} 件を削除しますか？",
+    storage_error: "ストレージを利用できません — このタブでのみ保存されます。",
+    help_m: "モバイル",
+    help_d: "デスクトップ",
+    help_drag: "行を長押しして移動。項目は別のリストにドロップできます。",
+    help_swipe_l: "左スワイプでアーカイブ。",
+    help_swipe_r: "右スワイプで編集。",
+    help_dbl: "項目をダブルタップで編集。",
+    help_menu: "三点リーダー: アーカイブ・削除・並び替え・一括モード。",
+    help_panel: "サイドパネルをドラッグして端に固定。",
+  },
+  eo: {
+    add_list: "Nova kontrollisto",
+    settings: "Agordoj",
+    help: "Helpo",
+    expand_all: "Malfermi ĉiujn",
+    collapse_all: "Fermi ĉiujn",
+    a_archive: "Arkivi",
+    a_delete: "Forigi",
+    a_restore: "Restarigi",
+    a_top: "Al supro",
+    a_bottom: "Al fundo",
+    a_cancel: "Nuligi",
+    a_edit: "Redakti",
+    a_save: "Konservi",
+    a_ok: "Bone",
+    a_menu: "Menuo",
+    a_full: "Montri la plenan tekston",
+    set_theme: "Etoso",
+    theme_system: "Sistemo",
+    theme_dark: "Malhela",
+    theme_light: "Hela",
+    set_lang: "Lingvo",
+    lang_auto: "Aŭtomata",
+    set_new_list: "Nova kontrollisto",
+    set_new_item: "Nova punkto",
+    pos_top: "Supre",
+    pos_bottom: "Malsupre",
+    set_page_size: "Kontrollistoj paĝe",
+    page_all: "Ĉiuj",
+    page_of: "Paĝo {n} el {m}",
+    prev_page: "Antaŭa paĝo",
+    next_page: "Sekva paĝo",
+    empty: "Ankoraŭ nenio. Tuŝu + por krei kontrolliston.",
+    add_item: "Aldoni punkton",
+    new_item_ph: "Nova punkto",
+    new_list_ph: "Nova kontrollisto",
+    archive_title: "Arkivo",
+    tab_lists: "Kontrollistoj",
+    tab_items: "Punktoj",
+    archive_empty: "Nenio arkivita",
+    bulk: "Amasa reĝimo",
+    selected_n: "{n} elektitaj",
+    c_archive_list: "Arkivi ĉi tiun kontrolliston?",
+    c_archive_item: "Arkivi ĉi tiun punkton?",
+    c_archive_n: "Arkivi {n}?",
+    c_delete_list: "Forigi ĉi tiun kontrolliston kaj ĝiajn punktojn?",
+    c_delete_item: "Forigi ĉi tiun punkton?",
+    c_delete_n: "Forigi {n}?",
+    storage_error: "Konservejo ne haveblas — ŝanĝoj restas nur en ĉi tiu langeto.",
+    help_m: "Poŝtelefono",
+    help_d: "Komputilo",
+    help_drag: "Premu longe vicon por movi ĝin. Demetu punktojn en alian kontrolliston.",
+    help_swipe_l: "Ŝovu maldekstren por arkivi.",
+    help_swipe_r: "Ŝovu dekstren por redakti.",
+    help_dbl: "Duoble tuŝu punkton por redakti.",
+    help_menu: "Tri punktoj: arkivi, forigi, rearanĝi, amasa reĝimo.",
+    help_panel: "Trenu la flankan panelon al ajna rando.",
+  },
+  ia: {
+    add_list: "Nove lista de controlo",
+    settings: "Optiones",
+    help: "Adjuta",
+    expand_all: "Aperirar toto",
+    collapse_all: "Plegar toto",
+    a_archive: "Archivar",
+    a_delete: "Deler",
+    a_restore: "Restaurar",
+    a_top: "Al topo",
+    a_bottom: "Al fundo",
+    a_cancel: "Cancellar",
+    a_edit: "Editar",
+    a_save: "Salvegar",
+    a_ok: "Comprendite",
+    a_menu: "Menu",
+    a_full: "Monstrar le texto complete",
+    set_theme: "Thema",
+    theme_system: "Systema",
+    theme_dark: "Obscur",
+    theme_light: "Clar",
+    set_lang: "Langua",
+    lang_auto: "Automatic",
+    set_new_list: "Nove lista de controlo",
+    set_new_item: "Nove puncto",
+    pos_top: "In alto",
+    pos_bottom: "In basso",
+    set_page_size: "Listas per pagina",
+    page_all: "Toto",
+    page_of: "Pagina {n} de {m}",
+    prev_page: "Pagina previe",
+    next_page: "Pagina sequente",
+    empty: "Dhamanco ancora. Tocca + pro crear un lista.",
+    add_item: "Adder puncto",
+    new_item_ph: "Nove puncto",
+    new_list_ph: "Nove lista de controlo",
+    archive_title: "Archivo",
+    tab_lists: "Listas de controlo",
+    tab_items: "Punctos",
+    archive_empty: "Nihil archivate",
+    bulk: "Modo de gruppo",
+    selected_n: "{n} seligite",
+    c_archive_list: "Archivar iste lista de controlo?",
+    c_archive_item: "Archivar iste puncto?",
+    c_archive_n: "Archivar {n}?",
+    c_delete_list: "Deler iste lista e su punctos?",
+    c_delete_item: "Deler iste puncto?",
+    c_delete_n: "Deler {n}?",
+    storage_error: "Storage non disponibile — le modificationes resta solmente in iste scheda.",
+    help_m: "Mobile",
+    help_d: "Computator",
+    help_drag: "Tene premite un linea pro mover lo. Depone punctos in un altere lista.",
+    help_swipe_l: "Rola a sinistra pro archivar.",
+    help_swipe_r: "Rola a dextra pro editar.",
+    help_dbl: "Duplici tocca un puncto pro editar.",
+    help_menu: "Tres punctos: archivar, deler, reordinar, modo de gruppo.",
+    help_panel: "Trahe le panel lateral a un bordo.",
+  },
+  tok: {
+    add_list: "o pali e lipu sin",
+    settings: "ilo ante",
+    help: "sona",
+    expand_all: "o open e ale",
+    collapse_all: "o pini e ale",
+    a_archive: "o len",
+    a_delete: "o weka",
+    a_restore: "o kama sin",
+    a_top: "o tawa sewi",
+    a_bottom: "o tawa anpa",
+    a_cancel: "o pini",
+    a_edit: "o ante",
+    a_save: "o awen",
+    a_ok: "sona",
+    a_menu: "nasin mute",
+    a_full: "o lukin e toki ale",
+    set_theme: "kule",
+    theme_system: "kule pi ilo sina",
+    theme_dark: "pimeja",
+    theme_light: "walo",
+    set_lang: "toki",
+    lang_auto: "toki sina",
+    set_new_list: "lipu sin li lon",
+    set_new_item: "nimi sin li lon",
+    pos_top: "sewi",
+    pos_bottom: "anpa",
+    set_page_size: "lipu wan la mute",
+    page_all: "ale",
+    page_of: "lipu {n} tan {m}",
+    prev_page: "lipu pini",
+    next_page: "lipu kama",
+    empty: "ante li lon ala. o luka e + la lipu sin li kama.",
+    add_item: "o pana e nimi",
+    new_item_ph: "nimi sin",
+    new_list_ph: "lipu sin",
+    archive_title: "len",
+    tab_lists: "lipu",
+    tab_items: "nimi",
+    archive_empty: "len ala",
+    bulk: "luka mute",
+    selected_n: "{n} li lon luka",
+    c_archive_list: "o len e ni lipu?",
+    c_archive_item: "o len e ni nimi?",
+    c_archive_n: "o len e {n}?",
+    c_delete_list: "o weka e ni lipu en nimi ona?",
+    c_delete_item: "o weka e ni nimi?",
+    c_delete_n: "o weka e {n}?",
+    storage_error: "ma awen li lon ala. ni li lon ilo ni taso.",
+    help_m: "ilo lili",
+    help_d: "ilo suli",
+    help_drag: "o luka sewi e linja la ona li tawa. o pana e nimi tawa lipu ante.",
+    help_swipe_l: "o luka tawa open la len li kama.",
+    help_swipe_r: "o luka tawa pona la ante li open.",
+    help_dbl: "o luka tu e nimi la ante li open.",
+    help_menu: "nasin tu wan: len, weka, tawa, luka mute.",
+    help_panel: "o luka e ilo poka la ona li kama tawa poka ante.",
+  },
+};
+
+/* ---------- store & persistence ---------- */
+
+const KEY = "tbd.v1";
+
+let storageBroken = false;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) {
+    node.className = className;
+  }
+  if (text !== undefined) {
+    node.textContent = text;
+  }
+  return node;
+}
+
+function byId(id) {
+  return document.getElementById(id);
+}
+
+function clamp(value, min, max) {
+  if (max < min) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function uid() {
+  if (globalThis.crypto && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function langCode() {
+  if (state.ui.lang !== "auto") {
+    return Object.hasOwn(DICTS, state.ui.lang) ? state.ui.lang : "en";
+  }
+  const nav = String(navigator.language || "en").toLowerCase().split("-")[0];
+  return Object.hasOwn(DICTS, nav) ? nav : "en";
+}
+
+function t(key, params) {
+  const dict = DICTS[langCode()] ?? EN;
+  const raw = dict[key] ?? EN[key] ?? key;
+  if (!params) {
+    return raw;
+  }
+  return raw.replace(/\{(\w+)\}/g, (_m, name) => String(params[name] ?? ""));
+}
+
+function defaults() {
+  return {
+    version: 1,
+    checklists: [],
+    items: [],
+    ui: {
+      theme: "system",
+      lang: "auto",
+      newChecklist: "top",
+      newItem: "bottom",
+      pageSize: 20,
+      page: 1,
+      panel: { side: "right", topPct: 0.35 },
+      editing: null,
+      bulk: { kind: null, checklistId: null, ids: [] },
+    },
+  };
+}
+
+function normalize(data) {
+  const out = defaults();
+  if (!data || data.version !== 1) {
+    return out;
+  }
+  out.checklists = (Array.isArray(data.checklists) ? data.checklists : [])
+    .filter((c) => c && typeof c.id === "string")
+    .map((c) => ({
+      id: c.id,
+      title: typeof c.title === "string" ? c.title : "",
+      expanded: c.expanded !== false,
+      createdAt: Number(c.createdAt) || Date.now(),
+      archived: c.archived === true,
+    }));
+  const known = new Set(out.checklists.map((c) => c.id));
+  out.items = (Array.isArray(data.items) ? data.items : [])
+    .filter((i) => i && typeof i.id === "string" && known.has(i.checklistId))
+    .map((i) => ({
+      id: i.id,
+      checklistId: i.checklistId,
+      text: typeof i.text === "string" ? i.text : "",
+      done: i.done === true,
+      createdAt: Number(i.createdAt) || Date.now(),
+      archived: i.archived === true,
+      archivedBy: i.archivedBy === "user" ? "user" : "list",
+    }));
+  Object.assign(out.ui, data.ui && typeof data.ui === "object" ? data.ui : {});
+  out.ui.editing = null;
+  if (!out.ui.panel || typeof out.ui.panel !== "object") {
+    out.ui.panel = { side: "right", topPct: 0.35 };
+  }
+  out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
+  const bulk = out.ui.bulk;
+  if (!bulk || (bulk.kind !== "list" && bulk.kind !== "item")) {
+    out.ui.bulk = { kind: null, checklistId: null, ids: [] };
+  }
+  if (!["system", "dark", "light"].includes(out.ui.theme)) {
+    out.ui.theme = "system";
+  }
+  return out;
+}
+
+function load() {
+  try {
+    return normalize(JSON.parse(localStorage.getItem(KEY)));
+  } catch {
+    storageBroken = true;
+    return defaults();
+  }
+}
+
+const state = load();
+let saveTimer = 0;
+
+let wiped = false;
+
+function save() {
+  if (wiped) {
+    return;
+  }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    storageBroken = true;
+  }
+}
+
+function queueSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    save();
+    if (storageBroken) {
+      showBanner();
+    }
+  }, 150);
+  if (storageBroken) {
+    showBanner();
+  }
+}
+
+function flushSave() {
+  clearTimeout(saveTimer);
+  save();
+}
+
+function commit() {
+  queueSave();
+  render();
+}
+
+/* ---------- pure ordering helpers ---------- */
+
+function moveGroup(list, ids, index) {
+  const picked = new Set(ids);
+  const group = list.filter((x) => picked.has(x.id));
+  const rest = list.filter((x) => !picked.has(x.id));
+  rest.splice(clamp(index, 0, rest.length), 0, ...group);
+  return rest;
+}
+
+function withoutArchived(items, checklistId) {
+  return items.filter((i) => i.checklistId === checklistId && !i.archived);
+}
+
+function visibleChecklists() {
+  return state.checklists.filter((c) => !c.archived);
+}
+
+function pageCount(total) {
+  const size = state.ui.pageSize;
+  if (size === "all") {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(total / size));
+}
+
+function pagedChecklists() {
+  const all = visibleChecklists();
+  const size = state.ui.pageSize;
+  if (size === "all") {
+    return all;
+  }
+  const start = (clamp(state.ui.page, 1, pageCount(all.length)) - 1) * size;
+  return all.slice(start, start + size);
+}
+
+function indexOfVisible(id) {
+  return visibleChecklists().findIndex((c) => c.id === id);
+}
+
+function findList(id) {
+  return state.checklists.find((c) => c.id === id);
+}
+
+function findItem(id) {
+  return state.items.find((i) => i.id === id);
+}
+
+function entityText(kind, id) {
+  const row = kind === "list" ? findList(id) : findItem(id);
+  if (!row) {
+    return "";
+  }
+  return kind === "list" ? row.title : row.text;
+}
+
+/* ---------- entities ---------- */
+
+let scrollTarget = null;
+
+function addChecklist() {
+  const cl = { id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false };
+  if (state.ui.newChecklist === "top") {
+    state.checklists.unshift(cl);
+  } else {
+    state.checklists.push(cl);
+  }
+  state.ui.editing = { kind: "list", id: cl.id };
+  jumpTo(cl.id);
+  commit();
+}
+
+function addItem(checklistId) {
+  const cl = findList(checklistId);
+  if (!cl) {
+    return;
+  }
+  cl.expanded = true;
+  const item = {
+    id: uid(),
+    checklistId,
+    text: "",
+    done: false,
+    createdAt: Date.now(),
+    archived: false,
+    archivedBy: "user",
+  };
+  const peers = state.items.filter((i) => i.checklistId === checklistId);
+  if (!peers.length) {
+    state.items.push(item);
+  } else if (state.ui.newItem === "top") {
+    state.items.splice(state.items.indexOf(peers[0]), 0, item);
+  } else {
+    state.items.splice(state.items.indexOf(peers.at(-1)) + 1, 0, item);
+  }
+  state.ui.editing = { kind: "item", id: item.id };
+  scrollTarget = { kind: "item", id: item.id };
+  commit();
+}
+
+function removeEntity(kind, id) {
+  if (kind === "list") {
+    state.checklists = state.checklists.filter((c) => c.id !== id);
+    state.items = state.items.filter((i) => i.checklistId !== id);
+  } else {
+    state.items = state.items.filter((i) => i.id !== id);
+  }
+  unselect(id);
+}
+
+function commitText(kind, id, raw) {
+  const text = raw.trim();
+  if (!text) {
+    removeEntity(kind, id);
+  } else if (kind === "list") {
+    const cl = findList(id);
+    if (cl) {
+      cl.title = text;
+    }
+  } else {
+    const item = findItem(id);
+    if (item) {
+      item.text = text;
+    }
+  }
+  state.ui.editing = null;
+  commit();
+}
+
+function cancelEdit() {
+  const editing = state.ui.editing;
+  if (!editing) {
+    return;
+  }
+  if (!entityText(editing.kind, editing.id)) {
+    removeEntity(editing.kind, editing.id);
+  }
+  state.ui.editing = null;
+  commit();
+}
+
+function archiveChecklist(id) {
+  const cl = findList(id);
+  if (!cl) {
+    return;
+  }
+  cl.archived = true;
+  for (const item of state.items) {
+    if (item.checklistId === id && !item.archived) {
+      item.archived = true;
+      item.archivedBy = "list";
+    }
+  }
+  unselect(id);
+  commit();
+}
+
+function archiveItem(id) {
+  const item = findItem(id);
+  if (!item) {
+    return;
+  }
+  item.archived = true;
+  item.archivedBy = "user";
+  unselect(id);
+  commit();
+}
+
+function archiveMany(kind, ids) {
+  for (const id of ids) {
+    if (kind === "list") {
+      archiveChecklistQuiet(id);
+    } else {
+      const item = findItem(id);
+      if (item) {
+        item.archived = true;
+        item.archivedBy = "user";
+      }
+    }
+    unselect(id);
+  }
+  commit();
+}
+
+function archiveChecklistQuiet(id) {
+  const cl = findList(id);
+  if (!cl) {
+    return;
+  }
+  cl.archived = true;
+  for (const item of state.items) {
+    if (item.checklistId === id && !item.archived) {
+      item.archived = true;
+      item.archivedBy = "list";
+    }
+  }
+}
+
+function deleteEntity(kind, id) {
+  removeEntity(kind, id);
+  commit();
+}
+
+function deleteMany(kind, ids) {
+  const picked = new Set(ids);
+  if (kind === "list") {
+    state.checklists = state.checklists.filter((c) => !picked.has(c.id));
+    state.items = state.items.filter((i) => !picked.has(i.checklistId));
+  } else {
+    state.items = state.items.filter((i) => !picked.has(i.id));
+  }
+  state.ui.bulk.ids = state.ui.bulk.ids.filter((x) => !picked.has(x));
+  commit();
+}
+
+function moveTo(kind, ids, where) {
+  if (!ids.length) {
+    return;
+  }
+  if (kind === "list") {
+    state.checklists = moveGroup(state.checklists, ids, where === "top" ? 0 : state.checklists.length);
+    const count = pageCount(visibleChecklists().length);
+    state.ui.page = where === "top" ? 1 : count;
+  } else {
+    moveItemsTo(ids, where);
+  }
+  commit();
+}
+
+function moveItemsTo(ids, where) {
+  const picked = new Set(ids);
+  const group = state.items.filter((i) => picked.has(i.id));
+  const rest = state.items.filter((i) => !picked.has(i.id));
+  const checklistId = group[0].checklistId;
+  const peers = rest.filter((i) => i.checklistId === checklistId);
+  if (!peers.length) {
+    rest.push(...group);
+  } else if (where === "top") {
+    rest.splice(rest.indexOf(peers[0]), 0, ...group);
+  } else {
+    rest.splice(rest.indexOf(peers.at(-1)) + 1, 0, ...group);
+  }
+  state.items = rest;
+}
+
+function jumpTo(id) {
+  const index = indexOfVisible(id);
+  if (index < 0) {
+    return;
+  }
+  const size = state.ui.pageSize;
+  if (size !== "all") {
+    state.ui.page = Math.floor(index / size) + 1;
+  }
+  scrollTarget = { kind: "list", id };
+}
+
+function setExpandedAll(open) {
+  for (const cl of visibleChecklists()) {
+    cl.expanded = open;
+  }
+  commit();
+}
+
+/* ---------- bulk ---------- */
+
+function bulkState() {
+  return state.ui.bulk;
+}
+
+function startBulk(kind, id) {
+  const checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
+  bulkState().kind = kind;
+  bulkState().checklistId = checklistId;
+  bulkState().ids = [id];
+  state.ui.editing = null;
+  commit();
+}
+
+function cancelBulk() {
+  bulkState().kind = null;
+  bulkState().checklistId = null;
+  bulkState().ids = [];
+  commit();
+}
+
+function unselect(id) {
+  const bulk = bulkState();
+  bulk.ids = bulk.ids.filter((x) => x !== id);
+  if (!bulk.ids.length && bulk.kind) {
+    bulk.kind = null;
+    bulk.checklistId = null;
+  }
+}
+
+function togglePick(kind, id) {
+  const bulk = bulkState();
+  if (bulk.kind !== kind) {
+    bulk.kind = kind;
+    bulk.checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
+    bulk.ids = [];
+  }
+  bulk.ids = bulk.ids.includes(id) ? bulk.ids.filter((x) => x !== id) : [...bulk.ids, id];
+  if (!bulk.ids.length) {
+    bulk.kind = null;
+    bulk.checklistId = null;
+  }
+  commit();
+}
+
+/* ---------- render ---------- */
+
+let needFocus = false;
+
+function ariaLabel(id, key) {
+  const node = byId(id);
+  if (node) {
+    node.setAttribute("aria-label", t(key));
+  }
+}
+
+function render() {
+  renderChrome();
+  renderLists();
+  renderPager();
+  renderPanel();
+  afterRender();
+}
+
+function renderChrome() {
+  document.documentElement.lang = langCode();
+  document.documentElement.dataset.theme = state.ui.theme;
+  ariaLabel("btn-add", "add_list");
+  ariaLabel("btn-settings", "settings");
+  ariaLabel("btn-help", "help");
+  ariaLabel("page-prev", "prev_page");
+  ariaLabel("page-next", "next_page");
+}
+
+function renderLists() {
+  const rows = pagedChecklists().map(buildChecklist);
+  byId("lists").replaceChildren(...rows);
+  const emptyNode = byId("empty");
+  emptyNode.textContent = t("empty");
+  emptyNode.hidden = visibleChecklists().length > 0;
+}
+
+function buildChecklist(cl) {
+  const node = byId("tpl-checklist").content.firstElementChild.cloneNode(true);
+  const items = withoutArchived(state.items, cl.id);
+  const open = Boolean(cl.expanded);
+  node.dataset.kind = "list";
+  node.dataset.id = cl.id;
+  node.classList.toggle("is-open", open);
+  node.classList.toggle("is-muted", items.length > 0 && items.every((i) => i.done));
+  paintHead(node, cl, open);
+  const body = node.querySelector(".card__body");
+  body.hidden = !open;
+  if (open) {
+    const host = body.querySelector(".items");
+    host.replaceChildren(...items.map(buildItem));
+  }
+  return node;
+}
+
+function paintHead(node, cl, open) {
+  const toggle = node.querySelector(".mark--toggle");
+  const icon = toggle.querySelector(".ic");
+  const alt = toggle.querySelector(".ic-alt");
+  icon.classList.add(open ? "ic--chevron-down" : "ic--chevron-right");
+  alt.textContent = open ? "▾" : "▸";
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
+  node.querySelector(".act--add").setAttribute("aria-label", t("add_item"));
+  node.querySelector(".act--edit").setAttribute("aria-label", t("a_edit"));
+  node.querySelector(".act--menu").setAttribute("aria-label", t("a_menu"));
+  node.querySelector(".more").setAttribute("aria-label", t("a_full"));
+  node.querySelector(".card__title").textContent = cl.title || t("new_list_ph");
+  paintHeadBulk(node, cl);
+  if (state.ui.editing && state.ui.editing.kind === "list" && state.ui.editing.id === cl.id) {
+    paintEditor(node, cl.title, "new_list_ph");
+    needFocus = true;
+  }
+}
+
+function paintHeadBulk(node, cl) {
+  const bulk = bulkState();
+  const pick = node.querySelector(".mark--bulk");
+  if (bulk.kind !== "list") {
+    return;
+  }
+  node.querySelector(".mark--toggle").hidden = true;
+  pick.hidden = false;
+  pick.setAttribute("role", "checkbox");
+  pick.setAttribute("aria-checked", bulk.ids.includes(cl.id) ? "true" : "false");
+  pick.setAttribute("aria-label", cl.title || t("new_list_ph"));
+  pick.classList.toggle("is-on", bulk.ids.includes(cl.id));
+  paintBox(pick.querySelector(".mark__box"), bulk.ids.includes(cl.id));
+}
+
+function paintBox(box, on) {
+  box.replaceChildren();
+  if (!on) {
+    return;
+  }
+  box.append(el("span", "ic ic--check"));
+  const alt = el("span", "ic-alt", "✓");
+  alt.setAttribute("aria-hidden", "true");
+  box.append(alt);
+}
+
+function paintEditor(row, text, phKey) {
+  const editor = row.querySelector(".row-edit");
+  const label = row.querySelector(".card__title, .item__text");
+  const more = row.querySelector(".more");
+  const editAct = row.querySelector(".act--edit");
+  if (!editor || !label) {
+    return;
+  }
+  label.hidden = true;
+  more.hidden = true;
+  if (editAct) {
+    editAct.hidden = true;
+  }
+  editor.hidden = false;
+  const input = editor.querySelector("input");
+  input.value = text;
+  input.placeholder = t(phKey);
+  input.setAttribute("aria-label", t(phKey));
+  editor.querySelector(".act--save").setAttribute("aria-label", t("a_save"));
+}
+
+function buildItem(item) {
+  const node = byId("tpl-item").content.firstElementChild.cloneNode(true);
+  node.dataset.kind = "item";
+  node.dataset.id = item.id;
+  node.classList.toggle("is-done", item.done);
+  node.querySelector(".item__text").textContent = item.text || t("new_item_ph");
+  const check = node.querySelector(".mark--check");
+  check.setAttribute("role", "checkbox");
+  check.setAttribute("aria-checked", item.done ? "true" : "false");
+  check.setAttribute("aria-label", item.text || t("new_item_ph"));
+  check.classList.toggle("is-on", item.done);
+  paintBox(check.querySelector(".mark__box"), item.done);
+  node.querySelector(".act--menu").setAttribute("aria-label", t("a_menu"));
+  node.querySelector(".more").setAttribute("aria-label", t("a_full"));
+  const bulk = bulkState();
+  if (bulk.kind === "item" && bulk.checklistId === item.checklistId) {
+    const pick = node.querySelector(".mark--bulk");
+    check.hidden = true;
+    pick.hidden = false;
+    pick.setAttribute("role", "checkbox");
+    pick.setAttribute("aria-checked", bulk.ids.includes(item.id) ? "true" : "false");
+    pick.setAttribute("aria-label", item.text || t("new_item_ph"));
+    pick.classList.toggle("is-on", bulk.ids.includes(item.id));
+    paintBox(pick.querySelector(".mark__box"), bulk.ids.includes(item.id));
+  }
+  if (state.ui.editing && state.ui.editing.kind === "item" && state.ui.editing.id === item.id) {
+    paintEditor(node, item.text, "new_item_ph");
+    needFocus = true;
+  }
+  return node;
+}
+
+function renderPager() {
+  const total = visibleChecklists().length;
+  const pages = pageCount(total);
+  const pager = byId("pager");
+  pager.hidden = state.ui.pageSize === "all" || pages <= 1;
+  if (pager.hidden) {
+    return;
+  }
+  const page = clamp(state.ui.page, 1, pages);
+  state.ui.page = page;
+  byId("page-info").textContent = t("page_of", { n: page, m: pages });
+  byId("page-prev").disabled = page <= 1;
+  byId("page-next").disabled = page >= pages;
+}
+
+function panelButton(icon, glyph, labelKey, act, enabled, cls) {
+  const button = el("button", `btn ${cls ?? ""}`);
+  button.type = "button";
+  button.dataset.act = act;
+  button.setAttribute("aria-label", t(labelKey));
+  button.append(el("span", `ic ic--${icon}`));
+  const alt = el("span", "ic-alt", glyph);
+  alt.setAttribute("aria-hidden", "true");
+  button.append(alt);
+  button.disabled = enabled !== true;
+  return button;
+}
+
+function renderPanel() {
+  const bulk = bulkState();
+  const all = visibleChecklists();
+  const nodes = [];
+  if (bulk.kind === null) {
+    nodes.push(panelButton("expand", "⇕", "expand_all", "expand-all", all.some((c) => !c.expanded)));
+    nodes.push(panelButton("collapse", "⇅", "collapse_all", "collapse-all", all.some((c) => c.expanded)));
+  } else {
+    const any = bulk.ids.length > 0;
+    nodes.push(el("div", "panel__sep"));
+    nodes.push(panelButton("trash", "✕", "a_delete", "bulk-delete", any, "btn--danger"));
+    nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", any));
+    nodes.push(panelButton("top", "↑", "a_top", "bulk-top", any));
+    nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", any));
+    nodes.push(panelButton("close", "✕", "a_cancel", "bulk-cancel", true));
+  }
+  const panel = byId("panel");
+  panel.replaceChildren(...nodes);
+  panel.classList.toggle("is-hidden", all.length === 0 && bulk.kind === null);
+  positionPanel();
+}
+
+function afterRender() {
+  for (const node of document.querySelectorAll("#lists .card__title, #lists .item__text")) {
+    const more = node.parentElement.querySelector(".more");
+    if (more) {
+      more.hidden = node.scrollWidth <= node.clientWidth;
+    }
+  }
+  if (needFocus && state.ui.editing) {
+    focusEditor(state.ui.editing.id);
+  }
+  needFocus = false;
+  if (scrollTarget) {
+    applyScrollTarget();
+  }
+  applyDragState();
+}
+
+function focusEditor(id) {
+  const row = document.querySelector(`#lists [data-id="${CSS.escape(id)}"]`);
+  const input = row && row.querySelector(":scope > .card__head .input, :scope > .item__row .input");
+  if (!input) {
+    return;
+  }
+  input.focus();
+  const end = input.value.length;
+  input.setSelectionRange(end, end);
+}
+
+function applyScrollTarget() {
+  const target = scrollTarget;
+  scrollTarget = null;
+  const row = document.querySelector(`#lists [data-id="${CSS.escape(target.id)}"]`);
+  if (!row) {
+    return;
+  }
+  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  row.classList.add("is-flash");
+  setTimeout(() => row.classList.remove("is-flash"), 900);
+}
+
+/* ---------- modal layer ---------- */
+
+let lastFocused = null;
+
+function modalOpen() {
+  return byId("layer").childElementCount > 0;
+}
+
+function focusables(node) {
+  return [...node.querySelectorAll("button:not(:disabled), input, select, textarea, [href]")];
+}
+
+function trapFocus(event) {
+  if (event.key !== "Tab") {
+    return;
+  }
+  const nodes = focusables(event.currentTarget);
+  if (!nodes.length) {
+    return;
+  }
+  const first = nodes[0];
+  const last = nodes.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function closeModal() {
+  const layer = byId("layer");
+  if (!layer.childElementCount) {
+    return;
+  }
+  layer.replaceChildren();
+  document.documentElement.classList.remove("is-locked");
+  if (lastFocused && document.contains(lastFocused)) {
+    lastFocused.focus();
+  }
+  lastFocused = null;
+}
+
+function openModal(opts) {
+  closeModal();
+  const box = el("div", opts.sheet ? "modal modal--sheet" : "modal");
+  box.setAttribute("role", "dialog");
+  box.setAttribute("aria-modal", "true");
+  if (opts.title) {
+    box.append(el("h2", "modal__title", opts.title));
+  }
+  const body = el("div", "modal__body");
+  if (typeof opts.body === "string") {
+    body.textContent = opts.body;
+  } else if (opts.body) {
+    body.append(opts.body);
+  }
+  box.append(body);
+  if (opts.actions && opts.actions.length) {
+    box.append(actionRow(opts.actions));
+  }
+  const backdrop = el("div", "layer__backdrop");
+  backdrop.addEventListener("click", closeModal);
+  lastFocused = document.activeElement;
+  byId("layer").append(backdrop, box);
+  document.documentElement.classList.add("is-locked");
+  box.addEventListener("keydown", trapFocus);
+  const first = focusables(box)[0];
+  if (first) {
+    first.focus();
+  }
+  return { box, body, close: closeModal };
+}
+
+function actionRow(actions) {
+  const row = el("div", "modal__actions");
+  for (const action of actions) {
+    const button = el("button", `btn btn--pill ${action.cls ?? ""}`, action.label);
+    button.type = "button";
+    button.addEventListener("click", action.onClick);
+    row.append(button);
+  }
+  return row;
+}
+
+function confirmModal(message, yesLabel, onYes) {
+  openModal({
+    body: message,
+    actions: [
+      { label: t("a_cancel"), onClick: closeModal },
+      {
+        label: yesLabel,
+        cls: "btn--primary",
+        onClick: () => {
+          closeModal();
+          onYes();
+        },
+      },
+    ],
+  });
+}
+
+function menuItem(icon, glyph, label, onClick, danger) {
+  const button = el("button", danger ? "menu-list__item btn--danger" : "menu-list__item");
+  button.type = "button";
+  button.append(el("span", `ic ic--${icon}`));
+  const alt = el("span", "ic-alt", glyph);
+  alt.setAttribute("aria-hidden", "true");
+  button.append(alt, el("span", null, label));
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function menuSep() {
+  return el("div", "menu-list__sep");
+}
+
+function actionMessage(kind, n, verb) {
+  if (n > 1) {
+    return t(verb === "archive" ? "c_archive_n" : "c_delete_n", { n });
+  }
+  if (kind === "list") {
+    return t(verb === "archive" ? "c_archive_list" : "c_delete_list");
+  }
+  return t(verb === "archive" ? "c_archive_item" : "c_delete_item");
+}
+
+function openEntityMenu(kind, id) {
+  const text = entityText(kind, id) || t(kind === "list" ? "new_list_ph" : "new_item_ph");
+  const run = (fn) => () => {
+    closeModal();
+    fn();
+  };
+  const askArchive = run(() => confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => {
+    if (kind === "list") {
+      archiveChecklist(id);
+    } else {
+      archiveItem(id);
+    }
+  }));
+  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteEntity(kind, id)));
+  const list = el("div", "menu-list");
+  list.append(
+    menuItem("archive", "▣", t("a_archive"), askArchive),
+    menuItem("trash", "✕", t("a_delete"), askDelete, true),
+    menuSep(),
+    menuItem("top", "↑", t("a_top"), run(() => moveTo(kind, [id], "top"))),
+    menuItem("bottom", "↓", t("a_bottom"), run(() => moveTo(kind, [id], "bottom"))),
+    menuSep(),
+    menuItem("bulk", "☰", t("bulk"), run(() => startBulk(kind, id))),
+  );
+  openModal({ title: text, body: list });
+}
+
+function openFullText(kind, id) {
+  openModal({ title: entityText(kind, id) || t("a_full") });
+}
+
+/* ---------- settings ---------- */
+
+let settingsSheet = null;
+
+function settingsOpen() {
+  return Boolean(settingsSheet);
+}
+
+function closeSettings() {
+  if (!settingsSheet) {
+    return;
+  }
+  settingsSheet.remove();
+  settingsSheet = null;
+  byId("btn-settings").setAttribute("aria-expanded", "false");
+}
+
+function field(labelKey, control) {
+  const row = el("div", "field");
+  const label = el("label", "field__label", t(labelKey));
+  if (control.tagName === "SELECT") {
+    const id = `f-${labelKey}`;
+    label.htmlFor = id;
+    control.id = id;
+  } else {
+    control.setAttribute("aria-label", t(labelKey));
+  }
+  row.append(label, control);
+  return row;
+}
+
+function selectControl(items, value, onChange) {
+  const select = el("select", "select");
+  for (const [val, label] of items) {
+    const option = document.createElement("option");
+    option.value = String(val);
+    option.textContent = label;
+    if (String(val) === String(value)) {
+      option.selected = true;
+    }
+    select.append(option);
+  }
+  select.addEventListener("change", () => onChange(select.value));
+  return select;
+}
+
+function segmentControl(name, value, pairs, onChange) {
+  const box = el("div", "seg");
+  box.setAttribute("role", "radiogroup");
+  for (const [val, label] of pairs) {
+    const wrap = el("label");
+    const input = el("input");
+    input.type = "radio";
+    input.name = name;
+    input.value = val;
+    input.checked = String(value) === val;
+    input.addEventListener("change", () => onChange(val));
+    wrap.append(input, el("span", null, label));
+    box.append(wrap);
+  }
+  return box;
+}
+
+function positionSettings() {
+  if (!settingsSheet) {
+    return;
+  }
+  const rect = byId("btn-settings").getBoundingClientRect();
+  const height = settingsSheet.offsetHeight;
+  const top = Math.min(rect.bottom + 8, innerHeight - height - 12);
+  settingsSheet.style.top = `${Math.max(8, top)}px`;
+  settingsSheet.style.right = `${Math.max(8, innerWidth - rect.right)}px`;
+}
+
+function openSettings() {
+  const sheet = el("div", "sheet");
+  sheet.id = "settings-sheet";
+  const ui = state.ui;
+  sheet.append(
+    field("set_theme", selectControl(
+      [["system", t("theme_system")], ["dark", t("theme_dark")], ["light", t("theme_light")]],
+      ui.theme,
+      (value) => {
+        state.ui.theme = value;
+        commit();
+      },
+    )),
+    field("set_lang", selectControl(
+      LANGUAGES.map(([code, label]) => [code, label]),
+      ui.lang,
+      (value) => {
+        state.ui.lang = value;
+        openSettings();
+        commit();
+      },
+    )),
+    field("set_page_size", selectControl(
+      PAGE_SIZES.map((size) => [size, size === "all" ? t("page_all") : String(size)]),
+      ui.pageSize,
+      (value) => {
+        state.ui.pageSize = value === "all" ? "all" : Number(value);
+        state.ui.page = 1;
+        commit();
+      },
+    )),
+    field("set_new_list", segmentControl("posList", ui.newChecklist, [["top", t("pos_top")], ["bottom", t("pos_bottom")]], (value) => {
+      state.ui.newChecklist = value;
+      commit();
+    })),
+    field("set_new_item", segmentControl("posItem", ui.newItem, [["top", t("pos_top")], ["bottom", t("pos_bottom")]], (value) => {
+      state.ui.newItem = value;
+      commit();
+    })),
+  );
+  const archive = el("button", "btn btn--wide");
+  archive.type = "button";
+  archive.append(el("span", "ic ic--archive"), el("span", null, t("archive_title")));
+  archive.addEventListener("click", () => {
+    closeSettings();
+    openArchive();
+  });
+  sheet.append(archive);
+  document.body.append(sheet);
+  if (settingsSheet) {
+    settingsSheet.remove();
+  }
+  settingsSheet = sheet;
+  byId("btn-settings").setAttribute("aria-expanded", "true");
+  positionSettings();
+}
+
+function toggleSettings() {
+  if (settingsOpen()) {
+    closeSettings();
+  } else {
+    openSettings();
+  }
+}
+
+/* ---------- archive ---------- */
+
+function archivedLists() {
+  return state.checklists.filter((c) => c.archived);
+}
+
+function archivedItems() {
+  return state.items.filter((i) => {
+    if (!i.archived || i.archivedBy !== "user") {
+      return false;
+    }
+    const cl = findList(i.checklistId);
+    return !cl || !cl.archived;
+  });
+}
+
+function restoreLists(ids) {
+  const picked = new Set(ids);
+  const moved = [];
+  const rest = [];
+  for (const cl of state.checklists) {
+    if (picked.has(cl.id)) {
+      cl.archived = false;
+      moved.push(cl);
+    } else {
+      rest.push(cl);
+    }
+  }
+  state.checklists = [...moved, ...rest];
+  for (const item of state.items) {
+    if (picked.has(item.checklistId) && item.archived && item.archivedBy === "list") {
+      item.archived = false;
+    }
+  }
+}
+
+function restoreItems(ids) {
+  const picked = new Set(ids);
+  const moved = [];
+  state.items = state.items.filter((item) => {
+    if (!picked.has(item.id)) {
+      return true;
+    }
+    item.archived = false;
+    moved.push(item);
+    return false;
+  });
+  for (const item of [...moved].reverse()) {
+    const peers = state.items.filter((i) => i.checklistId === item.checklistId);
+    if (peers.length) {
+      state.items.splice(state.items.indexOf(peers[0]), 0, item);
+    } else {
+      state.items.push(item);
+    }
+  }
+}
+
+function archiveRow(text, on, onChange) {
+  const row = el("label", "rows__row");
+  const box = el("input");
+  box.type = "checkbox";
+  box.checked = on;
+  box.addEventListener("change", () => onChange(box.checked));
+  row.append(box, el("span", "rows__label", text));
+  return row;
+}
+
+function openArchive() {
+  const view = { tab: "lists", sel: new Set() };
+  const host = el("div");
+  const handle = openModal({ title: t("archive_title"), sheet: true, body: host });
+  const selected = () => [...view.sel];
+  const act = (icon, glyph, label, cls, onClick, countable) => {
+    const button = el("button", `btn btn--pill ${cls}`);
+    button.type = "button";
+    const alt = el("span", "ic-alt", glyph);
+    alt.setAttribute("aria-hidden", "true");
+    button.append(el("span", `ic ic--${icon}`), alt, el("span", null, label));
+    if (countable) {
+      button.dataset.count = "1";
+    }
+    button.addEventListener("click", onClick);
+    return button;
+  };
+  const paint = () => {
+    const rows = view.tab === "lists" ? archivedLists() : archivedItems();
+    host.replaceChildren();
+    const tabs = el("div", "tabs");
+    const makeTab = (key, label) => {
+      const tab = el("button", view.tab === key ? "tabs__tab is-active" : "tabs__tab", label);
+      tab.type = "button";
+      tab.addEventListener("click", () => {
+        view.tab = key;
+        view.sel.clear();
+        paint();
+      });
+      return tab;
+    };
+    tabs.append(makeTab("lists", t("tab_lists")), makeTab("items", t("tab_items")));
+    host.append(tabs);
+    if (!rows.length) {
+      host.append(el("p", "empty", t("archive_empty")));
+    }
+    const list = el("div", "rows");
+    for (const row of rows) {
+      view.sel.delete(row.id);
+      const text = view.tab === "lists" ? row.title || t("new_list_ph") : row.text || t("new_item_ph");
+      list.append(archiveRow(text, false, (on) => {
+        if (on) {
+          view.sel.add(row.id);
+        } else {
+          view.sel.delete(row.id);
+        }
+        paintActions();
+      }));
+    }
+    host.append(list);
+    const actions = el("div", "modal__actions");
+    actions.append(
+      act("close", "✕", t("a_cancel"), "", () => handle.close()),
+      act("restore", "↺", t("a_restore"), "", () => {
+        const ids = selected();
+        if (!ids.length) {
+          return;
+        }
+        if (view.tab === "lists") {
+          restoreLists(ids);
+        } else {
+          restoreItems(ids);
+        }
+        view.sel.clear();
+        commit();
+        paint();
+      }, true),
+      act("trash", "✕", t("a_delete"), "btn--danger", () => {
+        const ids = selected();
+        if (!ids.length) {
+          return;
+        }
+        confirmModal(t("c_delete_n", { n: ids.length }), t("a_delete"), () => {
+          deleteMany(view.tab, ids);
+          view.sel.clear();
+          paint();
+        });
+      }, true),
+    );
+    host.append(actions);
+    paintActions();
+  };
+  const paintActions = () => {
+    const count = view.sel.size;
+    for (const button of host.querySelectorAll("[data-count]")) {
+      button.disabled = count === 0;
+    }
+  };
+  paint();
+}
+
+/* ---------- help ---------- */
+
+function openHelp() {
+  const body = el("div", "help");
+  const section = (title, lines) => {
+    body.append(el("h3", null, title));
+    const list = el("ul");
+    for (const line of lines) {
+      list.append(el("li", null, line));
+    }
+    body.append(list);
+  };
+  section(t("help_m"), [t("help_drag"), t("help_swipe_l"), t("help_swipe_r"), t("help_dbl"), t("help_menu"), t("help_panel")]);
+  section(t("help_d"), [t("help_drag"), t("help_menu"), t("help_panel")]);
+  openModal({
+    title: t("help"),
+    sheet: true,
+    body,
+    actions: [{ label: t("a_ok"), cls: "btn--primary", onClick: closeModal }],
+  });
+}
+
+let bannerTimer = 0;
+
+function showBanner() {
+  const banner = byId("banner");
+  banner.textContent = t("storage_error");
+  banner.hidden = false;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => {
+    banner.hidden = true;
+  }, 8000);
+}
+
+/* ---------- row gestures: long-press drag + swipe ---------- */
+
+let gesture = null;
+let drag = null;
+let suppressClick = false;
+let pointerY = 0;
+let scrollRaf = 0;
+
+function rowHandle(target) {
+  if (!target || !target.closest) {
+    return null;
+  }
+  const handle = target.closest(".card__head, .item");
+  if (!handle) {
+    return null;
+  }
+  const isItem = handle.classList.contains("item");
+  const row = isItem ? handle : handle.closest(".card");
+  if (!row || !row.dataset.id) {
+    return null;
+  }
+  const mover = handle.querySelector(".card__row, .item__row");
+  if (!mover) {
+    return null;
+  }
+  return { handle, mover, row, kind: isItem ? "item" : "list", id: row.dataset.id };
+}
+
+function rowById(kind, id) {
+  return document.querySelector(`#lists [data-kind="${kind}"][data-id="${CSS.escape(id)}"]`);
+}
+
+function onRowDown(event) {
+  if (drag || modalOpen()) {
+    return;
+  }
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+  if (event.target.closest("button,input,a,select,label")) {
+    return;
+  }
+  const hit = rowHandle(event.target);
+  if (!hit) {
+    return;
+  }
+  pointerY = event.clientY;
+  gesture = {
+    ...hit,
+    x0: event.clientX,
+    y0: event.clientY,
+    mode: "pending",
+    timer: setTimeout(startDrag, GESTURE.press),
+  };
+  window.addEventListener("pointermove", onRowMove);
+  window.addEventListener("pointerup", onRowUp);
+  window.addEventListener("pointercancel", onRowUp);
+}
+
+function endRowListeners() {
+  window.removeEventListener("pointermove", onRowMove);
+  window.removeEventListener("pointerup", onRowUp);
+  window.removeEventListener("pointercancel", onRowUp);
+}
+
+function onRowMove(event) {
+  pointerY = event.clientY;
+  if (!gesture) {
+    return;
+  }
+  const dx = event.clientX - gesture.x0;
+  const dy = event.clientY - gesture.y0;
+  if (gesture.mode === "drag") {
+    updateDrag(event.clientX, event.clientY);
+    return;
+  }
+  if (gesture.mode === "swipe") {
+    paintSwipe(dx);
+    return;
+  }
+  if (Math.abs(dx) > GESTURE.swipeMin && Math.abs(dx) > GESTURE.ratio * Math.abs(dy)) {
+    gesture.mode = "swipe";
+    suppressNextClick();
+    paintSwipe(dx);
+    return;
+  }
+  if (Math.max(Math.abs(dx), Math.abs(dy)) > GESTURE.slop) {
+    clearTimeout(gesture.timer);
+    if (Math.abs(dy) >= Math.abs(dx)) {
+      endGesture();
+    }
+  }
+}
+
+function onRowUp() {
+  endRowListeners();
+  if (!gesture) {
+    return;
+  }
+  if (gesture.mode === "drag") {
+    endDrag(true);
+  } else if (gesture.mode === "swipe") {
+    finishSwipe();
+  }
+  clearTimeout(gesture.timer);
+  gesture = null;
+}
+
+function endGesture() {
+  if (gesture) {
+    clearTimeout(gesture.timer);
+  }
+  gesture = null;
+  endRowListeners();
+}
+
+function rubber(dx) {
+  const over = Math.abs(dx) - GESTURE.trigger;
+  if (over <= 0) {
+    return dx;
+  }
+  return Math.sign(dx) * (GESTURE.trigger + over * 0.35);
+}
+
+function suppressNextClick() {
+  suppressClick = true;
+  setTimeout(() => {
+    suppressClick = false;
+  }, 250);
+}
+
+function paintSwipe(dx) {
+  const mover = gesture.mover;
+  gesture.lastDx = dx;
+  mover.style.transition = "none";
+  mover.style.transform = `translateX(${rubber(dx)}px)`;
+  const progress = clamp(Math.abs(dx) / GESTURE.trigger, 0, 1);
+  for (const bg of gesture.handle.querySelectorAll(".swipe-bg")) {
+    const rightSide = bg.classList.contains("swipe-bg--right");
+    bg.style.opacity = String(dx > 0 === rightSide ? progress : 0);
+  }
+}
+
+function finishSwipe() {
+  const current = gesture;
+  const dx = current.lastDx || 0;
+  current.mover.style.transition = "";
+  current.mover.style.transform = "";
+  for (const bg of current.handle.querySelectorAll(".swipe-bg")) {
+    bg.style.opacity = "0";
+  }
+  if (Math.abs(dx) < GESTURE.trigger) {
+    return;
+  }
+  if (dx > 0) {
+    startEdit(current.kind, current.id);
+    return;
+  }
+  confirmModal(actionMessage(current.kind, 1, "archive"), t("a_archive"), () => {
+    if (current.kind === "list") {
+      archiveChecklist(current.id);
+    } else {
+      archiveItem(current.id);
+    }
+  });
+}
+
+/* ---------- drag ---------- */
+
+function visibleRows(container) {
+  return [...container.children].filter((node) => node !== (drag && drag.gap) && !node.classList.contains("is-drag-src"));
+}
+
+function indexAt(container, y) {
+  const rows = visibleRows(container);
+  let index = 0;
+  for (const row of rows) {
+    const rect = row.getBoundingClientRect();
+    if (y < rect.top + rect.height / 2) {
+      break;
+    }
+    index += 1;
+  }
+  return index;
+}
+
+function placeGap() {
+  if (!drag || !drag.container) {
+    return;
+  }
+  const rows = visibleRows(drag.container);
+  const ref = rows[clamp(drag.index, 0, rows.length)];
+  if (ref) {
+    drag.container.insertBefore(drag.gap, ref);
+  } else {
+    drag.container.append(drag.gap);
+  }
+}
+
+function applyDragState() {
+  if (!drag) {
+    return;
+  }
+  for (const id of drag.ids) {
+    const row = rowById(drag.kind, id);
+    if (row) {
+      row.classList.add("is-drag-src");
+    }
+  }
+  placeGap();
+}
+
+function nearestBody(bodies, y) {
+  let best = bodies[0];
+  let bestDistance = Infinity;
+  for (const body of bodies) {
+    const rect = body.getBoundingClientRect();
+    const distance = Math.abs(y - (rect.top + rect.height / 2));
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = body;
+    }
+  }
+  return best;
+}
+
+function targetContainer(kind, y) {
+  if (kind === "list") {
+    return byId("lists");
+  }
+  for (const card of document.querySelectorAll("#lists .card")) {
+    const rect = card.getBoundingClientRect();
+    if (y < rect.top || y > rect.bottom) {
+      continue;
+    }
+    return card.classList.contains("is-open") ? card.querySelector(".items") : null;
+  }
+  const bodies = [...document.querySelectorAll("#lists .card.is-open .items")];
+  return bodies.length ? nearestBody(bodies, y) : null;
+}
+
+function collapsedHeadAt(y) {
+  for (const head of document.querySelectorAll("#lists .card:not(.is-open) > .card__head")) {
+    const rect = head.getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) {
+      return head;
+    }
+  }
+  return null;
+}
+
+function cloneCenter() {
+  const rect = drag.clone.getBoundingClientRect();
+  return rect.top + rect.height / 2;
+}
+
+function retarget() {
+  const hovered = collapsedHeadAt(drag.y);
+  handleHover(hovered);
+  const container = targetContainer(drag.kind, cloneCenter());
+  if (!container) {
+    return;
+  }
+  drag.container = container;
+  drag.index = indexAt(container, cloneCenter());
+  placeGap();
+}
+
+function handleHover(head) {
+  const id = head ? head.parentElement.dataset.id : null;
+  if (drag.hoverId === id) {
+    return;
+  }
+  clearTimeout(drag.hoverTimer);
+  drag.hoverId = id;
+  if (id) {
+    drag.hoverTimer = setTimeout(() => expandForDrop(id), GESTURE.hover);
+  }
+}
+
+function expandForDrop(id) {
+  const cl = findList(id);
+  if (!drag || !cl || cl.expanded) {
+    return;
+  }
+  drag.hoverId = null;
+  cl.expanded = true;
+  commit();
+  const body = document.querySelector(`#lists [data-id="${CSS.escape(id)}"] .items`);
+  if (!body) {
+    retarget();
+    return;
+  }
+  drag.container = body;
+  drag.index = indexAt(body, cloneCenter());
+  placeGap();
+}
+
+function startDrag() {
+  const hit = gesture;
+  if (!hit) {
+    return;
+  }
+  hit.mode = "drag";
+  suppressNextClick();
+  const bulk = bulkState();
+  const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
+  const rows = ids.map((id) => rowById(hit.kind, id)).filter(Boolean);
+  if (!rows.length) {
+    return;
+  }
+  const rect = rows[0].getBoundingClientRect();
+  const clone = el("div", "drag-clone");
+  for (const row of rows) {
+    const copy = row.cloneNode(true);
+    copy.style.width = `${row.offsetWidth}px`;
+    clone.append(copy);
+  }
+  document.body.append(clone);
+  const gap = el("div", "drop-gap");
+  gap.style.height = `${rows.reduce((sum, row) => sum + row.offsetHeight, gapPad(rows))}px`;
+  rows[0].before(gap);
+  drag = {
+    kind: hit.kind,
+    ids,
+    clone,
+    gap,
+    dx: hit.x0 - rect.left,
+    dy: hit.y0 - rect.top,
+    x: hit.x0,
+    y: hit.y0,
+    container: rows[0].parentElement,
+    index: 0,
+    hoverId: null,
+    hoverTimer: 0,
+  };
+  for (const row of rows) {
+    row.classList.add("is-drag-src");
+  }
+  moveClone();
+  retarget();
+  startAutoScroll();
+}
+
+function gapPad(rows) {
+  if (rows.length < 2) {
+    return 0;
+  }
+  const gap = parseFloat(getComputedStyle(rows[0].parentElement).rowGap) || 0;
+  return gap * (rows.length - 1);
+}
+
+function moveClone() {
+  drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px)`;
+}
+
+function updateDrag(x, y) {
+  if (!drag) {
+    return;
+  }
+  drag.x = x;
+  drag.y = y;
+  moveClone();
+  retarget();
+}
+
+function dropRefId(current) {
+  let node = current.gap.nextElementSibling;
+  while (node && node.classList.contains("is-drag-src")) {
+    node = node.nextElementSibling;
+  }
+  return node && node.dataset ? node.dataset.id ?? null : null;
+}
+
+function reorderByIds(list, ids, refId) {
+  const picked = new Set(ids);
+  const group = list.filter((row) => picked.has(row.id));
+  const rest = list.filter((row) => !picked.has(row.id));
+  const at = refId ? rest.findIndex((row) => row.id === refId) : -1;
+  rest.splice(at === -1 ? rest.length : at, 0, ...group);
+  return rest;
+}
+
+function dropItemsInto(ids, checklistId, refId) {
+  const picked = new Set(ids);
+  const group = state.items.filter((item) => picked.has(item.id));
+  const rest = state.items.filter((item) => !picked.has(item.id));
+  let at = -1;
+  if (refId) {
+    at = rest.findIndex((item) => item.id === refId);
+  }
+  if (at === -1) {
+    const lastPeer = [...rest].reverse().find((item) => item.checklistId === checklistId && !item.archived);
+    at = lastPeer ? rest.indexOf(lastPeer) + 1 : rest.length;
+  }
+  rest.splice(at, 0, ...group);
+  for (const item of group) {
+    item.checklistId = checklistId;
+  }
+  state.items = rest;
+  const target = findList(checklistId);
+  if (target) {
+    target.expanded = true;
+  }
+}
+
+function endDrag(apply) {
+  const current = drag;
+  drag = null;
+  if (!current) {
+    return;
+  }
+  clearTimeout(current.hoverTimer);
+  const kind = current.kind;
+  const ids = current.ids;
+  const refId = dropRefId(current);
+  const targetCard = current.container ? current.container.closest(".card") : null;
+  const checklistId = targetCard ? targetCard.dataset.id : null;
+  current.clone.remove();
+  current.gap.remove();
+  stopAutoScroll();
+  if (apply) {
+    if (kind === "list") {
+      state.checklists = reorderByIds(state.checklists, ids, refId);
+    } else if (checklistId) {
+      dropItemsInto(ids, checklistId, refId);
+    }
+  }
+  render();
+}
+
+function ramp(k) {
+  return 1 + Math.round(9 * clamp(k, 0, 1));
+}
+
+function startAutoScroll() {
+  if (scrollRaf) {
+    return;
+  }
+  const step = () => {
+    if (!drag && !panelDrag) {
+      scrollRaf = 0;
+      return;
+    }
+    const height = innerHeight;
+    let pixels = 0;
+    if (pointerY < GESTURE.edge) {
+      pixels = -ramp(pointerY / GESTURE.edge);
+    } else if (pointerY > height - GESTURE.edge) {
+      pixels = ramp((pointerY - (height - GESTURE.edge)) / GESTURE.edge);
+    }
+    if (pixels !== 0) {
+      scrollBy(0, pixels);
+      if (drag) {
+        retarget();
+      }
+    }
+    scrollRaf = requestAnimationFrame(step);
+  };
+  scrollRaf = requestAnimationFrame(step);
+}
+
+function stopAutoScroll() {
+  if (scrollRaf) {
+    cancelAnimationFrame(scrollRaf);
+    scrollRaf = 0;
+  }
+}
+
+document.addEventListener("touchmove", (event) => {
+  if (drag || panelDrag) {
+    event.preventDefault();
+  }
+}, { passive: false });
+
+/* ---------- minipanel ---------- */
+
+let panelDrag = null;
+let panelGhost = null;
+let panelSuppress = false;
+
+function panelX(side, width) {
+  const margin = GESTURE.gap;
+  const wrap = document.querySelector(".wrap").getBoundingClientRect();
+  const wide = wrap.left >= width + margin * 2;
+  if (side === "left") {
+    return wide ? Math.round(wrap.left - width - margin) : margin;
+  }
+  return wide ? Math.round(wrap.right + margin) : Math.round(innerWidth - width - margin);
+}
+
+function positionPanel() {
+  const panel = byId("panel");
+  if (panelDrag) {
+    return;
+  }
+  const width = panel.offsetWidth;
+  const height = panel.offsetHeight;
+  const maxTop = Math.max(GESTURE.gap, innerHeight - height - GESTURE.gap);
+  panel.style.left = `${panelX(state.ui.panel.side, width)}px`;
+  panel.style.top = `${Math.round(clamp(state.ui.panel.topPct * maxTop, GESTURE.gap, maxTop))}px`;
+}
+
+function snapSide(center, width) {
+  const left = panelX("left", width) + width / 2;
+  const right = panelX("right", width) + width / 2;
+  const deltaLeft = Math.abs(center - left);
+  const deltaRight = Math.abs(center - right);
+  if (deltaLeft === deltaRight) {
+    return state.ui.panel.side;
+  }
+  return deltaLeft < deltaRight ? "left" : "right";
+}
+
+function showGhost(side, top, width, height) {
+  const ghost = panelGhost ?? el("div", "panel-ghost");
+  panelGhost = ghost;
+  if (!ghost.isConnected) {
+    document.body.append(ghost);
+  }
+  ghost.hidden = false;
+  ghost.style.width = `${width}px`;
+  ghost.style.height = `${height}px`;
+  ghost.style.left = `${panelX(side, width)}px`;
+  ghost.style.top = `${top}px`;
+}
+
+function hideGhost() {
+  if (panelGhost) {
+    panelGhost.hidden = true;
+  }
+}
+
+function onPanelDown(event) {
+  if (panelDrag || modalOpen()) {
+    return;
+  }
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+  const rect = byId("panel").getBoundingClientRect();
+  const origin = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
+  const timer = setTimeout(() => beginPanelDrag(event, origin), GESTURE.press);
+  const move = (e) => {
+    pointerY = e.clientY;
+    if (panelDrag) {
+      movePanelDrag(e);
+    } else if (Math.abs(e.clientX - origin.x) > GESTURE.slop || Math.abs(e.clientY - origin.y) > GESTURE.slop) {
+      clearTimeout(timer);
+      stop();
+    }
+  };
+  const up = () => {
+    clearTimeout(timer);
+    if (panelDrag) {
+      endPanelDrag();
+    }
+    stop();
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+}
+
+function beginPanelDrag(event, origin) {
+  const panel = byId("panel");
+  panelDrag = {
+    dx: event.clientX - origin.left,
+    dy: event.clientY - origin.top,
+    width: panel.offsetWidth,
+    height: panel.offsetHeight,
+  };
+  panelSuppress = true;
+  panel.classList.add("is-dragging");
+  startAutoScroll();
+}
+
+function movePanelDrag(event) {
+  const panel = byId("panel");
+  const maxTop = Math.max(GESTURE.gap, innerHeight - panelDrag.height - GESTURE.gap);
+  const left = clamp(event.clientX - panelDrag.dx, GESTURE.gap, Math.max(GESTURE.gap, innerWidth - panelDrag.width - GESTURE.gap));
+  const top = clamp(event.clientY - panelDrag.dy, GESTURE.gap, maxTop);
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  showGhost(snapSide(left + panelDrag.width / 2, panelDrag.width), top, panelDrag.width, panelDrag.height);
+}
+
+function endPanelDrag() {
+  const panel = byId("panel");
+  const rect = panel.getBoundingClientRect();
+  const side = snapSide(rect.left + rect.width / 2, rect.width);
+  const maxTop = Math.max(GESTURE.gap, innerHeight - rect.height - GESTURE.gap);
+  state.ui.panel = { side, topPct: clamp((rect.top - GESTURE.gap) / maxTop, 0, 1) };
+  panelDrag = null;
+  panel.classList.remove("is-dragging");
+  hideGhost();
+  stopAutoScroll();
+  queueSave();
+  positionPanel();
+  setTimeout(() => {
+    panelSuppress = false;
+  }, 250);
+}
+
+/* ---------- actions ---------- */
+
+function startEdit(kind, id) {
+  state.ui.editing = { kind, id };
+  commit();
+}
+
+function commitEditNode(row) {
+  const editing = state.ui.editing;
+  const input = row ? row.querySelector(".row-edit input") : null;
+  if (!editing || !input) {
+    return;
+  }
+  commitText(editing.kind, editing.id, input.value);
+}
+
+function onRowAct(act, kind, id, row) {
+  if (act === "toggle") {
+    const cl = findList(id);
+    if (cl) {
+      cl.expanded = !cl.expanded;
+      commit();
+    }
+    return;
+  }
+  if (act === "pick") {
+    togglePick(kind, id);
+    return;
+  }
+  if (act === "toggle-done") {
+    const item = findItem(id);
+    if (item) {
+      item.done = !item.done;
+      commit();
+    }
+    return;
+  }
+  if (act === "full") {
+    openFullText(kind, id);
+    return;
+  }
+  if (act === "edit") {
+    startEdit(kind, id);
+    return;
+  }
+  if (act === "add-item") {
+    addItem(id);
+    return;
+  }
+  if (act === "menu") {
+    openEntityMenu(kind, id);
+    return;
+  }
+  if (act === "save") {
+    commitEditNode(row);
+  }
+}
+
+function onPanelAct(act) {
+  const bulk = bulkState();
+  if (act === "expand-all") {
+    setExpandedAll(true);
+    return;
+  }
+  if (act === "collapse-all") {
+    setExpandedAll(false);
+    return;
+  }
+  if (act === "bulk-cancel") {
+    cancelBulk();
+    return;
+  }
+  if (!bulk.ids.length) {
+    return;
+  }
+  if (act === "bulk-top") {
+    moveTo(bulk.kind, bulk.ids, "top");
+    return;
+  }
+  if (act === "bulk-bottom") {
+    moveTo(bulk.kind, bulk.ids, "bottom");
+    return;
+  }
+  if (act === "bulk-archive") {
+    const kind = bulk.kind;
+    const ids = [...bulk.ids];
+    confirmModal(actionMessage(kind, ids.length, "archive"), t("a_archive"), () => archiveMany(kind, ids));
+    return;
+  }
+  if (act === "bulk-delete") {
+    const kind = bulk.kind;
+    const ids = [...bulk.ids];
+    confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => deleteMany(kind, ids));
+  }
+}
+
+/* ---------- wiring ---------- */
+
+function onListClick(event) {
+  if (suppressClick) {
+    return;
+  }
+  const button = event.target.closest("[data-act]");
+  if (!button) {
+    return;
+  }
+  const row = button.closest("[data-id]");
+  if (!row) {
+    return;
+  }
+  onRowAct(button.dataset.act, row.dataset.kind, row.dataset.id, row);
+}
+
+function onListDblClick(event) {
+  const text = event.target.closest(".item__text");
+  if (!text) {
+    return;
+  }
+  const row = text.closest("[data-id]");
+  if (row) {
+    startEdit("item", row.dataset.id);
+  }
+}
+
+function onListKeyDown(event) {
+  const input = event.target;
+  if (!input.classList || !input.classList.contains("input")) {
+    return;
+  }
+  if (event.key === "Enter") {
+    event.preventDefault();
+    commitText(state.ui.editing.kind, state.ui.editing.id, input.value);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    cancelEdit();
+  }
+}
+
+function onListBlur(event) {
+  const input = event.target;
+  if (input.classList && input.classList.contains("input") && state.ui.editing) {
+    commitText(state.ui.editing.kind, state.ui.editing.id, input.value);
+  }
+}
+
+function onPanelClick(event) {
+  if (panelSuppress) {
+    return;
+  }
+  const button = event.target.closest("[data-act]");
+  if (button) {
+    onPanelAct(button.dataset.act);
+  }
+}
+
+function onDocumentDown(event) {
+  if (!settingsOpen()) {
+    return;
+  }
+  if (event.target.closest && event.target.closest("#settings-sheet, #btn-settings")) {
+    return;
+  }
+  closeSettings();
+}
+
+function onKey(event) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (settingsOpen()) {
+    closeSettings();
+    return;
+  }
+  if (drag) {
+    endDrag(false);
+    return;
+  }
+  closeModal();
+}
+
+let resizeTimer = 0;
+
+function onResize() {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    render();
+    positionPanel();
+    positionSettings();
+  }, 120);
+}
+
+function bind() {
+  byId("btn-add").addEventListener("click", addChecklist);
+  byId("btn-settings").addEventListener("click", toggleSettings);
+  byId("btn-help").addEventListener("click", openHelp);
+  byId("page-prev").addEventListener("click", () => {
+    state.ui.page -= 1;
+    commit();
+  });
+  byId("page-next").addEventListener("click", () => {
+    state.ui.page += 1;
+    commit();
+  });
+  const lists = byId("lists");
+  lists.addEventListener("click", onListClick);
+  lists.addEventListener("dblclick", onListDblClick);
+  lists.addEventListener("keydown", onListKeyDown);
+  lists.addEventListener("focusout", onListBlur);
+  lists.addEventListener("pointerdown", onRowDown);
+  const panel = byId("panel");
+  panel.addEventListener("click", onPanelClick);
+  panel.addEventListener("pointerdown", onPanelDown);
+  document.addEventListener("pointerdown", onDocumentDown, true);
+  document.addEventListener("keydown", onKey);
+  addEventListener("resize", onResize);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      flushSave();
+    }
+  });
+}
+
+function boot() {
+  loadIcons();
+  bind();
+  render();
+  if (storageBroken) {
+    showBanner();
+  }
+}
+
+boot();
+
+window.__tbd = {
+  reset() {
+    wiped = true;
+    try {
+      localStorage.removeItem(KEY);
+    } catch {
+      // storage unavailable: nothing to clear
+    }
+    location.reload();
+  },
+  GESTURE,
+  DICTS,
+  render,
+  save,
+  moveGroup,
+  reorderByIds,
+  t,
+  langCode,
+  get state() {
+    return state;
+  },
+};
+</script>
+</body>
+</html>
