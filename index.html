@@ -1092,6 +1092,7 @@ const GESTURE = {
   trigger: 96,
   hover: 600,
   edge: 24,
+  detach: 24,
   gap: 12,
 };
 
@@ -3656,6 +3657,36 @@ function panelTopRange(height) {
   return [min, max];
 }
 
+// The pill as collapsed: the grip is always the first child, so the band the
+// drag anchor is scaled against never changes with the panel's real height.
+function collapsedHeight() {
+  const panel = byId("panel");
+  const grip = panel.firstElementChild;
+  if (!grip) {
+    return panel.offsetHeight;
+  }
+  const style = getComputedStyle(panel);
+  return grip.offsetHeight
+    + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+    + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+}
+
+// `pct` is a fraction of the collapsed band; a taller panel is clamped into its own band,
+// so the grip only moves when there is genuinely no room left for it.
+function panelTop(pct, height, base) {
+  const [min, baseMax] = panelTopRange(base);
+  const [floor, ceiling] = panelTopRange(height);
+  return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), floor, ceiling);
+}
+
+function panelFraction(top, base) {
+  const [min, max] = panelTopRange(base);
+  if (!(max > min) || !Number.isFinite(top)) {
+    return 0;
+  }
+  return clamp((top - min) / (max - min), 0, 1);
+}
+
 function panelX(side, width) {
   const margin = GESTURE.gap;
   const wrap = document.querySelector(".wrap").getBoundingClientRect();
@@ -3672,15 +3703,19 @@ function positionPanel() {
   if (panelDrag) return;
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
-  const [minTop, maxTop] = panelTopRange(height);
   panel.style.left = `${panelX(state.ui.panel.side, width)}px`;
-  panel.style.top = `${Math.round(minTop + clamp(state.ui.panel.topPct, 0, 1) * (maxTop - minTop))}px`;
+  panel.style.top = `${panelTop(state.ui.panel.topPct, height, collapsedHeight())}px`;
 }
 
 function snapSide(center, width) {
   const left = panelX("left", width) + width / 2;
   const right = panelX("right", width) + width / 2;
   return sideFor(center, left, right, state.ui.panel.side);
+}
+
+// Once off the dock the panel stays free; snapping back at the threshold would flicker.
+function detached(desired, dock, wasDetached) {
+  return wasDetached || Math.abs(desired - dock) >= GESTURE.detach;
 }
 
 // Switches only after the panel has moved 33% of the way from the dock it is on.
@@ -3744,6 +3779,7 @@ function beginPanelDrag(event, origin) {
     dy: event.clientY - origin.top,
     width: panel.offsetWidth,
     height: panel.offsetHeight,
+    detached: false,
   };
   panelSuppress = true;
   panel.classList.add("is-dragging");
@@ -3756,8 +3792,11 @@ function movePanelDrag(event) {
   const panel = byId("panel");
   const minLeft = cssVarPx("--safe-left");
   const [minTop, maxTop] = panelTopRange(panelDrag.height);
-  const left = clamp(event.clientX - panelDrag.dx, minLeft, Math.max(minLeft, innerWidth - panelDrag.width - cssVarPx("--safe-right")));
+  const desired = clamp(event.clientX - panelDrag.dx, minLeft, Math.max(minLeft, innerWidth - panelDrag.width - cssVarPx("--safe-right")));
+  const dock = panelX(state.ui.panel.side, panelDrag.width);
+  panelDrag.detached = detached(desired, dock, panelDrag.detached);
   const top = clamp(event.clientY - panelDrag.dy, minTop, maxTop);
+  const left = panelDrag.detached ? desired : dock;
   panel.style.left = `${left}px`;
   panel.style.top = `${top}px`;
   showGhost(snapSide(left + panelDrag.width / 2, panelDrag.width), top, panelDrag.width, panelDrag.height);
@@ -3766,9 +3805,8 @@ function movePanelDrag(event) {
 function endPanelDrag() {
   const panel = byId("panel");
   const rect = panel.getBoundingClientRect();
-  const [minTop, maxTop] = panelTopRange(rect.height);
   state.ui.panel.side = snapSide(rect.left + rect.width / 2, rect.width);
-  state.ui.panel.topPct = maxTop > minTop ? clamp((rect.top - minTop) / (maxTop - minTop), 0, 1) : 0;
+  state.ui.panel.topPct = panelFraction(rect.top, collapsedHeight());
   panelDrag = null;
   panel.classList.remove("is-dragging");
   document.documentElement.classList.remove("is-dragging");
