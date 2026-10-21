@@ -563,7 +563,6 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: 999px;
-    box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -3642,8 +3641,19 @@ function cssVarPx(name) {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
 }
 
+function cssBottomInset() {
+  return parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+}
+
 function panelRoom(rect, width) {
   return rect.left >= width + GESTURE.gap * 2;
+}
+
+// Vertical band the panel may occupy: below the sticky topbar, above the bottom safe area.
+function panelTopRange(height) {
+  const min = Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom) + GESTURE.gap;
+  const max = Math.max(min, innerHeight - height - Math.max(GESTURE.gap, cssBottomInset()));
+  return [min, max];
 }
 
 function panelX(side, width) {
@@ -3662,20 +3672,24 @@ function positionPanel() {
   if (panelDrag) return;
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
-  const maxTop = Math.max(GESTURE.gap, innerHeight - height - GESTURE.gap);
+  const [minTop, maxTop] = panelTopRange(height);
   panel.style.left = `${panelX(state.ui.panel.side, width)}px`;
-  panel.style.top = `${Math.round(clamp(state.ui.panel.topPct * maxTop, GESTURE.gap, maxTop))}px`;
+  panel.style.top = `${Math.round(minTop + clamp(state.ui.panel.topPct, 0, 1) * (maxTop - minTop))}px`;
 }
 
 function snapSide(center, width) {
   const left = panelX("left", width) + width / 2;
   const right = panelX("right", width) + width / 2;
-  const deltaLeft = Math.abs(center - left);
-  const deltaRight = Math.abs(center - right);
-  if (deltaLeft === deltaRight) {
-    return state.ui.panel.side;
+  return sideFor(center, left, right, state.ui.panel.side);
+}
+
+// Switches only after the panel has moved 33% of the way from the dock it is on.
+function sideFor(center, left, right, side) {
+  const trigger = (right - left) * 0.33;
+  if (side === "left") {
+    return center - left >= trigger ? "right" : "left";
   }
-  return deltaLeft < deltaRight ? "left" : "right";
+  return right - center >= trigger ? "left" : "right";
 }
 
 function showGhost(side, top, width, height) {
@@ -3741,9 +3755,9 @@ function beginPanelDrag(event, origin) {
 function movePanelDrag(event) {
   const panel = byId("panel");
   const minLeft = cssVarPx("--safe-left");
-  const maxTop = Math.max(GESTURE.gap, innerHeight - panelDrag.height - GESTURE.gap);
+  const [minTop, maxTop] = panelTopRange(panelDrag.height);
   const left = clamp(event.clientX - panelDrag.dx, minLeft, Math.max(minLeft, innerWidth - panelDrag.width - cssVarPx("--safe-right")));
-  const top = clamp(event.clientY - panelDrag.dy, GESTURE.gap, maxTop);
+  const top = clamp(event.clientY - panelDrag.dy, minTop, maxTop);
   panel.style.left = `${left}px`;
   panel.style.top = `${top}px`;
   showGhost(snapSide(left + panelDrag.width / 2, panelDrag.width), top, panelDrag.width, panelDrag.height);
@@ -3752,10 +3766,9 @@ function movePanelDrag(event) {
 function endPanelDrag() {
   const panel = byId("panel");
   const rect = panel.getBoundingClientRect();
-  const side = snapSide(rect.left + rect.width / 2, rect.width);
-  const maxTop = Math.max(GESTURE.gap, innerHeight - rect.height - GESTURE.gap);
-  state.ui.panel.side = side;
-  state.ui.panel.topPct = clamp((rect.top - GESTURE.gap) / maxTop, 0, 1);
+  const [minTop, maxTop] = panelTopRange(rect.height);
+  state.ui.panel.side = snapSide(rect.left + rect.width / 2, rect.width);
+  state.ui.panel.topPct = maxTop > minTop ? clamp((rect.top - minTop) / (maxTop - minTop), 0, 1) : 0;
   panelDrag = null;
   panel.classList.remove("is-dragging");
   document.documentElement.classList.remove("is-dragging");
