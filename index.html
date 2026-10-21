@@ -210,10 +210,6 @@
     width: 40px;
   }
 
-  .btn:hover {
-    background: var(--surface-2);
-  }
-
   .btn:disabled {
     color: var(--muted);
     opacity: 0.4;
@@ -436,10 +432,6 @@
   .act {
     color: var(--muted);
     transition: color var(--dur) ease;
-  }
-
-  .act:hover {
-    color: var(--text);
   }
 
   .more {
@@ -685,11 +677,6 @@
     text-align: start;
   }
 
-  .menu-list__item:hover,
-  .rows__row:hover {
-    background: var(--surface-2);
-  }
-
   .menu-list__item {
     padding: 11px 10px;
     width: 100%;
@@ -840,11 +827,6 @@
     color: var(--on-accent);
   }
 
-  .btn--primary:hover {
-    background: var(--accent);
-    filter: brightness(1.08);
-  }
-
   .btn--pill {
     border-radius: 999px;
     gap: 8px;
@@ -862,8 +844,26 @@
     margin-bottom: 6px;
   }
 
-  /* No hover on touch: the checklist pencil stays visible there. */
+  /* Hover states only with a mouse pointer; touch uses :active below. */
   @media (hover: hover) {
+    .btn:hover {
+      background: var(--surface-2);
+    }
+
+    .act:hover {
+      color: var(--text);
+    }
+
+    .btn--primary:hover {
+      background: var(--accent);
+      filter: brightness(1.08);
+    }
+
+    .menu-list__item:hover,
+    .rows__row:hover {
+      background: var(--surface-2);
+    }
+
     .act--edit {
       opacity: 0;
       pointer-events: none;
@@ -873,6 +873,26 @@
     .act--edit:focus-visible {
       opacity: 1;
       pointer-events: auto;
+    }
+  }
+
+  @media (hover: none) {
+    .btn:active {
+      background: var(--surface-2);
+    }
+
+    .act:active {
+      color: var(--text);
+    }
+
+    .btn--primary:active {
+      background: var(--accent);
+      filter: brightness(1.08);
+    }
+
+    .menu-list__item:active,
+    .rows__row:active {
+      background: var(--surface-2);
     }
   }
 
