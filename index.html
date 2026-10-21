@@ -3142,6 +3142,9 @@ function rowHandle(target) {
   if (!target || !target.closest) {
     return null;
   }
+  if (target.closest(".row-edit")) {
+    return null;
+  }
   const handle = target.closest(".card__head, .item");
   if (!handle) return null;
   const isItem = handle.classList.contains("item");
@@ -3163,9 +3166,6 @@ function onRowDown(event) {
     return;
   }
   if (event.pointerType === "mouse" && event.button !== 0) {
-    return;
-  }
-  if (event.target.closest("button,input,a,select,label")) {
     return;
   }
   const hit = rowHandle(event.target);
@@ -3210,7 +3210,6 @@ function onRowMove(event) {
   if (Math.abs(dx) > GESTURE.swipeMin && Math.abs(dx) > GESTURE.ratio * Math.abs(dy)) {
     gesture.mode = "swipe";
     clearTimeout(gesture.timer);
-    suppressNextClick();
     paintSwipe(dx);
     return;
   }
@@ -3226,8 +3225,10 @@ function onRowUp() {
   endRowListeners();
   if (!gesture) return;
   if (gesture.mode === "drag") {
+    suppressNextClick();
     endDrag(true);
   } else if (gesture.mode === "swipe") {
+    suppressNextClick();
     finishSwipe();
   }
   clearTimeout(gesture.timer);
@@ -3427,7 +3428,6 @@ function startDrag() {
   const hit = gesture;
   if (!hit) return;
   hit.mode = "drag";
-  suppressNextClick();
   const bulk = state.ui.bulk;
   const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
   // In state order, not tap order: this is the order moveGroup re-inserts, so the ghost matches the drop.

@@ -3,11 +3,9 @@
 // source by name and evaluated in a VM with a `state` shim.
 
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-
-const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+import { html, slice, sliceObject } from "./html-source.mjs";
 
 const NAMES = [
   "clamp",
@@ -50,24 +48,6 @@ function repaintRow() {}
 function showToast(text) { lastToast = text; }
 function t(key) { return key; }
 `;
-
-// Every app function sits at column 0, so the first `^}` ends it.
-function slice(name) {
-  const found = new RegExp(`^function ${name}\\b[\\s\\S]*?^\\}`, "m").exec(html);
-  if (!found) {
-    throw new Error(`test harness: function ${name}() not found in index.html (renamed?)`);
-  }
-  return found[0];
-}
-
-// Same trick for the dictionary literals: they end with `^};` at column 0.
-function sliceObject(name) {
-  const found = new RegExp(`^const ${name} = \\{[\\s\\S]*?^\\};`, "m").exec(html);
-  if (!found) {
-    throw new Error(`test harness: const ${name} not found in index.html (renamed?)`);
-  }
-  return found[0];
-}
 
 const pageSizes = /^const PAGE_SIZES = .*$/m.exec(html);
 if (!pageSizes) {
