@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%234a5cff'/><path d='M9 17l5 5 9-11' fill='none' stroke='%23fff' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <title>TBD</title>
 <style>
   :root {
@@ -268,12 +269,16 @@
     user-select: none;
   }
 
+  .card__empty,
   .empty {
     border: 1px dashed var(--line);
-    border-radius: var(--r);
     color: var(--muted);
-    padding: 22px 18px;
     text-align: center;
+  }
+
+  .empty {
+    border-radius: var(--r);
+    padding: 22px 18px;
   }
 
   .card {
@@ -327,11 +332,8 @@
   }
 
   .card__empty {
-    border: 1px dashed var(--line);
     border-radius: var(--r-sm);
-    color: var(--muted);
     padding: 14px;
-    text-align: center;
   }
 
   .items {
@@ -371,7 +373,9 @@
 
   .swipe-bg {
     align-items: center;
+    border-radius: var(--r-sm);
     bottom: 2px;
+    color: var(--muted);
     display: flex;
     opacity: 0;
     padding-inline: 14px;
@@ -380,24 +384,21 @@
   }
 
   .swipe-bg--left {
-    border-radius: var(--r-sm);
-    color: var(--muted);
     right: 0;
   }
 
   .swipe-bg--right {
-    border-radius: var(--r-sm);
-    color: var(--muted);
     left: 0;
   }
 
+  .act,
   .mark {
     align-items: center;
     display: inline-flex;
     flex: none;
-    height: 36px;
+    height: 44px;
     justify-content: center;
-    width: 36px;
+    width: 44px;
   }
 
   .mark__box {
@@ -431,14 +432,8 @@
   }
 
   .act {
-    align-items: center;
     color: var(--muted);
-    display: inline-flex;
-    flex: none;
-    height: 36px;
-    justify-content: center;
     transition: color var(--dur) ease;
-    width: 36px;
   }
 
   .act:hover {
@@ -600,50 +595,39 @@
     z-index: 24;
   }
 
-  .layer {
-    inset: 0;
-    pointer-events: none;
-    position: fixed;
-    z-index: 40;
-  }
-
-  .layer > * {
-    pointer-events: auto;
-  }
-
-  .layer__backdrop {
-    animation: fade 140ms ease-out;
-    background: rgb(8 10 14 / 0.5);
-    inset: 0;
-    position: absolute;
-  }
-
   .modal {
     animation: pop 160ms ease-out;
     background: var(--surface);
+    border: 0;
     border-radius: var(--r);
     box-shadow: var(--shadow);
-    left: 50%;
+    color: var(--text);
+    height: fit-content;
+    inset: 0;
+    margin: auto;
     max-width: min(460px, calc(100vw - 28px));
     padding: 18px;
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    position: fixed;
     width: max-content;
+  }
+
+  .modal::backdrop {
+    animation: fade 140ms ease-out;
+    background: rgb(8 10 14 / 0.5);
   }
 
   .modal--sheet {
     border-radius: 0;
     display: flex;
     flex-direction: column;
-    max-width: none;
-    max-height: none;
     height: 100dvh;
-    width: 100vw;
     inset: 0;
+    margin: 0;
+    max-height: none;
+    max-width: none;
     overflow: auto;
     padding: max(18px, env(safe-area-inset-top)) var(--gutter) 28px;
-    transform: none;
+    width: 100vw;
   }
 
   .modal__title {
@@ -687,18 +671,23 @@
     flex-direction: column;
   }
 
-  .menu-list__item {
+  .menu-list__item,
+  .rows__row {
     align-items: center;
     border-radius: var(--r-sm);
     display: flex;
     gap: 10px;
-    padding: 11px 10px;
     text-align: start;
-    width: 100%;
   }
 
-  .menu-list__item:hover {
+  .menu-list__item:hover,
+  .rows__row:hover {
     background: var(--surface-2);
+  }
+
+  .menu-list__item {
+    padding: 11px 10px;
+    width: 100%;
   }
 
   .menu-list__sep {
@@ -734,16 +723,7 @@
   }
 
   .rows__row {
-    align-items: center;
-    border-radius: var(--r-sm);
-    display: flex;
-    gap: 10px;
     padding: 8px 6px;
-    text-align: start;
-  }
-
-  .rows__row:hover {
-    background: var(--surface-2);
   }
 
   .rows__label {
@@ -759,6 +739,8 @@
     border: 1px solid var(--line);
     border-radius: var(--r);
     box-shadow: var(--shadow);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
     padding: 12px 14px 14px;
     position: fixed;
     width: min(320px, calc(100vw - 16px));
@@ -970,7 +952,7 @@
   @keyframes pop {
     from {
       opacity: 0;
-      transform: translate(-50%, -46%) scale(0.98);
+      transform: scale(0.98);
     }
   }
 </style>
@@ -999,7 +981,7 @@
 </main>
 
 <aside class="panel is-hidden" id="panel"></aside>
-<div class="layer" id="layer"></div>
+<div id="layer"></div>
 <p class="banner" id="banner" role="status" hidden></p>
 
 <template id="tpl-checklist">
@@ -1857,18 +1839,14 @@ const DICTS = {
 
 /* ---------- store & persistence ---------- */
 
-const KEY = "tbd.v1";
+const KEY = "varlog.tbd.v1";
 
 let storageBroken = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
-  if (className) {
-    node.className = className;
-  }
-  if (text !== undefined) {
-    node.textContent = text;
-  }
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
   return node;
 }
 
@@ -1877,9 +1855,6 @@ function byId(id) {
 }
 
 function clamp(value, min, max) {
-  if (max < min) {
-    return min;
-  }
   return Math.min(max, Math.max(min, value));
 }
 
@@ -1901,9 +1876,7 @@ function langCode() {
 function t(key, params) {
   const dict = DICTS[langCode()] ?? EN;
   const raw = dict[key] ?? EN[key] ?? key;
-  if (!params) {
-    return raw;
-  }
+  if (!params) return raw;
   return raw.replace(/\{(\w+)\}/g, (_m, name) => String(params[name] ?? ""));
 }
 
@@ -1924,6 +1897,13 @@ function defaults() {
       bulk: { kind: null, checklistId: null, ids: [] },
     },
   };
+}
+
+/* A restored selection is only usable when its kind is known and its ids are a list. */
+function validBulk(bulk) {
+  return Boolean(bulk)
+    && (bulk.kind === "list" || bulk.kind === "item")
+    && Array.isArray(bulk.ids);
 }
 
 function normalize(data) {
@@ -1958,8 +1938,7 @@ function normalize(data) {
     out.ui.panel = { side: "right", topPct: 0.35 };
   }
   out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
-  const bulk = out.ui.bulk;
-  if (!bulk || (bulk.kind !== "list" && bulk.kind !== "item")) {
+  if (!validBulk(out.ui.bulk)) {
     out.ui.bulk = { kind: null, checklistId: null, ids: [] };
   }
   if (!["system", "dark", "light"].includes(out.ui.theme)) {
@@ -1983,12 +1962,12 @@ function load() {
 const state = load();
 let saveTimer = 0;
 
-let wiped = false;
+/* Set once this tab is on its way out with storage already decided (reset, or reloading for another
+   tab's write); the visibilitychange flush must not put an older state back. */
+let stopSaving = false;
 
 function save() {
-  if (wiped) {
-    return;
-  }
+  if (stopSaving) return;
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
   } catch {
@@ -2000,13 +1979,9 @@ function queueSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     save();
-    if (storageBroken) {
-      showToast(t("storage_error"));
-    }
+    if (storageBroken) showToast(t("storage_error"));
   }, 150);
-  if (storageBroken) {
-    showToast(t("storage_error"));
-  }
+  if (storageBroken) showToast(t("storage_error"));
 }
 
 function flushSave() {
@@ -2026,7 +2001,9 @@ function maybeReload() {
     return;
   }
   externalWrite = false;
-  flushSave();
+  // No flush: reloading fires visibilitychange:hidden, and this tab's older state would land on top
+  // of the write it is about to pick up.
+  stopSaving = true;
   location.reload();
 }
 
@@ -2038,12 +2015,17 @@ function commit() {
 
 /* ---------- pure ordering helpers ---------- */
 
-/* Where a group taken out of `list` lands: before refId, or at the end when there is no refId left. */
-function refIndex(list, ids, refId) {
+/* Where a group taken out of `list` lands: before refId; after prevId when the gap sits at the end
+   of the page (so a drop at the bottom of a page stays on it); at the end when neither is there. */
+function refIndex(list, ids, refId, prevId) {
   const picked = new Set(ids);
   const rest = list.filter((x) => !picked.has(x.id));
   const at = rest.findIndex((x) => x.id === refId);
-  return at === -1 ? rest.length : at;
+  if (at !== -1) {
+    return at;
+  }
+  const prev = rest.findIndex((x) => x.id === prevId);
+  return prev === -1 ? rest.length : prev + 1;
 }
 
 function moveGroup(list, ids, index) {
@@ -2052,6 +2034,14 @@ function moveGroup(list, ids, index) {
   const rest = list.filter((x) => !picked.has(x.id));
   rest.splice(clamp(index, 0, rest.length), 0, ...group);
   return rest;
+}
+
+// Where a row joins its peers: before the first one, after the last one, or at the end when there are none.
+function joinIndex(rest, peers, last) {
+  if (!peers.length) {
+    return rest.length;
+  }
+  return last ? rest.indexOf(peers.at(-1)) + 1 : rest.indexOf(peers[0]);
 }
 
 function withoutArchived(items, checklistId) {
@@ -2064,18 +2054,14 @@ function visibleChecklists() {
 
 function pageCount(total) {
   const size = state.ui.pageSize;
-  if (size === "all") {
-    return 1;
-  }
+  if (size === "all") return 1;
   return Math.max(1, Math.ceil(total / size));
 }
 
 function pagedChecklists() {
   const all = visibleChecklists();
   const size = state.ui.pageSize;
-  if (size === "all") {
-    return all;
-  }
+  if (size === "all") return all;
   const start = (clamp(state.ui.page, 1, pageCount(all.length)) - 1) * size;
   return all.slice(start, start + size);
 }
@@ -2094,9 +2080,7 @@ function findItem(id) {
 
 function entityText(kind, id) {
   const row = kind === "list" ? findList(id) : findItem(id);
-  if (!row) {
-    return "";
-  }
+  if (!row) return "";
   return kind === "list" ? row.title : row.text;
 }
 
@@ -2118,9 +2102,7 @@ function addChecklist() {
 
 function addItem(checklistId) {
   const cl = findList(checklistId);
-  if (!cl) {
-    return;
-  }
+  if (!cl) return;
   cl.expanded = true;
   const item = {
     id: uid(),
@@ -2132,13 +2114,7 @@ function addItem(checklistId) {
     archivedBy: "user",
   };
   const peers = state.items.filter((i) => i.checklistId === checklistId);
-  if (!peers.length) {
-    state.items.push(item);
-  } else if (state.ui.newItem === "top") {
-    state.items.splice(state.items.indexOf(peers[0]), 0, item);
-  } else {
-    state.items.splice(state.items.indexOf(peers.at(-1)) + 1, 0, item);
-  }
+  state.items.splice(joinIndex(state.items, peers, state.ui.newItem !== "top"), 0, item);
   state.ui.editing = { kind: "item", id: item.id };
   scrollTarget = { kind: "item", id: item.id };
   commit();
@@ -2169,14 +2145,10 @@ function commitText(kind, id, raw) {
   }
   if (kind === "list") {
     const cl = findList(id);
-    if (cl) {
-      cl.title = text;
-    }
+    if (cl) cl.title = text;
   } else {
     const item = findItem(id);
-    if (item) {
-      item.text = text;
-    }
+    if (item) item.text = text;
   }
   state.ui.editing = null;
   // Repaint only this row: rebuilding would destroy the button that just took focus away, and its click with it.
@@ -2186,9 +2158,7 @@ function commitText(kind, id, raw) {
 
 function cancelEdit() {
   const editing = state.ui.editing;
-  if (!editing) {
-    return;
-  }
+  if (!editing) return;
   if (!entityText(editing.kind, editing.id)) {
     removeEntity(editing.kind, editing.id);
   }
@@ -2200,43 +2170,36 @@ function archiveChecklist(id) {
   archiveChecklistQuiet(id);
   unselect(id);
   commit();
-  toastArchived();
+  showToast(t("toast_archived"));
 }
 
 function archiveItem(id) {
-  const item = findItem(id);
-  if (!item) {
-    return;
-  }
-  item.archived = true;
-  item.archivedBy = "user";
+  archiveItemQuiet(id);
   unselect(id);
   commit();
-  toastArchived();
+  showToast(t("toast_archived"));
+}
+
+function archiveItemQuiet(id) {
+  const item = findItem(id);
+  if (!item) return;
+  item.archived = true;
+  item.archivedBy = "user";
 }
 
 function archiveMany(kind, ids) {
+  const archive = kind === "list" ? archiveChecklistQuiet : archiveItemQuiet;
   for (const id of ids) {
-    if (kind === "list") {
-      archiveChecklistQuiet(id);
-    } else {
-      const item = findItem(id);
-      if (item) {
-        item.archived = true;
-        item.archivedBy = "user";
-      }
-    }
+    archive(id);
     unselect(id);
   }
   commit();
-  toastArchived();
+  showToast(t("toast_archived"));
 }
 
 function archiveChecklistQuiet(id) {
   const cl = findList(id);
-  if (!cl) {
-    return;
-  }
+  if (!cl) return;
   cl.archived = true;
   for (const item of state.items) {
     if (item.checklistId === id && !item.archived) {
@@ -2249,28 +2212,19 @@ function archiveChecklistQuiet(id) {
 function deleteEntity(kind, id) {
   removeEntity(kind, id);
   commit();
-  toastDeleted();
+  showToast(t("toast_deleted"));
 }
 
 function deleteMany(kind, ids) {
-  const picked = new Set(ids);
-  if (kind === "list") {
-    state.checklists = state.checklists.filter((c) => !picked.has(c.id));
-    state.items = state.items.filter((i) => !picked.has(i.checklistId));
-  } else {
-    state.items = state.items.filter((i) => !picked.has(i.id));
-  }
   for (const id of ids) {
-    unselect(id);
+    removeEntity(kind, id);
   }
   commit();
-  toastDeleted();
+  showToast(t("toast_deleted"));
 }
 
 function moveTo(kind, ids, where) {
-  if (!ids.length) {
-    return;
-  }
+  if (!ids.length) return;
   if (kind === "list") {
     state.checklists = moveGroup(state.checklists, ids, where === "top" ? 0 : state.checklists.length);
     const count = pageCount(visibleChecklists().length);
@@ -2284,23 +2238,15 @@ function moveTo(kind, ids, where) {
 function moveItemsTo(ids, where) {
   const picked = new Set(ids);
   const group = state.items.filter((i) => picked.has(i.id));
-  if (!group.length) {
-    return;
-  }
+  if (!group.length) return;
   const rest = state.items.filter((i) => !picked.has(i.id));
   const peers = rest.filter((i) => i.checklistId === group[0].checklistId);
-  let index = rest.length;
-  if (peers.length) {
-    index = where === "top" ? rest.indexOf(peers[0]) : rest.indexOf(peers.at(-1)) + 1;
-  }
-  state.items = moveGroup(state.items, ids, index);
+  state.items = moveGroup(state.items, ids, joinIndex(rest, peers, where !== "top"));
 }
 
 function jumpTo(id) {
   const index = indexOfVisible(id);
-  if (index < 0) {
-    return;
-  }
+  if (index < 0) return;
   const size = state.ui.pageSize;
   if (size !== "all") {
     state.ui.page = Math.floor(index / size) + 1;
@@ -2317,28 +2263,20 @@ function setExpandedAll(open) {
 
 /* ---------- bulk ---------- */
 
-function bulkState() {
-  return state.ui.bulk;
-}
-
 function startBulk(kind, id) {
   const checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
-  bulkState().kind = kind;
-  bulkState().checklistId = checklistId;
-  bulkState().ids = [id];
+  state.ui.bulk = { kind, checklistId, ids: [id] };
   state.ui.editing = null;
   commit();
 }
 
 function cancelBulk() {
-  bulkState().kind = null;
-  bulkState().checklistId = null;
-  bulkState().ids = [];
+  state.ui.bulk = { kind: null, checklistId: null, ids: [] };
   commit();
 }
 
 function unselect(id) {
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   if (bulk.checklistId === id) {
     // The checklist that owns the selection is gone; the picked ids went with it.
     bulk.kind = null;
@@ -2354,7 +2292,7 @@ function unselect(id) {
 }
 
 function togglePick(kind, id) {
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   const inBulk = bulk.kind === kind && bulk.ids.length > 0;
   if (bulk.kind !== kind) {
     bulk.kind = kind;
@@ -2379,14 +2317,6 @@ function togglePick(kind, id) {
 
 let needFocus = false;
 
-function ariaLabel(id, key) {
-  const node = byId(id);
-  if (node) {
-    node.setAttribute("aria-label", t(key));
-    node.title = t(key);
-  }
-}
-
 /* Icon-only buttons get their aria-label as a tooltip too: the fallback glyphs are not self-explanatory. */
 function labelNode(node, key) {
   const text = t(key);
@@ -2403,9 +2333,7 @@ function captureFocus() {
     return;
   }
   const act = node.getAttribute("data-act");
-  if (!act) {
-    return;
-  }
+  if (!act) return;
   if (node.closest("#panel")) {
     focusWanted = { scope: "panel", act };
     return;
@@ -2448,9 +2376,7 @@ function listRowFocus(want) {
 function restoreFocus() {
   const want = focusWanted;
   focusWanted = null;
-  if (!want) {
-    return;
-  }
+  if (!want) return;
   const node = usable(want.scope === "panel"
     ? document.querySelector(`#panel [data-act="${want.act}"]`)
     : listRowFocus(want));
@@ -2469,25 +2395,28 @@ function render() {
 function renderChrome() {
   document.documentElement.lang = langCode();
   document.documentElement.dataset.theme = state.ui.theme;
-  ariaLabel("btn-add", "add_list");
-  ariaLabel("btn-settings", "settings");
-  ariaLabel("btn-help", "help");
-  ariaLabel("page-prev", "prev_page");
-  ariaLabel("page-next", "next_page");
+  labelNode(byId("btn-add"), "add_list");
+  labelNode(byId("btn-settings"), "settings");
+  labelNode(byId("btn-help"), "help");
+  labelNode(byId("page-prev"), "prev_page");
+  labelNode(byId("page-next"), "next_page");
 }
 
 function renderLists() {
-  const rows = pagedChecklists().map(buildChecklist);
+  // Reused nodes survive the render, so the drag styling has to be dropped here and re-applied by applyDragState.
+  for (const row of byId("lists").querySelectorAll(".is-drag-src")) {
+    row.classList.remove("is-drag-src");
+  }
+  const existing = new Map([...byId("lists").children].map((node) => [node.dataset.id, node]));
+  const rows = pagedChecklists().map((cl) => {
+    const node = existing.get(cl.id) || byId("tpl-checklist").content.firstElementChild.cloneNode(true);
+    paintChecklist(node, cl);
+    return node;
+  });
   byId("lists").replaceChildren(...rows);
   const emptyNode = byId("empty");
   emptyNode.textContent = t("empty");
   emptyNode.hidden = visibleChecklists().length > 0;
-}
-
-function buildChecklist(cl) {
-  const node = byId("tpl-checklist").content.firstElementChild.cloneNode(true);
-  paintChecklist(node, cl);
-  return node;
 }
 
 function isMuted(items) {
@@ -2510,9 +2439,7 @@ function paintChecklist(node, cl) {
   paintHead(node, cl, open);
   const body = node.querySelector(".card__body");
   body.hidden = !open;
-  if (!open) {
-    return;
-  }
+  if (!open) return;
   const hint = body.querySelector(".card__empty");
   hint.hidden = items.length > 0;
   hint.textContent = t("empty_items");
@@ -2535,7 +2462,9 @@ function paintHead(node, cl, open) {
   alt.textContent = open ? "▾" : "▸";
   toggle.setAttribute("aria-expanded", open ? "true" : "false");
   toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
-  labelNode(node.querySelector(".act--add"), "add_item");
+  const add = node.querySelector(".act--add");
+  labelNode(add, "add_item");
+  add.hidden = !open;
   labelNode(node.querySelector(".act--edit"), "a_edit");
   labelNode(node.querySelector(".act--menu"), "a_menu");
   node.querySelector(".card__title").textContent = cl.title || t("new_list_ph");
@@ -2550,7 +2479,7 @@ function paintHead(node, cl, open) {
 }
 
 function paintHeadBulk(node, cl) {
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   const pick = node.querySelector(".mark--bulk");
   const toggle = node.querySelector(".mark--toggle");
   if (bulk.kind !== "list") {
@@ -2560,18 +2489,18 @@ function paintHeadBulk(node, cl) {
   }
   toggle.hidden = true;
   pick.hidden = false;
-  pick.setAttribute("role", "checkbox");
-  pick.setAttribute("aria-checked", bulk.ids.includes(cl.id) ? "true" : "false");
-  pick.setAttribute("aria-label", cl.title || t("new_list_ph"));
-  pick.classList.toggle("is-on", bulk.ids.includes(cl.id));
-  paintBox(pick.querySelector(".mark__box"), bulk.ids.includes(cl.id));
+  checkBox(pick, bulk.ids.includes(cl.id), cl.title || t("new_list_ph"));
 }
 
-function paintBox(box, on) {
+// Three marks use one box: the checklist pick, the item done mark and the item pick.
+function checkBox(node, on, label) {
+  node.setAttribute("role", "checkbox");
+  node.setAttribute("aria-checked", on ? "true" : "false");
+  node.setAttribute("aria-label", label);
+  node.classList.toggle("is-on", on);
+  const box = node.querySelector(".mark__box");
   box.replaceChildren();
-  if (!on) {
-    return;
-  }
+  if (!on) return;
   box.append(el("span", "ic ic--check"));
   const alt = el("span", "ic-alt", "✓");
   alt.setAttribute("aria-hidden", "true");
@@ -2590,16 +2519,12 @@ function paintEditor(row, text, phKey) {
   if (phKey === null) {
     editor.hidden = true;
     label.hidden = false;
-    if (editAct) {
-      editAct.hidden = false;
-    }
+    if (editAct) editAct.hidden = false;
     return;
   }
   label.hidden = true;
   more.hidden = true;
-  if (editAct) {
-    editAct.hidden = true;
-  }
+  if (editAct) editAct.hidden = true;
   editor.hidden = false;
   const input = editor.querySelector("input");
   input.value = text;
@@ -2620,22 +2545,14 @@ function paintItem(node, item) {
   node.classList.toggle("is-done", item.done);
   node.querySelector(".item__text").textContent = item.text || t("new_item_ph");
   const check = node.querySelector(".mark--check");
-  check.setAttribute("role", "checkbox");
-  check.setAttribute("aria-checked", item.done ? "true" : "false");
-  check.setAttribute("aria-label", item.text || t("new_item_ph"));
-  check.classList.toggle("is-on", item.done);
-  paintBox(check.querySelector(".mark__box"), item.done);
+  checkBox(check, item.done, item.text || t("new_item_ph"));
   labelNode(node.querySelector(".act--menu"), "a_menu");
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   const pick = node.querySelector(".mark--bulk");
   if (bulk.kind === "item" && bulk.checklistId === item.checklistId) {
     check.hidden = true;
     pick.hidden = false;
-    pick.setAttribute("role", "checkbox");
-    pick.setAttribute("aria-checked", bulk.ids.includes(item.id) ? "true" : "false");
-    pick.setAttribute("aria-label", item.text || t("new_item_ph"));
-    pick.classList.toggle("is-on", bulk.ids.includes(item.id));
-    paintBox(pick.querySelector(".mark__box"), bulk.ids.includes(item.id));
+    checkBox(pick, bulk.ids.includes(item.id), item.text || t("new_item_ph"));
   } else {
     check.hidden = false;
     pick.hidden = true;
@@ -2654,9 +2571,7 @@ function renderPager() {
   const pages = pageCount(total);
   const pager = byId("pager");
   pager.hidden = state.ui.pageSize === "all" || pages <= 1;
-  if (pager.hidden) {
-    return;
-  }
+  if (pager.hidden) return;
   const page = clamp(state.ui.page, 1, pages);
   state.ui.page = page;
   byId("page-info").textContent = t("page_of", { n: page, m: pages });
@@ -2664,8 +2579,8 @@ function renderPager() {
   byId("page-next").disabled = page >= pages;
 }
 
-function panelButton(icon, glyph, labelKey, act, enabled, cls) {
-  const button = el("button", `btn ${cls ?? ""}`);
+function panelButton(icon, glyph, labelKey, act, disabled) {
+  const button = el("button", "btn");
   button.type = "button";
   button.dataset.act = act;
   button.setAttribute("aria-label", t(labelKey));
@@ -2674,24 +2589,26 @@ function panelButton(icon, glyph, labelKey, act, enabled, cls) {
   const alt = el("span", "ic-alt", glyph);
   alt.setAttribute("aria-hidden", "true");
   button.append(alt);
-  button.disabled = enabled !== true;
+  button.disabled = disabled;
   return button;
 }
 
 function renderPanel() {
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   const all = visibleChecklists();
   const nodes = [];
   if (bulk.kind === null) {
-    nodes.push(panelButton("expand", "+", "expand_all", "expand-all", all.some((c) => !c.expanded)));
-    nodes.push(panelButton("collapse", "−", "collapse_all", "collapse-all", all.some((c) => c.expanded)));
+    nodes.push(panelButton("expand", "+", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
+    nodes.push(panelButton("collapse", "−", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
   } else {
     const any = bulk.ids.length > 0;
-    nodes.push(panelButton("trash", "✕", "a_delete", "bulk-delete", any, "btn--danger"));
-    nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", any));
-    nodes.push(panelButton("top", "↑", "a_top", "bulk-top", any));
-    nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", any));
-    nodes.push(panelButton("close", "←", "a_cancel", "bulk-cancel", true));
+    const remove = panelButton("trash", "✕", "a_delete", "bulk-delete", !any);
+    remove.classList.add("btn--danger");
+    nodes.push(remove);
+    nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", !any));
+    nodes.push(panelButton("top", "↑", "a_top", "bulk-top", !any));
+    nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", !any));
+    nodes.push(panelButton("close", "←", "a_cancel", "bulk-cancel", false));
   }
   const panel = byId("panel");
   panel.replaceChildren(...nodes);
@@ -2707,9 +2624,7 @@ function updateOverflow(rows) {
   });
   const hidden = targets.map(([more, label]) => Boolean(more) && (!label || label.scrollWidth <= label.clientWidth));
   for (const [index, tuple] of targets.entries()) {
-    if (tuple[0]) {
-      tuple[0].hidden = hidden[index];
-    }
+    if (tuple[0]) tuple[0].hidden = hidden[index];
   }
 }
 
@@ -2729,9 +2644,7 @@ function repaintRow(kind, id) {
 function paintRow(row, kind, id) {
   if (kind === "list") {
     const cl = findList(id);
-    if (!cl) {
-      return false;
-    }
+    if (!cl) return false;
     paintChecklist(row, cl);
     return true;
   }
@@ -2753,18 +2666,14 @@ function afterRender() {
     focusEditor(state.ui.editing.id);
   }
   needFocus = false;
-  if (scrollTarget) {
-    applyScrollTarget();
-  }
+  if (scrollTarget) applyScrollTarget();
   applyDragState();
 }
 
 function focusEditor(id) {
   const row = document.querySelector(`#lists [data-id="${CSS.escape(id)}"]`);
   const input = row && row.querySelector(":scope > .card__head .input, :scope > .item__row .input");
-  if (!input) {
-    return;
-  }
+  if (!input) return;
   input.focus();
   const end = input.value.length;
   input.setSelectionRange(end, end);
@@ -2774,9 +2683,7 @@ function applyScrollTarget() {
   const target = scrollTarget;
   scrollTarget = null;
   const row = document.querySelector(`#lists [data-id="${CSS.escape(target.id)}"]`);
-  if (!row) {
-    return;
-  }
+  if (!row) return;
   row.scrollIntoView({ block: "center", behavior: "smooth" });
   row.classList.add("is-flash");
   setTimeout(() => row.classList.remove("is-flash"), 900);
@@ -2784,94 +2691,58 @@ function applyScrollTarget() {
 
 /* ---------- modal layer ---------- */
 
-/* Mini-stack: one modal can open over another; only the top layer closes. */
-const modals = [];
-let modalSeq = 0;
+/* One <dialog> per modal: the platform gives us the focus trap, the inert background, focus restore and the top layer. */
 
 function modalOpen() {
-  return modals.length > 0;
+  return Boolean(document.querySelector("#layer dialog[open]"));
 }
 
-function focusables(node) {
-  return [...node.querySelectorAll("button:not(:disabled), input, select, textarea, [href]")];
-}
-
-function trapFocus(event) {
-  if (event.key !== "Tab") {
-    return;
-  }
-  const nodes = focusables(event.currentTarget);
-  if (!nodes.length) {
-    return;
-  }
-  const first = nodes[0];
-  const last = nodes.at(-1);
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
+/* Dialog order in the DOM is open order, so the last one is the one the top layer shows. */
 function closeModal() {
-  const top = modals.pop();
-  if (!top) {
-    return;
+  const open = document.querySelectorAll("#layer dialog[open]");
+  const top = open[open.length - 1];
+  if (top) {
+    top.close();
   }
-  top.backdrop.remove();
-  top.box.remove();
-  if (!modals.length) {
-    document.documentElement.classList.remove("is-locked");
-  }
-  if (top.focusBack && document.contains(top.focusBack)) {
-    top.focusBack.focus();
-  }
-}
-
-function nextModalId(prefix) {
-  modalSeq += 1;
-  return `${prefix}${modalSeq}`;
 }
 
 function openModal(opts) {
-  const box = el("div", opts.sheet ? "modal modal--sheet" : "modal");
-  box.setAttribute("role", "dialog");
-  box.setAttribute("aria-modal", "true");
+  const box = el("dialog", opts.sheet ? "modal modal--sheet" : "modal");
   const body = el("div", "modal__body");
   if (typeof opts.body === "string") {
     body.textContent = opts.body;
   } else if (opts.body) {
     body.append(opts.body);
   }
+  const label = opts.title ?? (typeof opts.body === "string" ? opts.body : null);
+  if (label) {
+    box.setAttribute("aria-label", label);
+  }
   if (opts.title) {
-    const titleId = nextModalId("modal-title-");
-    const title = el("h2", "modal__title", opts.title);
-    title.id = titleId;
-    box.setAttribute("aria-labelledby", titleId);
-    box.append(title);
-  } else if (typeof opts.body === "string") {
-    const bodyId = nextModalId("modal-desc-");
-    body.id = bodyId;
-    box.setAttribute("aria-label", opts.body);
-    box.setAttribute("aria-describedby", bodyId);
+    box.append(el("h2", "modal__title", opts.title));
   }
   box.append(body);
   if (opts.actions && opts.actions.length) {
     box.append(actionRow(opts.actions));
   }
-  const backdrop = el("div", "layer__backdrop");
-  backdrop.addEventListener("click", closeModal);
-  const focusBack = opts.focusBack ?? document.activeElement;
-  byId("layer").append(backdrop, box);
+  // showModal remembers the focused element and restores it on close, so the trigger goes first.
+  (opts.focusBack ?? document.activeElement)?.focus({ preventScroll: true });
+  box.addEventListener("click", (event) => {
+    if (event.target === box) {
+      closeModal();
+    }
+  });
+  // Escape: Chrome cancels every open dialog at once; onKey closes one at a time.
+  box.addEventListener("cancel", (event) => event.preventDefault());
+  box.addEventListener("close", () => {
+    box.remove();
+    if (!modalOpen()) {
+      document.documentElement.classList.remove("is-locked");
+    }
+  });
+  byId("layer").append(box);
   document.documentElement.classList.add("is-locked");
-  box.addEventListener("keydown", trapFocus);
-  const first = focusables(box)[0];
-  if (first) {
-    first.focus();
-  }
-  modals.push({ backdrop, box, focusBack });
+  box.showModal();
   return { box, body, close: closeModal };
 }
 
@@ -2920,16 +2791,14 @@ function menuSep() {
 }
 
 function actionMessage(kind, n, verb) {
-  if (n > 1) {
-    if (verb === "archive") {
-      return t(kind === "list" ? "c_archive_lists" : "c_archive_items");
-    }
-    return t(kind === "list" ? "c_delete_lists" : "c_delete_items");
-  }
-  if (kind === "list") {
-    return t(verb === "archive" ? "c_archive_list" : "c_delete_list");
-  }
-  return t(verb === "archive" ? "c_archive_item" : "c_delete_item");
+  return t(`c_${verb}_${kind}${n > 1 ? "s" : ""}`);
+}
+
+function archiveOne(kind, id) {
+  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => {
+    if (kind === "list") archiveChecklist(id);
+    else archiveItem(id);
+  });
 }
 
 function openEntityMenu(kind, id) {
@@ -2938,13 +2807,7 @@ function openEntityMenu(kind, id) {
     closeModal();
     fn();
   };
-  const askArchive = run(() => confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => {
-    if (kind === "list") {
-      archiveChecklist(id);
-    } else {
-      archiveItem(id);
-    }
-  }));
+  const askArchive = run(() => archiveOne(kind, id));
   const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteEntity(kind, id)));
   const list = el("div", "menu-list");
   list.append(
@@ -2968,9 +2831,7 @@ function settingsOpen() {
 }
 
 function closeSettings() {
-  if (!settingsSheet) {
-    return;
-  }
+  if (!settingsSheet) return;
   settingsSheet.remove();
   settingsSheet = null;
   byId("btn-settings").setAttribute("aria-expanded", "false");
@@ -3023,9 +2884,7 @@ function segmentControl(name, value, pairs, onChange) {
 }
 
 function positionSettings() {
-  if (!settingsSheet) {
-    return;
-  }
+  if (!settingsSheet) return;
   const rect = byId("btn-settings").getBoundingClientRect();
   const width = settingsSheet.offsetWidth;
   const height = settingsSheet.offsetHeight;
@@ -3085,20 +2944,15 @@ function openSettings() {
   });
   sheet.append(archive);
   document.body.append(sheet);
-  if (settingsSheet) {
-    settingsSheet.remove();
-  }
+  if (settingsSheet) settingsSheet.remove();
   settingsSheet = sheet;
   byId("btn-settings").setAttribute("aria-expanded", "true");
   positionSettings();
 }
 
 function toggleSettings() {
-  if (settingsOpen()) {
-    closeSettings();
-  } else {
-    openSettings();
-  }
+  if (settingsOpen()) closeSettings();
+  else openSettings();
 }
 
 /* ---------- archive ---------- */
@@ -3141,20 +2995,14 @@ function restoreItems(ids) {
   const picked = new Set(ids);
   const moved = [];
   state.items = state.items.filter((item) => {
-    if (!picked.has(item.id)) {
-      return true;
-    }
+    if (!picked.has(item.id)) return true;
     item.archived = false;
     moved.push(item);
     return false;
   });
   for (const item of [...moved].reverse()) {
     const peers = state.items.filter((i) => i.checklistId === item.checklistId);
-    if (peers.length) {
-      state.items.splice(state.items.indexOf(peers[0]), 0, item);
-    } else {
-      state.items.push(item);
-    }
+    state.items.splice(joinIndex(state.items, peers, false), 0, item);
   }
 }
 
@@ -3179,9 +3027,7 @@ function openArchive() {
     const alt = el("span", "ic-alt", glyph);
     alt.setAttribute("aria-hidden", "true");
     button.append(el("span", `ic ic--${icon}`), alt, el("span", null, label));
-    if (countable) {
-      button.dataset.count = "1";
-    }
+    if (countable) button.dataset.count = "1";
     button.addEventListener("click", onClick);
     return button;
   };
@@ -3208,11 +3054,8 @@ function openArchive() {
     for (const row of rows) {
       const text = view.tab === "lists" ? row.title || t("new_list_ph") : row.text || t("new_item_ph");
       list.append(archiveRow(text, false, (on) => {
-        if (on) {
-          view.sel.add(row.id);
-        } else {
-          view.sel.delete(row.id);
-        }
+        if (on) view.sel.add(row.id);
+        else view.sel.delete(row.id);
         paintActions();
       }));
     }
@@ -3222,32 +3065,23 @@ function openArchive() {
       act("close", "✕", t("a_cancel"), "", () => handle.close()),
       act("restore", "↺", t("a_restore"), "", () => {
         const ids = selected();
-        if (!ids.length) {
-          return;
-        }
-        if (view.tab === "lists") {
-          restoreLists(ids);
-        } else {
-          restoreItems(ids);
-        }
+        if (!ids.length) return;
+        if (view.tab === "lists") restoreLists(ids);
+        else restoreItems(ids);
         view.sel.clear();
         commit();
         paint();
       }, true),
       act("trash", "✕", t("a_delete"), "btn--danger", () => {
         const ids = selected();
-        if (!ids.length) {
-          return;
-        }
+        if (!ids.length) return;
         const kind = view.tab === "lists" ? "list" : "item";
         confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => {
           deleteMany(kind, ids);
           view.sel.clear();
           paint();
           const tab = usable(host.querySelector(".tabs__tab.is-active"));
-          if (tab) {
-            tab.focus({ preventScroll: true });
-          }
+          if (tab) tab.focus({ preventScroll: true });
         });
       }, true),
     );
@@ -3270,9 +3104,7 @@ function openHelp() {
   const section = (title, lines) => {
     body.append(el("h3", null, title));
     const list = el("ul");
-    for (const line of lines) {
-      list.append(el("li", null, line));
-    }
+    for (const line of lines) list.append(el("li", null, line));
     body.append(list);
   };
   section(t("help_m"), [t("help_drag"), t("help_swipe_l"), t("help_swipe_r"), t("help_dbl"), t("help_menu"), t("help_full"), t("help_panel")]);
@@ -3298,14 +3130,6 @@ function showToast(text) {
   }, 8000);
 }
 
-function toastArchived() {
-  showToast(t("toast_archived"));
-}
-
-function toastDeleted() {
-  showToast(t("toast_deleted"));
-}
-
 /* ---------- row gestures: long-press drag + swipe ---------- */
 
 let gesture = null;
@@ -3319,18 +3143,14 @@ function rowHandle(target) {
     return null;
   }
   const handle = target.closest(".card__head, .item");
-  if (!handle) {
-    return null;
-  }
+  if (!handle) return null;
   const isItem = handle.classList.contains("item");
   const row = isItem ? handle : handle.closest(".card");
   if (!row || !row.dataset.id) {
     return null;
   }
   const mover = handle.querySelector(".card__row, .item__row");
-  if (!mover) {
-    return null;
-  }
+  if (!mover) return null;
   return { handle, mover, row, kind: isItem ? "item" : "list", id: row.dataset.id };
 }
 
@@ -3349,9 +3169,7 @@ function onRowDown(event) {
     return;
   }
   const hit = rowHandle(event.target);
-  if (!hit) {
-    return;
-  }
+  if (!hit) return;
   pointerY = event.clientY;
   gesture = {
     ...hit,
@@ -3378,9 +3196,7 @@ function endRowListeners() {
 
 function onRowMove(event) {
   pointerY = event.clientY;
-  if (!gesture) {
-    return;
-  }
+  if (!gesture) return;
   const dx = event.clientX - gesture.x0;
   const dy = event.clientY - gesture.y0;
   if (gesture.mode === "drag") {
@@ -3408,9 +3224,7 @@ function onRowMove(event) {
 
 function onRowUp() {
   endRowListeners();
-  if (!gesture) {
-    return;
-  }
+  if (!gesture) return;
   if (gesture.mode === "drag") {
     endDrag(true);
   } else if (gesture.mode === "swipe") {
@@ -3421,26 +3235,20 @@ function onRowUp() {
 }
 
 function endGesture() {
-  if (gesture) {
-    clearTimeout(gesture.timer);
-  }
+  if (gesture) clearTimeout(gesture.timer);
   gesture = null;
   endRowListeners();
 }
 
 function rubber(dx) {
   const over = Math.abs(dx) - GESTURE.trigger;
-  if (over <= 0) {
-    return dx;
-  }
+  if (over <= 0) return dx;
   return Math.sign(dx) * (GESTURE.trigger + over * 0.35);
 }
 
 function suppressNextClick() {
   suppressClick = true;
-  setTimeout(() => {
-    suppressClick = false;
-  }, 250);
+  setTimeout(() => { suppressClick = false; }, 250);
 }
 
 function paintSwipe(dx) {
@@ -3470,13 +3278,7 @@ function finishSwipe() {
     startEdit(current.kind, current.id);
     return;
   }
-  confirmModal(actionMessage(current.kind, 1, "archive"), t("a_archive"), () => {
-    if (current.kind === "list") {
-      archiveChecklist(current.id);
-    } else {
-      archiveItem(current.id);
-    }
-  });
+  archiveOne(current.kind, current.id);
 }
 
 /* ---------- drag ---------- */
@@ -3504,22 +3306,15 @@ function placeGap() {
   }
   const rows = visibleRows(drag.container);
   const ref = rows[clamp(drag.index, 0, rows.length)];
-  if (ref) {
-    drag.container.insertBefore(drag.gap, ref);
-  } else {
-    drag.container.append(drag.gap);
-  }
+  if (ref) drag.container.insertBefore(drag.gap, ref);
+  else drag.container.append(drag.gap);
 }
 
 function applyDragState() {
-  if (!drag) {
-    return;
-  }
+  if (!drag) return;
   for (const id of drag.ids) {
     const row = rowById(drag.kind, id);
-    if (row) {
-      row.classList.add("is-drag-src");
-    }
+    if (row) row.classList.add("is-drag-src");
   }
   placeGap();
 }
@@ -3572,9 +3367,7 @@ function retarget() {
   const hovered = drag.kind === "item" ? collapsedHeadAt(cloneCenter()) : null;
   handleHover(hovered);
   const container = targetContainer(drag.kind, cloneCenter());
-  if (!container) {
-    return;
-  }
+  if (!container) return;
   drag.container = container;
   drag.index = indexAt(container, cloneCenter());
   placeGap();
@@ -3585,13 +3378,9 @@ function dropCard(id) {
 }
 
 function clearCollapsedTarget() {
-  if (!drag.collapsedId) {
-    return;
-  }
+  if (!drag.collapsedId) return;
   const old = dropCard(drag.collapsedId);
-  if (old) {
-    old.classList.remove("is-drop-hover");
-  }
+  if (old) old.classList.remove("is-drop-hover");
   drag.collapsedId = null;
   drag.gap.style.display = "";
 }
@@ -3636,17 +3425,16 @@ function expandForDrop(id) {
 
 function startDrag() {
   const hit = gesture;
-  if (!hit) {
-    return;
-  }
+  if (!hit) return;
   hit.mode = "drag";
   suppressNextClick();
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
-  const rows = ids.map((id) => rowById(hit.kind, id)).filter(Boolean);
-  if (!rows.length) {
-    return;
-  }
+  // In state order, not tap order: this is the order moveGroup re-inserts, so the ghost matches the drop.
+  const picked = new Set(ids);
+  const source = hit.kind === "list" ? state.checklists : state.items;
+  const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
+  if (!rows.length) return;
   const rect = rows[0].getBoundingClientRect();
   const clone = el("div", "drag-clone");
   for (const row of rows) {
@@ -3696,19 +3484,19 @@ function moveClone() {
 }
 
 function updateDrag(x, y) {
-  if (!drag) {
-    return;
-  }
+  if (!drag) return;
   drag.x = x;
   drag.y = y;
   moveClone();
   retarget();
 }
 
-function dropRefId(current) {
-  let node = current.gap.nextElementSibling;
+// The id of the live row after ("next") or before ("prev") the drop marker; dragged rows are skipped.
+function siblingId(gap, dir) {
+  const key = dir === "next" ? "nextElementSibling" : "previousElementSibling";
+  let node = gap[key];
   while (node && node.classList.contains("is-drag-src")) {
-    node = node.nextElementSibling;
+    node = node[key];
   }
   return node && node.dataset ? node.dataset.id ?? null : null;
 }
@@ -3727,22 +3515,24 @@ function dropItemsInto(ids, checklistId, refId) {
   }
   state.items = moveGroup(state.items, ids, index);
   const target = findList(checklistId);
-  if (target) {
-    target.expanded = true;
+  if (target) target.expanded = true;
+  const bulk = state.ui.bulk;
+  if (bulk.kind === "item" && ids.some((x) => bulk.ids.includes(x))) {
+    // A bulk drag moves the whole selection, so it is in the destination list from now on.
+    bulk.checklistId = checklistId;
   }
 }
 
 function endDrag(apply) {
   const current = drag;
   drag = null;
-  if (!current) {
-    return;
-  }
+  if (!current) return;
   document.documentElement.classList.remove("is-dragging");
   clearTimeout(current.hoverTimer);
   const kind = current.kind;
   const ids = current.ids;
-  const refId = dropRefId(current);
+  const refId = siblingId(current.gap, "next");
+  const prevId = siblingId(current.gap, "prev");
   const targetCard = current.container ? current.container.closest(".card") : null;
   const checklistId = targetCard ? targetCard.dataset.id : null;
   current.clone.remove();
@@ -3753,7 +3543,7 @@ function endDrag(apply) {
     return;
   }
   if (kind === "list") {
-    state.checklists = moveGroup(state.checklists, ids, refIndex(state.checklists, ids, refId));
+    state.checklists = moveGroup(state.checklists, ids, refIndex(state.checklists, ids, refId, prevId));
   } else if (current.collapsedId) {
     dropItemsInto(ids, current.collapsedId, null);
   } else if (checklistId) {
@@ -3767,9 +3557,7 @@ function ramp(k) {
 }
 
 function startAutoScroll() {
-  if (scrollRaf) {
-    return;
-  }
+  if (scrollRaf) return;
   const step = () => {
     if (!drag && !panelDrag) {
       scrollRaf = 0;
@@ -3784,9 +3572,7 @@ function startAutoScroll() {
     }
     if (pixels !== 0) {
       scrollBy(0, pixels);
-      if (drag) {
-        retarget();
-      }
+      if (drag) retarget();
     }
     scrollRaf = requestAnimationFrame(step);
   };
@@ -3833,9 +3619,7 @@ function panelX(side, width) {
 
 function positionPanel() {
   const panel = byId("panel");
-  if (panelDrag) {
-    return;
-  }
+  if (panelDrag) return;
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
   const maxTop = Math.max(GESTURE.gap, innerHeight - height - GESTURE.gap);
@@ -3857,9 +3641,7 @@ function snapSide(center, width) {
 function showGhost(side, top, width, height) {
   const ghost = panelGhost ?? el("div", "panel-ghost");
   panelGhost = ghost;
-  if (!ghost.isConnected) {
-    document.body.append(ghost);
-  }
+  if (!ghost.isConnected) document.body.append(ghost);
   ghost.hidden = false;
   ghost.style.width = `${width}px`;
   ghost.style.height = `${height}px`;
@@ -3868,9 +3650,7 @@ function showGhost(side, top, width, height) {
 }
 
 function hideGhost() {
-  if (panelGhost) {
-    panelGhost.hidden = true;
-  }
+  if (panelGhost) panelGhost.hidden = true;
 }
 
 function onPanelDown(event) {
@@ -3887,14 +3667,10 @@ function onPanelDown(event) {
     if (!panelDrag && (Math.abs(e.clientX - origin.x) > GESTURE.slop || Math.abs(e.clientY - origin.y) > GESTURE.slop)) {
       beginPanelDrag(e, origin);
     }
-    if (panelDrag) {
-      movePanelDrag(e);
-    }
+    if (panelDrag) movePanelDrag(e);
   };
   const up = () => {
-    if (panelDrag) {
-      endPanelDrag();
-    }
+    if (panelDrag) endPanelDrag();
     stop();
   };
   const stop = () => {
@@ -3946,9 +3722,7 @@ function endPanelDrag() {
   stopAutoScroll();
   queueSave();
   positionPanel();
-  setTimeout(() => {
-    panelSuppress = false;
-  }, 250);
+  setTimeout(() => { panelSuppress = false; }, 250);
 }
 
 /* ---------- actions ---------- */
@@ -4008,7 +3782,7 @@ function onRowAct(act, kind, id, row) {
 }
 
 function onPanelAct(act) {
-  const bulk = bulkState();
+  const bulk = state.ui.bulk;
   if (act === "expand-all") {
     setExpandedAll(true);
     return;
@@ -4048,29 +3822,19 @@ function onPanelAct(act) {
 /* ---------- wiring ---------- */
 
 function onListClick(event) {
-  if (suppressClick) {
-    return;
-  }
+  if (suppressClick) return;
   const button = event.target.closest("[data-act]");
-  if (!button) {
-    return;
-  }
+  if (!button) return;
   const row = button.closest("[data-id]");
-  if (!row) {
-    return;
-  }
+  if (!row) return;
   onRowAct(button.dataset.act, row.dataset.kind, row.dataset.id, row);
 }
 
 function onListDblClick(event) {
   const text = event.target.closest(".item__text");
-  if (!text) {
-    return;
-  }
+  if (!text) return;
   const row = text.closest("[data-id]");
-  if (row) {
-    startEdit("item", row.dataset.id);
-  }
+  if (row) startEdit("item", row.dataset.id);
 }
 
 // Set when Enter already committed: the browser still fires a trailing focusout for the
@@ -4088,9 +3852,7 @@ function onListKeyDown(event) {
     const editing = state.ui.editing;
     const named = input.value.trim() !== "";
     commitText(editing.kind, editing.id, input.value);
-    if (!named) {
-      return;
-    }
+    if (!named) return;
     // Enter keeps the typing flow going: a fresh empty input opens right away.
     if (editing.kind === "item") {
       addItem(findItem(editing.id).checklistId);
@@ -4116,28 +3878,20 @@ function onListBlur(event) {
   }
   const input = event.target;
   // A detached node's blur is a rebuild artifact, not a user commit.
-  if (!input.isConnected) {
-    return;
-  }
+  if (!input.isConnected) return;
   if (input.classList && input.classList.contains("input") && state.ui.editing) {
     commitText(state.ui.editing.kind, state.ui.editing.id, input.value);
   }
 }
 
 function onPanelClick(event) {
-  if (panelSuppress) {
-    return;
-  }
+  if (panelSuppress) return;
   const button = event.target.closest("[data-act]");
-  if (button) {
-    onPanelAct(button.dataset.act);
-  }
+  if (button) onPanelAct(button.dataset.act);
 }
 
 function onDocumentDown(event) {
-  if (!settingsOpen()) {
-    return;
-  }
+  if (!settingsOpen()) return;
   if (event.target.closest && event.target.closest("#settings-sheet, #btn-settings")) {
     return;
   }
@@ -4199,20 +3953,15 @@ function bind() {
     if (event.key !== KEY) {
       return;
     }
-    if (safeToReload()) {
-      location.reload();
-    } else {
-      externalWrite = true;
-    }
+    externalWrite = true;
+    maybeReload();
   });
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
   panel.addEventListener("pointerdown", onPanelDown);
   // Long-press menu must not pop over a running drag.
   panel.addEventListener("contextmenu", (event) => {
-    if (panelDrag) {
-      event.preventDefault();
-    }
+    if (panelDrag) event.preventDefault();
   });
   document.addEventListener("pointerdown", onDocumentDown, true);
   document.addEventListener("keydown", onKey);
@@ -4229,16 +3978,14 @@ function boot() {
   loadIcons();
   bind();
   render();
-  if (storageBroken) {
-    showToast(t("storage_error"));
-  }
+  if (storageBroken) showToast(t("storage_error"));
 }
 
 boot();
 
 window.__tbd = {
   reset() {
-    wiped = true;
+    stopSaving = true;
     try {
       localStorage.removeItem(KEY);
     } catch {
@@ -4254,9 +4001,7 @@ window.__tbd = {
   refIndex,
   t,
   langCode,
-  get state() {
-    return state;
-  },
+  get state() { return state; },
 };
 </script>
 </body>
