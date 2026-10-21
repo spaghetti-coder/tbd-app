@@ -180,6 +180,8 @@
   .ic--check { mask-image: var(--ic-check, none); }
   .ic--close { mask-image: var(--ic-close, none); }
   .ic--bulk { mask-image: var(--ic-bulk, none); }
+  .ic--grip-vertical { mask-image: var(--ic-grip-vertical, none); }
+  .ic--grip-horizontal { mask-image: var(--ic-grip-horizontal, none); }
 
   /* Fallback glyphs stay hidden until the icon hosts are confirmed reachable. */
   .ic-alt {
@@ -580,6 +582,10 @@
 
   .panel.is-hidden {
     display: none;
+  }
+
+  .panel.is-collapsed .btn {
+    width: 26px;
   }
 
   .panel.is-dragging {
@@ -1050,6 +1056,8 @@ const ICON_FILES = {
   check: "check",
   close: "x",
   bulk: "list-checks",
+  "grip-vertical": "grip-vertical",
+  "grip-horizontal": "grip-horizontal",
 };
 
 /* ---------- icons ---------- */
@@ -1112,6 +1120,8 @@ const EN = {
   help: "Help",
   expand_all: "Expand all",
   collapse_all: "Collapse all",
+  panel_collapse: "Collapse panel",
+  panel_expand: "Expand panel",
   a_archive: "Archive",
   a_delete: "Delete",
   a_restore: "Restore",
@@ -1181,6 +1191,8 @@ const DICTS = {
     help: "Помощь",
     expand_all: "Развернуть все",
     collapse_all: "Свернуть все",
+    panel_collapse: "Свернуть панель",
+    panel_expand: "Развернуть панель",
     a_archive: "В архив",
     a_delete: "Удалить",
     a_restore: "Восстановить",
@@ -1247,6 +1259,8 @@ const DICTS = {
     help: "Помощ",
     expand_all: "Разгъни всички",
     collapse_all: "Сгъни всички",
+    panel_collapse: "Сгъни панела",
+    panel_expand: "Разгъни панела",
     a_archive: "Архивирай",
     a_delete: "Изтрий",
     a_restore: "Възстанови",
@@ -1313,6 +1327,8 @@ const DICTS = {
     help: "Ayuda",
     expand_all: "Expandir todo",
     collapse_all: "Plegar todo",
+    panel_collapse: "Contraer panel",
+    panel_expand: "Expandir panel",
     a_archive: "Archivar",
     a_delete: "Eliminar",
     a_restore: "Restaurar",
@@ -1379,6 +1395,8 @@ const DICTS = {
     help: "Aide",
     expand_all: "Tout dérouler",
     collapse_all: "Tout replier",
+    panel_collapse: "Replier le panneau",
+    panel_expand: "Déplier le panneau",
     a_archive: "Archiver",
     a_delete: "Supprimer",
     a_restore: "Restaurer",
@@ -1445,6 +1463,8 @@ const DICTS = {
     help: "Ajutor",
     expand_all: "Deschide tot",
     collapse_all: "Închide tot",
+    panel_collapse: "Restrânge panoul",
+    panel_expand: "Extinde panoul",
     a_archive: "Arhivează",
     a_delete: "Șterge",
     a_restore: "Restaurează",
@@ -1511,6 +1531,8 @@ const DICTS = {
     help: "帮助",
     expand_all: "全部展开",
     collapse_all: "全部折叠",
+    panel_collapse: "折叠面板",
+    panel_expand: "展开面板",
     a_archive: "归档",
     a_delete: "删除",
     a_restore: "恢复",
@@ -1577,6 +1599,8 @@ const DICTS = {
     help: "ヘルプ",
     expand_all: "すべて開く",
     collapse_all: "すべて閉じる",
+    panel_collapse: "パネルを閉じる",
+    panel_expand: "パネルを開く",
     a_archive: "アーカイブ",
     a_delete: "削除",
     a_restore: "復元",
@@ -1643,6 +1667,8 @@ const DICTS = {
     help: "Helpo",
     expand_all: "Malfermi ĉiujn",
     collapse_all: "Fermi ĉiujn",
+    panel_collapse: "Fermi la panelon",
+    panel_expand: "Malfermi la panelon",
     a_archive: "Arkivi",
     a_delete: "Forigi",
     a_restore: "Restarigi",
@@ -1709,6 +1735,8 @@ const DICTS = {
     help: "Adjuta",
     expand_all: "Aperirar toto",
     collapse_all: "Plegar toto",
+    panel_collapse: "Plegar le panel",
+    panel_expand: "Aperir le panel",
     a_archive: "Archivar",
     a_delete: "Deler",
     a_restore: "Restaurar",
@@ -1775,6 +1803,8 @@ const DICTS = {
     help: "sona",
     expand_all: "o open e ale",
     collapse_all: "o pini e ale",
+    panel_collapse: "o pini e ilo poka",
+    panel_expand: "o open e ilo poka",
     a_archive: "o len",
     a_delete: "o weka",
     a_restore: "o kama sin",
@@ -1892,7 +1922,7 @@ function defaults() {
       newItem: "bottom",
       pageSize: 20,
       page: 1,
-      panel: { side: "right", topPct: 0.35 },
+      panel: { side: "right", topPct: 0.35, collapsed: false },
       editing: null,
       bulk: { kind: null, checklistId: null, ids: [] },
     },
@@ -1935,9 +1965,10 @@ function normalize(data) {
   Object.assign(out.ui, data.ui && typeof data.ui === "object" ? data.ui : {});
   out.ui.editing = null;
   if (!out.ui.panel || typeof out.ui.panel !== "object") {
-    out.ui.panel = { side: "right", topPct: 0.35 };
+    out.ui.panel = { side: "right", topPct: 0.35, collapsed: false };
   }
   out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
+  out.ui.panel.collapsed = out.ui.panel.collapsed === true;
   if (!validBulk(out.ui.bulk)) {
     out.ui.bulk = { kind: null, checklistId: null, ids: [] };
   }
@@ -2267,6 +2298,7 @@ function startBulk(kind, id) {
   const checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
   state.ui.bulk = { kind, checklistId, ids: [id] };
   state.ui.editing = null;
+  state.ui.panel.collapsed = false;
   commit();
 }
 
@@ -2298,6 +2330,7 @@ function togglePick(kind, id) {
     bulk.kind = kind;
     bulk.checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
     bulk.ids = [];
+    state.ui.panel.collapsed = false;
   }
   bulk.ids = bulk.ids.includes(id) ? bulk.ids.filter((x) => x !== id) : [...bulk.ids, id];
   if (!bulk.ids.length) {
@@ -2596,22 +2629,29 @@ function panelButton(icon, glyph, labelKey, act, disabled) {
 function renderPanel() {
   const bulk = state.ui.bulk;
   const all = visibleChecklists();
-  const nodes = [];
-  if (bulk.kind === null) {
-    nodes.push(panelButton("expand", "+", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
-    nodes.push(panelButton("collapse", "−", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
-  } else {
-    const any = bulk.ids.length > 0;
-    const remove = panelButton("trash", "✕", "a_delete", "bulk-delete", !any);
-    remove.classList.add("btn--danger");
-    nodes.push(remove);
-    nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", !any));
-    nodes.push(panelButton("top", "↑", "a_top", "bulk-top", !any));
-    nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", !any));
-    nodes.push(panelButton("close", "←", "a_cancel", "bulk-cancel", false));
+  const collapsed = state.ui.panel.collapsed;
+  const grip = panelButton(collapsed ? "grip-vertical" : "grip-horizontal",
+    collapsed ? "⋮" : "⋯", collapsed ? "panel_expand" : "panel_collapse", "panel-toggle", false);
+  grip.setAttribute("aria-expanded", String(!collapsed));
+  const nodes = [grip];
+  if (!collapsed) {
+    if (bulk.kind === null) {
+      nodes.push(panelButton("expand", "+", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
+      nodes.push(panelButton("collapse", "−", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
+    } else {
+      const any = bulk.ids.length > 0;
+      const remove = panelButton("trash", "✕", "a_delete", "bulk-delete", !any);
+      remove.classList.add("btn--danger");
+      nodes.push(remove);
+      nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", !any));
+      nodes.push(panelButton("top", "↑", "a_top", "bulk-top", !any));
+      nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", !any));
+      nodes.push(panelButton("close", "←", "a_cancel", "bulk-cancel", false));
+    }
   }
   const panel = byId("panel");
   panel.replaceChildren(...nodes);
+  panel.classList.toggle("is-collapsed", collapsed);
   panel.classList.toggle("is-hidden", all.length === 0 && bulk.kind === null);
   positionPanel();
 }
@@ -3714,7 +3754,8 @@ function endPanelDrag() {
   const rect = panel.getBoundingClientRect();
   const side = snapSide(rect.left + rect.width / 2, rect.width);
   const maxTop = Math.max(GESTURE.gap, innerHeight - rect.height - GESTURE.gap);
-  state.ui.panel = { side, topPct: clamp((rect.top - GESTURE.gap) / maxTop, 0, 1) };
+  state.ui.panel.side = side;
+  state.ui.panel.topPct = clamp((rect.top - GESTURE.gap) / maxTop, 0, 1);
   panelDrag = null;
   panel.classList.remove("is-dragging");
   document.documentElement.classList.remove("is-dragging");
@@ -3783,6 +3824,11 @@ function onRowAct(act, kind, id, row) {
 
 function onPanelAct(act) {
   const bulk = state.ui.bulk;
+  if (act === "panel-toggle") {
+    state.ui.panel.collapsed = !state.ui.panel.collapsed;
+    commit();
+    return;
+  }
   if (act === "expand-all") {
     setExpandedAll(true);
     return;

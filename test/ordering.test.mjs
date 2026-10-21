@@ -31,6 +31,7 @@ const NAMES = [
   "actionMessage",
   "unselect",
   "togglePick",
+  "startBulk",
   "visibleChecklists",
   "indexOfVisible",
   "pageCount",
@@ -98,7 +99,13 @@ const store = (checklists, items, ui) => {
   sandbox.state = {
     checklists,
     items,
-    ui: { pageSize: 20, page: 1, bulk: { kind: null, checklistId: null, ids: [] }, ...ui },
+    ui: {
+      pageSize: 20,
+      page: 1,
+      panel: { side: "right", topPct: 0.35, collapsed: false },
+      bulk: { kind: null, checklistId: null, ids: [] },
+      ...ui,
+    },
   };
   return sandbox.state;
 };
@@ -384,6 +391,25 @@ test("normalize keeps the theme, panel and bulk rules", () => {
     { kind: null, checklistId: null, ids: [] }, "ids has to be a list");
   assert.deepEqual(plainBulk(api.normalize({ version: 1, ui: { bulk: { kind: "list" } } }).ui.bulk),
     { kind: null, checklistId: null, ids: [] });
+  assert.equal(api.normalize({ version: 1 }).ui.panel.collapsed, false, "panel starts expanded");
+  assert.equal(api.normalize({ version: 1, ui: { panel: { side: "left", topPct: 0.5, collapsed: true } } }).ui.panel.collapsed, true);
+  assert.equal(api.normalize({ version: 1, ui: { panel: { collapsed: "yes" } } }).ui.panel.collapsed, false);
+  assert.equal(api.normalize({ version: 1, ui: { panel: { collapsed: 1 } } }).ui.panel.collapsed, false);
+});
+
+test("starting a selection expands a collapsed panel", () => {
+  const collapsedPanel = { side: "right", topPct: 0.35, collapsed: true };
+  const state = store([list("c1")], [item("a", "c1"), item("b", "c1")], { panel: collapsedPanel });
+  api.startBulk("list", "c1");
+  assert.equal(state.ui.panel.collapsed, false, "bulk mode from the menu expands the panel");
+
+  state.ui.panel.collapsed = true;
+  api.togglePick("item", "a");
+  assert.equal(state.ui.panel.collapsed, false, "starting a selection of another kind expands it");
+
+  state.ui.panel.collapsed = true;
+  api.togglePick("item", "b");
+  assert.equal(state.ui.panel.collapsed, true, "picking inside a running selection keeps it collapsed");
 });
 
 test("normalize returns defaults for anything that is not version 1", () => {
