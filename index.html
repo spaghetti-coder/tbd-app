@@ -479,6 +479,11 @@
     flex: none;
   }
 
+  /* Held over a collapsed list: the placeholder keeps its height, so nothing below it jumps. */
+  .drop-gap.is-standby {
+    border-color: transparent;
+  }
+
   /* Drop state on a collapsed checklist head; the bar shows the hold-to-expand progress. */
   .card.is-drop-hover > .card__head::after {
     animation: fill var(--hover-ms) linear forwards;
@@ -1112,6 +1117,7 @@ const GESTURE = {
   ratio: 1.8,
   trigger: 96,
   hover: 600,
+  hoverPad: 12,
   edge: 24,
   detach: 24,
   gap: 12,
@@ -3212,6 +3218,7 @@ let drag = null;
 let suppressClick = false;
 let pointerY = 0;
 let scrollRaf = 0;
+let autoScrolling = false;
 
 function rowHandle(target) {
   if (!target || !target.closest) {
@@ -3424,11 +3431,20 @@ function targetContainer(kind, y) {
   return bodies.length ? nearestBody(bodies, y) : null;
 }
 
+/* The aim leaves the held target only past hoverPad, so hand jitter cannot reset the hold. */
 function collapsedHeadAt(y) {
-  for (const head of document.querySelectorAll("#lists .card:not(.is-open) > .card__head")) {
+  const held = drag.hoverId && dropCard(drag.hoverId);
+  const head = held && held.querySelector(":scope > .card__head");
+  if (head) {
     const rect = head.getBoundingClientRect();
-    if (y >= rect.top && y <= rect.bottom) {
+    if (y >= rect.top - GESTURE.hoverPad && y <= rect.bottom + GESTURE.hoverPad) {
       return head;
+    }
+  }
+  for (const other of document.querySelectorAll("#lists .card:not(.is-open) > .card__head")) {
+    const rect = other.getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) {
+      return other;
     }
   }
   return null;
@@ -3442,7 +3458,7 @@ function cloneCenter() {
 /* All layout reads first, all writes after: interleaving them relayouts once per pass. */
 function retarget() {
   const cy = cloneCenter();
-  const hovered = drag.kind === "item" ? collapsedHeadAt(cy) : null;
+  const hovered = drag.kind === "item" && !autoScrolling ? collapsedHeadAt(cy) : null;
   const container = targetContainer(drag.kind, cy);
   const index = container && !hovered ? indexAt(container, cy) : drag.index;
   moveClone();
@@ -3464,7 +3480,7 @@ function clearCollapsedTarget() {
   const old = dropCard(drag.collapsedId);
   if (old) old.classList.remove("is-drop-hover");
   drag.collapsedId = null;
-  drag.gap.style.display = "";
+  drag.gap.classList.remove("is-standby");
 }
 
 function handleHover(head) {
@@ -3480,7 +3496,7 @@ function handleHover(head) {
   drag.hoverId = id;
   if (id) {
     drag.collapsedId = id;
-    drag.gap.style.display = "none";
+    drag.gap.classList.add("is-standby");
     head.parentElement.classList.add("is-drop-hover");
     drag.hoverTimer = setTimeout(() => expandForDrop(id), GESTURE.hover);
   }
@@ -3622,6 +3638,8 @@ function endDrag(apply) {
   drag = null;
   document.documentElement.classList.remove("is-dragging");
   clearTimeout(current.hoverTimer);
+  // Dropped before the hold filled: nothing else takes the progress bar off the target head.
+  dropCard(current.collapsedId)?.classList.remove("is-drop-hover");
   const kind = current.kind;
   const ids = current.ids;
   const refId = siblingId(current.gap, "next");
@@ -3663,9 +3681,14 @@ function startAutoScroll() {
     } else if (pointerY > height - GESTURE.edge) {
       pixels = ramp((pointerY - (height - GESTURE.edge)) / GESTURE.edge);
     }
+    const before = scrollY;
     if (pixels !== 0) {
       scrollBy(0, pixels);
-      if (drag) retarget();
+    }
+    const wasScrolling = autoScrolling;
+    autoScrolling = scrollY !== before;
+    if (drag && (autoScrolling || wasScrolling)) {
+      retarget();
     }
     scrollRaf = requestAnimationFrame(step);
   };
@@ -3677,6 +3700,7 @@ function stopAutoScroll() {
     cancelAnimationFrame(scrollRaf);
     scrollRaf = 0;
   }
+  autoScrolling = false;
 }
 
 document.addEventListener("touchmove", (event) => {
