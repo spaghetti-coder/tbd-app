@@ -628,7 +628,7 @@
     max-height: none;
     max-width: none;
     overflow: auto;
-    padding: max(18px, env(safe-area-inset-top)) var(--gutter) 28px;
+    padding: max(18px, env(safe-area-inset-top)) var(--gutter) 0;
     width: 100vw;
   }
 
@@ -660,11 +660,13 @@
     margin-top: 18px;
   }
 
+  /* Sticky bottoms sit on the scroller's content box, so the sheet carries no bottom padding of its own. */
   .modal--sheet .modal__actions {
     background: var(--surface);
     bottom: 0;
     margin-top: auto;
-    padding-block: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-top: 12px;
     position: sticky;
   }
 
@@ -902,7 +904,7 @@
   }
 
   @media (width <= 560px) {
-    .modal {
+    .modal:not(.modal--sheet) {
       border-radius: var(--r);
       left: 0;
       max-width: none;
