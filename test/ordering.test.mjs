@@ -37,15 +37,19 @@ const NAMES = [
   "pageCount",
   "pagedChecklists",
   "jumpTo",
+  "entityText",
+  "commitText",
+  "cancelEdit",
 ];
 
 // The sliced functions reach for these at runtime; the harness keeps them out of the way.
 const PRELUDE = `
 let scrollTarget = null;
 let lastToast = null;
-function commit() {}
-function queueSave() {}
-function repaintRow() {}
+const calls = [];
+function commit() { calls.push("commit"); }
+function queueSave() { calls.push("queueSave"); }
+function repaintRow(kind, id) { calls.push("repaintRow:" + kind + ":" + id); }
 function showToast(text) { lastToast = text; }
 function t(key) { return key; }
 `;
@@ -62,6 +66,8 @@ runInContext(
     `this.api = { ${NAMES.join(", ")} };`,
     "this.scrollTargetOf = () => scrollTarget;",
     "this.toastOf = () => lastToast;",
+    "this.calls = () => calls.join(",");",
+    "this.resetCalls = () => { calls.length = 0; }",
   ].join("\n"),
   sandbox,
 );
@@ -96,6 +102,7 @@ const rows = (...ids) => ids.map((id) => ({ id }));
 const ids = (rows2) => Array.from(rows2, (row) => row.id);
 
 const store = (checklists, items, ui) => {
+  sandbox.resetCalls();
   sandbox.state = {
     checklists,
     items,
@@ -412,6 +419,52 @@ test("starting a selection expands a collapsed panel", () => {
   assert.equal(state.ui.panel.collapsed, true, "picking inside a running selection keeps it collapsed");
 });
 
+test("a renamed entity is saved and only its row is repainted", () => {
+  const state = store([list("c1", { title: "old" })], [item("i1", "c1", { text: "old" })]);
+  api.commitText("list", "c1", "  Groceries  ");
+  assert.equal(state.checklists[0].title, "Groceries");
+  assert.equal(state.ui.editing, null);
+  assert.equal(sandbox.calls(), "queueSave,repaintRow:list:c1");
+
+  sandbox.resetCalls();
+  api.commitText("item", "i1", "Milk");
+  assert.equal(state.items[0].text, "Milk");
+  assert.equal(state.ui.editing, null);
+  assert.equal(sandbox.calls(), "queueSave,repaintRow:item:i1");
+});
+
+test("committing an empty name rolls a named entity back", () => {
+  const state = store([list("c1", { title: "old" })], [item("i1", "c1", { text: "old" })], { editing: { kind: "item", id: "i1" } });
+  api.commitText("item", "i1", "   ");
+  assert.equal(state.items.length, 1);
+  assert.equal(state.items[0].text, "old");
+  assert.equal(state.ui.editing, null);
+  assert.equal(sandbox.calls(), "commit");
+});
+
+test("committing an empty name discards a new checklist with its items", () => {
+  const state = store([list("c1", { title: "" }), list("c2")], [item("i1", "c1"), item("i2", "c2")], { editing: { kind: "list", id: "c1" } });
+  api.commitText("list", "c1", "");
+  assert.deepEqual(ids(state.checklists), ["c2"]);
+  assert.deepEqual(ids(state.items), ["i2"]);
+  assert.equal(state.ui.editing, null);
+  assert.equal(sandbox.calls(), "commit");
+});
+
+test("cancelling discards a new entity and keeps a named one", () => {
+  const fresh = store([list("c1", { title: "" })], [item("i1", "c1", { text: "" })], { editing: { kind: "item", id: "i1" } });
+  api.cancelEdit();
+  assert.deepEqual(ids(fresh.items), []);
+  assert.equal(fresh.ui.editing, null);
+  assert.equal(sandbox.calls(), "commit");
+
+  const named = store([list("c1", { title: "keep" })], [], { editing: { kind: "list", id: "c1" } });
+  api.cancelEdit();
+  assert.deepEqual(ids(named.checklists), ["c1"]);
+  assert.equal(named.checklists[0].title, "keep");
+  assert.equal(named.ui.editing, null);
+});
+
 test("normalize returns defaults for anything that is not version 1", () => {
   assert.deepEqual(api.normalize({ version: 2, checklists: [list("c1")] }), api.defaults());
   assert.deepEqual(api.normalize(undefined), api.defaults());
@@ -459,6 +512,25 @@ test("every dictionary defines exactly the keys EN defines", () => {
   assert.ok(en.length > 50, "EN dictionary looks truncated");
   for (const [code, dict] of Object.entries(dicts)) {
     assert.deepEqual(Object.keys(dict).sort(), en, `dictionary "${code}" is out of sync with EN`);
+  }
+});
+
+// The builders take the icon name only, so a missing map entry means a button with no fallback glyph.
+test("every icon the button builders are called with has a fallback glyph", () => {
+  const box = {};
+  createContext(box);
+  runInContext([sliceObject("GLYPHS"), "this.glyphs = GLYPHS;"].join("\n"), box);
+  const glyphs = box.glyphs;
+
+  const used = new Set();
+  for (const call of html.matchAll(/(?:^|[^.\w])(?:panelButton|menuItem|act)\(\s*([^,)]*)/g)) {
+    for (const icon of call[1].matchAll(/"([a-z-]+)"/g)) {
+      used.add(icon[1]);
+    }
+  }
+  assert.ok(used.size >= 10, `the call scan found only ${used.size} icons; the regex is out of date`);
+  for (const icon of used) {
+    assert.equal(typeof glyphs[icon], "string", `"${icon}" has no fallback glyph`);
   }
 });
 

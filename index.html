@@ -984,6 +984,7 @@
 </head>
 
 <body>
+<noscript><p>JavaScript is required — this page stays empty without it.</p></noscript>
 <header class="topbar">
   <div class="topbar__inner">
     <h1 class="topbar__title">TBD</h1>
@@ -2014,7 +2015,7 @@ const state = load();
 let saveTimer = 0;
 
 /* Set once this tab is on its way out with storage already decided (reset, or reloading for another
-   tab's write); the visibilitychange flush must not put an older state back. */
+   tab's write); the visibilitychange and pagehide flushes must not put an older state back. */
 let stopSaving = false;
 
 function save() {
@@ -2029,14 +2030,15 @@ function save() {
 function queueSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    saveTimer = 0;
     save();
     if (storageBroken) showToast(t("storage_error"));
   }, 150);
-  if (storageBroken) showToast(t("storage_error"));
 }
 
 function flushSave() {
   clearTimeout(saveTimer);
+  saveTimer = 0;
   save();
 }
 
@@ -2052,8 +2054,11 @@ function maybeReload() {
     return;
   }
   externalWrite = false;
-  // No flush: reloading fires visibilitychange:hidden, and this tab's older state would land on top
-  // of the write it is about to pick up.
+  // A save still in the debounce is newer than the write about to be picked up, so it wins.
+  // Flushing always would put this tab's older copy back on top on every reload.
+  if (saveTimer) {
+    flushSave();
+  }
   stopSaving = true;
   location.reload();
 }
@@ -2553,11 +2558,7 @@ function checkBox(node, on, label) {
   node.classList.toggle("is-on", on);
   const box = node.querySelector(".mark__box");
   box.replaceChildren();
-  if (!on) return;
-  box.append(el("span", "ic ic--check"));
-  const alt = el("span", "ic-alt", "✓");
-  alt.setAttribute("aria-hidden", "true");
-  box.append(alt);
+  if (on) box.append(...iconPair("check"));
 }
 
 /* phKey === null closes the editor: the row goes back to its plain state. */
@@ -2632,17 +2633,36 @@ function renderPager() {
   byId("page-next").disabled = page >= pages;
 }
 
-function panelButton(icon, glyph, labelKey, act, disabled) {
+/* Fallback glyphs, keyed by icon name: shown when the icon hosts are unreachable. */
+const GLYPHS = {
+  archive: "▣",
+  bottom: "↓",
+  bulk: "☰",
+  check: "✓",
+  collapse: "−",
+  close: "←",
+  expand: "+",
+  "grip-horizontal": "⋯",
+  "grip-vertical": "⋮",
+  restore: "↺",
+  top: "↑",
+  trash: "✕",
+};
+
+function iconPair(icon) {
+  const alt = el("span", "ic-alt", GLYPHS[icon]);
+  alt.setAttribute("aria-hidden", "true");
+  return [el("span", `ic ic--${icon}`), alt];
+}
+
+function panelButton(icon, labelKey, act, disabled) {
   const button = el("button", "btn");
   button.type = "button";
   button.dataset.act = act;
   button.setAttribute("aria-label", t(labelKey));
   button.title = t(labelKey);
-  button.append(el("span", `ic ic--${icon}`));
-  const alt = el("span", "ic-alt", glyph);
-  alt.setAttribute("aria-hidden", "true");
-  button.append(alt);
   button.disabled = disabled;
+  button.append(...iconPair(icon));
   return button;
 }
 
@@ -2651,22 +2671,22 @@ function renderPanel() {
   const all = visibleChecklists();
   const collapsed = state.ui.panel.collapsed;
   const grip = panelButton(collapsed ? "grip-vertical" : "grip-horizontal",
-    collapsed ? "⋮" : "⋯", collapsed ? "panel_expand" : "panel_collapse", "panel-toggle", false);
+    collapsed ? "panel_expand" : "panel_collapse", "panel-toggle", false);
   grip.setAttribute("aria-expanded", String(!collapsed));
   const nodes = [grip];
   if (!collapsed) {
     if (bulk.kind === null) {
-      nodes.push(panelButton("expand", "+", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
-      nodes.push(panelButton("collapse", "−", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
+      nodes.push(panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
+      nodes.push(panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
     } else {
       const any = bulk.ids.length > 0;
-      const remove = panelButton("trash", "✕", "a_delete", "bulk-delete", !any);
+      const remove = panelButton("trash", "a_delete", "bulk-delete", !any);
       remove.classList.add("btn--danger");
       nodes.push(remove);
-      nodes.push(panelButton("archive", "▣", "a_archive", "bulk-archive", !any));
-      nodes.push(panelButton("top", "↑", "a_top", "bulk-top", !any));
-      nodes.push(panelButton("bottom", "↓", "a_bottom", "bulk-bottom", !any));
-      nodes.push(panelButton("close", "←", "a_cancel", "bulk-cancel", false));
+      nodes.push(panelButton("archive", "a_archive", "bulk-archive", !any));
+      nodes.push(panelButton("top", "a_top", "bulk-top", !any));
+      nodes.push(panelButton("bottom", "a_bottom", "bulk-bottom", !any));
+      nodes.push(panelButton("close", "a_cancel", "bulk-cancel", false));
     }
   }
   const panel = byId("panel");
@@ -2834,14 +2854,11 @@ function confirmModal(message, yesLabel, onYes) {
   });
 }
 
-function menuItem(icon, glyph, label, onClick, danger) {
+function menuItem(icon, label, onClick, danger) {
   const button = el("button", danger ? "menu-list__item btn--danger" : "menu-list__item");
   button.type = "button";
-  button.append(el("span", `ic ic--${icon}`));
-  const alt = el("span", "ic-alt", glyph);
-  alt.setAttribute("aria-hidden", "true");
   button.title = label;
-  button.append(alt, el("span", null, label));
+  button.append(...iconPair(icon), el("span", null, label));
   button.addEventListener("click", onClick);
   return button;
 }
@@ -2871,13 +2888,13 @@ function openEntityMenu(kind, id) {
   const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteEntity(kind, id)));
   const list = el("div", "menu-list");
   list.append(
-    menuItem("archive", "▣", t("a_archive"), askArchive),
-    menuItem("trash", "✕", t("a_delete"), askDelete, true),
+    menuItem("archive", t("a_archive"), askArchive),
+    menuItem("trash", t("a_delete"), askDelete, true),
     menuSep(),
-    menuItem("top", "↑", t("a_top"), run(() => moveTo(kind, [id], "top"))),
-    menuItem("bottom", "↓", t("a_bottom"), run(() => moveTo(kind, [id], "bottom"))),
+    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top"))),
+    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom"))),
     menuSep(),
-    menuItem("bulk", "☰", t("bulk"), run(() => startBulk(kind, id))),
+    menuItem("bulk", t("bulk"), run(() => startBulk(kind, id))),
   );
   openModal({ title: text, body: list });
 }
@@ -3081,12 +3098,10 @@ function openArchive() {
   const host = el("div", "sheet-body");
   const handle = openModal({ title: t("archive_title"), sheet: true, body: host, focusBack: byId("btn-settings") });
   const selected = () => [...view.sel];
-  const act = (icon, glyph, label, cls, onClick, countable) => {
+  const act = (icon, label, cls, onClick, countable) => {
     const button = el("button", `btn btn--pill ${cls}`);
     button.type = "button";
-    const alt = el("span", "ic-alt", glyph);
-    alt.setAttribute("aria-hidden", "true");
-    button.append(el("span", `ic ic--${icon}`), alt, el("span", null, label));
+    button.append(...iconPair(icon), el("span", null, label));
     if (countable) button.dataset.count = "1";
     button.addEventListener("click", onClick);
     return button;
@@ -3122,8 +3137,8 @@ function openArchive() {
     host.append(list);
     const actions = el("div", "modal__actions");
     actions.append(
-      act("close", "✕", t("a_cancel"), "", () => handle.close()),
-      act("restore", "↺", t("a_restore"), "", () => {
+      act("close", t("a_cancel"), "", () => handle.close()),
+      act("restore", t("a_restore"), "", () => {
         const ids = selected();
         if (!ids.length) return;
         if (view.tab === "lists") restoreLists(ids);
@@ -3132,7 +3147,7 @@ function openArchive() {
         commit();
         paint();
       }, true),
-      act("trash", "✕", t("a_delete"), "btn--danger", () => {
+      act("trash", t("a_delete"), "btn--danger", () => {
         const ids = selected();
         if (!ids.length) return;
         const kind = view.tab === "lists" ? "list" : "item";
@@ -3419,18 +3434,24 @@ function collapsedHeadAt(y) {
   return null;
 }
 
+// The clone sits at `position: fixed; top: 0`, so its centre is pure arithmetic: no layout read.
 function cloneCenter() {
-  const rect = drag.clone.getBoundingClientRect();
-  return rect.top + rect.height / 2;
+  return drag.y - drag.dy + drag.cloneHalf;
 }
 
+/* All layout reads first, all writes after: interleaving them relayouts once per pass. */
 function retarget() {
-  const hovered = drag.kind === "item" ? collapsedHeadAt(cloneCenter()) : null;
+  const cy = cloneCenter();
+  const hovered = drag.kind === "item" ? collapsedHeadAt(cy) : null;
+  const container = targetContainer(drag.kind, cy);
+  const index = container && !hovered ? indexAt(container, cy) : drag.index;
+  moveClone();
   handleHover(hovered);
-  const container = targetContainer(drag.kind, cloneCenter());
-  if (!container) return;
+  if (!container || (drag.container === container && drag.index === index)) {
+    return;
+  }
   drag.container = container;
-  drag.index = indexAt(container, cloneCenter());
+  drag.index = index;
   placeGap();
 }
 
@@ -3515,6 +3536,8 @@ function startDrag() {
     dy: hit.y0 - rect.top,
     x: hit.x0,
     y: hit.y0,
+    cloneHalf: clone.offsetHeight / 2,
+    raf: 0,
     container: rows[0].parentElement,
     index: 0,
     hoverId: null,
@@ -3526,7 +3549,6 @@ function startDrag() {
   }
   document.documentElement.classList.add("is-dragging");
   document.getSelection()?.removeAllRanges();
-  moveClone();
   retarget();
   startAutoScroll();
 }
@@ -3547,7 +3569,12 @@ function updateDrag(x, y) {
   if (!drag) return;
   drag.x = x;
   drag.y = y;
-  moveClone();
+  if (!drag.raf) drag.raf = requestAnimationFrame(dragFrame);
+}
+
+function dragFrame() {
+  if (!drag) return;
+  drag.raf = 0;
   retarget();
 }
 
@@ -3585,8 +3612,14 @@ function dropItemsInto(ids, checklistId, refId) {
 
 function endDrag(apply) {
   const current = drag;
-  drag = null;
   if (!current) return;
+  if (current.raf) {
+    // The drop must land where the last pointermove pointed, not where the previous frame said.
+    cancelAnimationFrame(current.raf);
+    current.raf = 0;
+    retarget();
+  }
+  drag = null;
   document.documentElement.classList.remove("is-dragging");
   clearTimeout(current.hoverTimer);
   const kind = current.kind;
@@ -4085,6 +4118,12 @@ function bind() {
   addEventListener("resize", onResize);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
+      flushSave();
+    }
+  });
+  // Hidden already flushed; only a still-pending save is worth serializing twice on close.
+  addEventListener("pagehide", () => {
+    if (saveTimer) {
       flushSave();
     }
   });
