@@ -1978,7 +1978,7 @@ function defaults() {
       page: 1,
       panel: { side: "right", topPct: 0.35, collapsed: false },
       editing: null,
-      bulk: { kind: null, checklistId: null, ids: [] },
+      bulk: { kind: null, ids: [] },
     },
   };
 }
@@ -2024,7 +2024,7 @@ function normalize(data) {
   out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
   out.ui.panel.collapsed = out.ui.panel.collapsed === true;
   if (!validBulk(out.ui.bulk)) {
-    out.ui.bulk = { kind: null, checklistId: null, ids: [] };
+    out.ui.bulk = { kind: null, ids: [] };
   }
   if (!["system", "dark", "light"].includes(out.ui.theme)) {
     out.ui.theme = "system";
@@ -2217,7 +2217,7 @@ function removeEntity(kind, id) {
   } else {
     state.items = state.items.filter((i) => i.id !== id);
   }
-  unselect(id);
+  pruneSelection();
 }
 
 function commitText(kind, id, raw) {
@@ -2267,8 +2267,8 @@ function archiveMany(kind, ids) {
   const archive = kind === "list" ? archiveChecklistQuiet : archiveItemQuiet;
   for (const id of ids) {
     archive(id);
-    unselect(id);
   }
+  pruneSelection();
   commit();
   showToast(t("toast_archived"));
 }
@@ -2333,36 +2333,37 @@ function setExpandedAll(open) {
 
 /* ---------- bulk ---------- */
 
-function bulkOwner(kind, id) {
-  return kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
-}
-
-/* An empty id list is no selection: kind and owner go with it. */
-function setBulk(kind, checklistId, ids) {
-  const open = ids.length > 0;
-  state.ui.bulk = { kind: open ? kind : null, checklistId: open ? checklistId : null, ids };
+/* An empty id list is no selection: kind goes with it. */
+function setBulk(kind, ids) {
+  state.ui.bulk = { kind: ids.length > 0 ? kind : null, ids };
 }
 
 function startBulk(kind, id) {
-  setBulk(kind, bulkOwner(kind, id), [id]);
+  setBulk(kind, [id]);
   state.ui.editing = null;
   state.ui.panel.collapsed = false;
   commit();
 }
 
 function cancelBulk() {
-  setBulk(null, null, []);
+  setBulk(null, []);
   commit();
 }
 
-function unselect(id) {
+/* A picked row that is gone — deleted or archived — leaves the selection; the rest survives. */
+function pruneSelection() {
   const bulk = state.ui.bulk;
-  // The checklist that owns the selection is gone; the picked ids went with it.
-  if (bulk.checklistId === id) {
-    setBulk(null, null, []);
-    return;
-  }
-  setBulk(bulk.kind, bulk.checklistId, bulk.ids.filter((x) => x !== id));
+  if (!bulk.ids.length) return;
+  const find = bulk.kind === "list" ? findList : findItem;
+  setBulk(bulk.kind, bulk.ids.filter((id) => {
+    const row = find(id);
+    return Boolean(row) && !row.archived;
+  }));
+}
+
+/* Items live in one list each: a selection spread over lists has no single top or bottom. */
+function spansLists(bulk) {
+  return bulk.kind === "item" && new Set(bulk.ids.map((id) => (findItem(id) ?? {}).checklistId)).size > 1;
 }
 
 function togglePick(kind, id) {
@@ -2373,7 +2374,7 @@ function togglePick(kind, id) {
   }
   const ids = inBulk ? bulk.ids : [];
   const picked = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
-  setBulk(kind, inBulk ? bulk.checklistId : bulkOwner(kind, id), picked);
+  setBulk(kind, picked);
   // Inside a running selection only this row and the panel change; starting or ending one repaints every row.
   if (inBulk && state.ui.bulk.kind === kind) {
     queueSave();
@@ -2620,7 +2621,7 @@ function paintItem(node, item) {
   labelNode(node.querySelector(".act--menu"), "a_menu");
   const bulk = state.ui.bulk;
   const pick = node.querySelector(".mark--bulk");
-  if (bulk.kind === "item" && bulk.checklistId === item.checklistId) {
+  if (bulk.kind === "item") {
     check.hidden = true;
     pick.hidden = false;
     checkBox(pick, bulk.ids.includes(item.id), item.text || t("new_item_ph"));
@@ -2713,9 +2714,10 @@ function renderPanel() {
         remove,
         panelButton("archive", "a_archive", "bulk-archive", !any),
       ]));
+      const mixed = spansLists(bulk);
       nodes.push(panelSeparator(), panelGroup("panel_group_move", [
-        panelButton("top", "a_top", "bulk-top", !any),
-        panelButton("bottom", "a_bottom", "bulk-bottom", !any),
+        panelButton("top", "a_top", "bulk-top", !any || mixed),
+        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed),
       ]));
       nodes.push(panelSeparator(), panelButton("close", "a_cancel", "bulk-cancel", false));
     }
@@ -3643,11 +3645,6 @@ function dropItemsInto(ids, checklistId, refId) {
   state.items = moveGroup(state.items, ids, index);
   const target = findList(checklistId);
   if (target) target.expanded = true;
-  const bulk = state.ui.bulk;
-  if (bulk.kind === "item" && ids.some((x) => bulk.ids.includes(x))) {
-    // A bulk drag moves the whole selection, so it is in the destination list from now on.
-    bulk.checklistId = checklistId;
-  }
 }
 
 function endDrag(apply) {
