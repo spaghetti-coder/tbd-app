@@ -2701,12 +2701,11 @@ function renderPanel() {
   grip.setAttribute("aria-expanded", String(!collapsed));
   const nodes = [grip];
   if (!collapsed) {
-    if (bulk.kind === null) {
-      nodes.push(panelSeparator(), panelGroup("panel_group_lists", [
-        panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)),
-        panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)),
-      ]));
-    } else {
+    nodes.push(panelSeparator(), panelGroup("panel_group_lists", [
+      panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)),
+      panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)),
+    ]));
+    if (bulk.kind !== null) {
       const any = bulk.ids.length > 0;
       const remove = panelButton("trash", "a_delete", "bulk-delete", !any);
       remove.classList.add("btn--danger");
