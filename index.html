@@ -562,6 +562,20 @@
     width: 26px;
   }
 
+  .panel__group {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .panel__sep {
+    background: var(--line);
+    flex-shrink: 0;
+    height: 1px;
+    margin: 2px 8px;
+  }
+
   .panel.is-dragging {
     transition: none;
   }
@@ -991,7 +1005,7 @@
   </nav>
 </main>
 
-<aside class="panel is-hidden" id="panel"></aside>
+<aside class="panel is-hidden" id="panel" role="toolbar" aria-orientation="vertical"></aside>
 <div id="layer"></div>
 <p class="banner" id="banner" role="status" hidden></p>
 
@@ -1129,6 +1143,9 @@ const EN = {
   collapse_all: "Collapse all",
   panel_collapse: "Collapse panel",
   panel_expand: "Expand panel",
+  panel_group_lists: "Lists",
+  panel_group_remove: "Remove",
+  panel_group_move: "Move",
   a_archive: "Archive",
   a_delete: "Delete",
   a_restore: "Restore",
@@ -1200,6 +1217,9 @@ const DICTS = {
     collapse_all: "Свернуть все",
     panel_collapse: "Свернуть панель",
     panel_expand: "Развернуть панель",
+    panel_group_lists: "Списки",
+    panel_group_remove: "Удалить",
+    panel_group_move: "Переместить",
     a_archive: "В архив",
     a_delete: "Удалить",
     a_restore: "Восстановить",
@@ -1268,6 +1288,9 @@ const DICTS = {
     collapse_all: "Сгъни всички",
     panel_collapse: "Сгъни панела",
     panel_expand: "Разгъни панела",
+    panel_group_lists: "Списъци",
+    panel_group_remove: "Премахване",
+    panel_group_move: "Преместване",
     a_archive: "Архивирай",
     a_delete: "Изтрий",
     a_restore: "Възстанови",
@@ -1336,6 +1359,9 @@ const DICTS = {
     collapse_all: "Plegar todo",
     panel_collapse: "Contraer panel",
     panel_expand: "Expandir panel",
+    panel_group_lists: "Listas",
+    panel_group_remove: "Quitar",
+    panel_group_move: "Mover",
     a_archive: "Archivar",
     a_delete: "Eliminar",
     a_restore: "Restaurar",
@@ -1404,6 +1430,9 @@ const DICTS = {
     collapse_all: "Tout replier",
     panel_collapse: "Replier le panneau",
     panel_expand: "Déplier le panneau",
+    panel_group_lists: "Listes",
+    panel_group_remove: "Supprimer",
+    panel_group_move: "Déplacer",
     a_archive: "Archiver",
     a_delete: "Supprimer",
     a_restore: "Restaurer",
@@ -1472,6 +1501,9 @@ const DICTS = {
     collapse_all: "Închide tot",
     panel_collapse: "Restrânge panoul",
     panel_expand: "Extinde panoul",
+    panel_group_lists: "Liste",
+    panel_group_remove: "Eliminare",
+    panel_group_move: "Mutare",
     a_archive: "Arhivează",
     a_delete: "Șterge",
     a_restore: "Restaurează",
@@ -1540,6 +1572,9 @@ const DICTS = {
     collapse_all: "全部折叠",
     panel_collapse: "折叠面板",
     panel_expand: "展开面板",
+    panel_group_lists: "列表",
+    panel_group_remove: "移除",
+    panel_group_move: "移动",
     a_archive: "归档",
     a_delete: "删除",
     a_restore: "恢复",
@@ -1608,6 +1643,9 @@ const DICTS = {
     collapse_all: "すべて閉じる",
     panel_collapse: "パネルを閉じる",
     panel_expand: "パネルを開く",
+    panel_group_lists: "リスト",
+    panel_group_remove: "削除",
+    panel_group_move: "移動",
     a_archive: "アーカイブ",
     a_delete: "削除",
     a_restore: "復元",
@@ -1676,6 +1714,9 @@ const DICTS = {
     collapse_all: "Fermi ĉiujn",
     panel_collapse: "Fermi la panelon",
     panel_expand: "Malfermi la panelon",
+    panel_group_lists: "Listoj",
+    panel_group_remove: "Forigi",
+    panel_group_move: "Movi",
     a_archive: "Arkivi",
     a_delete: "Forigi",
     a_restore: "Restarigi",
@@ -1744,6 +1785,9 @@ const DICTS = {
     collapse_all: "Plegar toto",
     panel_collapse: "Plegar le panel",
     panel_expand: "Aperir le panel",
+    panel_group_lists: "Listas",
+    panel_group_remove: "Remover",
+    panel_group_move: "Mover",
     a_archive: "Archivar",
     a_delete: "Deler",
     a_restore: "Restaurar",
@@ -1812,6 +1856,9 @@ const DICTS = {
     collapse_all: "o pini e ale",
     panel_collapse: "o pini e ilo poka",
     panel_expand: "o open e ilo poka",
+    panel_group_lists: "lipu",
+    panel_group_remove: "weka",
+    panel_group_move: "tawa",
     a_archive: "o len",
     a_delete: "o weka",
     a_restore: "o kama sin",
@@ -2630,6 +2677,21 @@ function panelButton(icon, labelKey, act, disabled) {
   return button;
 }
 
+function panelSeparator() {
+  const sep = el("div", "panel__sep");
+  sep.setAttribute("role", "separator");
+  sep.setAttribute("aria-orientation", "horizontal");
+  return sep;
+}
+
+function panelGroup(labelKey, buttons) {
+  const group = el("div", "panel__group");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", t(labelKey));
+  group.append(...buttons);
+  return group;
+}
+
 function renderPanel() {
   const bulk = state.ui.bulk;
   const all = visibleChecklists();
@@ -2640,17 +2702,23 @@ function renderPanel() {
   const nodes = [grip];
   if (!collapsed) {
     if (bulk.kind === null) {
-      nodes.push(panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)));
-      nodes.push(panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)));
+      nodes.push(panelSeparator(), panelGroup("panel_group_lists", [
+        panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)),
+        panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)),
+      ]));
     } else {
       const any = bulk.ids.length > 0;
       const remove = panelButton("trash", "a_delete", "bulk-delete", !any);
       remove.classList.add("btn--danger");
-      nodes.push(remove);
-      nodes.push(panelButton("archive", "a_archive", "bulk-archive", !any));
-      nodes.push(panelButton("top", "a_top", "bulk-top", !any));
-      nodes.push(panelButton("bottom", "a_bottom", "bulk-bottom", !any));
-      nodes.push(panelButton("close", "a_cancel", "bulk-cancel", false));
+      nodes.push(panelSeparator(), panelGroup("panel_group_remove", [
+        remove,
+        panelButton("archive", "a_archive", "bulk-archive", !any),
+      ]));
+      nodes.push(panelSeparator(), panelGroup("panel_group_move", [
+        panelButton("top", "a_top", "bulk-top", !any),
+        panelButton("bottom", "a_bottom", "bulk-bottom", !any),
+      ]));
+      nodes.push(panelSeparator(), panelButton("close", "a_cancel", "bulk-cancel", false));
     }
   }
   const panel = byId("panel");
