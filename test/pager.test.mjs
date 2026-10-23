@@ -15,6 +15,7 @@ runInContext(
     "function clamp(value, low, high) { return Math.min(Math.max(value, low), high); }",
     "function t(key, vars) { return `${key} ${vars.n}/${vars.m}`; }",
     "function visibleChecklists() { return state.checklists; }",
+    "const document = { documentElement: { style: { setProperty() {} } } };",
     slice("pageCount"),
     slice("renderPager"),
     "this.render = (count, pageSize, page) => {",

@@ -15,13 +15,14 @@
     --surface-2: #eceef2;
     --surface-3: #e0e3e9;
     --text: #12151a;
-    --muted: #767e8c;
+    --muted: #687080;
     --line: #e1e4ea;
     --accent: #4a5cff;
     --accent-soft: rgb(74 92 255 / 0.14);
     --on-accent: #fff;
     --danger: #d1453b;
     --shadow: 0 1px 2px rgb(16 20 28 / 0.07), 0 12px 32px rgb(16 20 28 / 0.10);
+    --shadow-drag: 0 2px 6px rgb(16 20 28 / 0.14), 0 18px 44px rgb(16 20 28 / 0.22);
     --gutter: clamp(12px, 4vw, 20px);
     --wrap: 720px;
     --topbar-h: calc(56px + env(safe-area-inset-top));
@@ -57,6 +58,7 @@
     --on-accent: #0e1116;
     --danger: #f0776c;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
+    --shadow-drag: 0 2px 6px rgb(0 0 0 / 0.55), 0 20px 48px rgb(0 0 0 / 0.6);
 
     color-scheme: dark;
   }
@@ -488,7 +490,7 @@
   }
 
   .drag-clone > * {
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-drag);
     margin: 0;
   }
 
@@ -804,20 +806,45 @@
   }
 
   .banner {
+    align-items: center;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--r);
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--pager-h, 0px));
     box-shadow: var(--shadow);
     color: var(--muted);
+    display: flex;
     font-size: 14px;
+    gap: 10px;
     left: 50%;
     max-width: min(460px, calc(100vw - 24px));
     padding: 12px 14px;
     position: fixed;
-    text-align: center;
     transform: translateX(-50%);
+    transition: opacity var(--dur) ease;
     z-index: 45;
+  }
+
+  .banner__text {
+    flex: 1;
+    text-align: start;
+  }
+
+  .banner__close {
+    color: var(--muted);
+    flex: none;
+    height: 32px;
+    width: 32px;
+  }
+
+  /* The live region stays in the a11y tree for good: the fade and the button come and go, the region does not. */
+  .banner:not(.is-shown) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .banner:not(.is-shown) .banner__close {
+    visibility: hidden;
   }
 
   .btn--wide {
@@ -1024,7 +1051,10 @@
 
 <aside class="panel is-hidden" id="panel" role="toolbar" aria-orientation="vertical"></aside>
 <div id="layer"></div>
-<p class="banner" id="banner" role="status" hidden></p>
+<div class="banner" id="banner" role="status">
+  <span class="banner__text" id="banner-text"></span>
+  <button class="banner__close" id="banner-close" type="button">&#10005;</button>
+</div>
 
 <template id="tpl-checklist">
   <section class="card">
@@ -1173,6 +1203,7 @@ const EN = {
   a_save: "Save",
   a_ok: "OK",
   a_menu: "Menu",
+  a_dismiss: "Dismiss",
   set_theme: "Theme",
   theme_system: "System",
   theme_dark: "Dark",
@@ -1247,6 +1278,7 @@ const DICTS = {
     a_save: "Сохранить",
     a_ok: "Понятно",
     a_menu: "Меню",
+    a_dismiss: "Закрыть",
     set_theme: "Тема",
     theme_system: "Системная",
     theme_dark: "Тёмная",
@@ -1318,6 +1350,7 @@ const DICTS = {
     a_save: "Запази",
     a_ok: "Разбрано",
     a_menu: "Меню",
+    a_dismiss: "Затвори",
     set_theme: "Тема",
     theme_system: "Системна",
     theme_dark: "Тъмна",
@@ -1389,6 +1422,7 @@ const DICTS = {
     a_save: "Guardar",
     a_ok: "Entendido",
     a_menu: "Menú",
+    a_dismiss: "Cerrar",
     set_theme: "Tema",
     theme_system: "Sistema",
     theme_dark: "Oscuro",
@@ -1460,6 +1494,7 @@ const DICTS = {
     a_save: "Enregistrer",
     a_ok: "Compris",
     a_menu: "Menu",
+    a_dismiss: "Fermer",
     set_theme: "Thème",
     theme_system: "Système",
     theme_dark: "Sombre",
@@ -1531,6 +1566,7 @@ const DICTS = {
     a_save: "Salvează",
     a_ok: "Am înțeles",
     a_menu: "Meniu",
+    a_dismiss: "Închide",
     set_theme: "Temă",
     theme_system: "Sistem",
     theme_dark: "Întunecată",
@@ -1602,6 +1638,7 @@ const DICTS = {
     a_save: "保存",
     a_ok: "知道了",
     a_menu: "菜单",
+    a_dismiss: "关闭",
     set_theme: "主题",
     theme_system: "跟随系统",
     theme_dark: "深色",
@@ -1673,6 +1710,7 @@ const DICTS = {
     a_save: "保存",
     a_ok: "OK",
     a_menu: "メニュー",
+    a_dismiss: "閉じる",
     set_theme: "テーマ",
     theme_system: "システム",
     theme_dark: "ダーク",
@@ -1744,6 +1782,7 @@ const DICTS = {
     a_save: "Konservi",
     a_ok: "Bone",
     a_menu: "Menuo",
+    a_dismiss: "Fermi",
     set_theme: "Etoso",
     theme_system: "Sistemo",
     theme_dark: "Malhela",
@@ -1815,6 +1854,7 @@ const DICTS = {
     a_save: "Salvegar",
     a_ok: "Comprendite",
     a_menu: "Menu",
+    a_dismiss: "Seller",
     set_theme: "Thema",
     theme_system: "Systema",
     theme_dark: "Obscur",
@@ -1886,6 +1926,7 @@ const DICTS = {
     a_save: "o awen",
     a_ok: "sona",
     a_menu: "nasin mute",
+    a_dismiss: "o weka",
     set_theme: "kule",
     theme_system: "kule pi ilo sina",
     theme_dark: "pimeja",
@@ -2489,6 +2530,7 @@ function renderChrome() {
   labelNode(byId("btn-help"), "help");
   labelNode(byId("page-prev"), "prev_page");
   labelNode(byId("page-next"), "next_page");
+  labelNode(byId("banner-close"), "a_dismiss");
 }
 
 function renderLists() {
@@ -2654,6 +2696,7 @@ function renderPager() {
   const pages = pageCount(total);
   const pager = byId("pager");
   pager.hidden = state.ui.pageSize === "all" || pages <= 1;
+  document.documentElement.style.setProperty("--pager-h", pager.hidden ? "0px" : `${pager.offsetHeight}px`);
   if (pager.hidden) return;
   const page = clamp(state.ui.page, 1, pages);
   state.ui.page = page;
@@ -3264,14 +3307,18 @@ function openHelp() {
 
 let bannerTimer = 0;
 
+/* A fresh text node every call: the same message twice is only announced twice if the DOM really changed. */
 function showToast(text) {
-  const banner = byId("banner");
-  banner.textContent = text;
-  banner.hidden = false;
+  byId("banner-text").replaceChildren(document.createTextNode(text));
+  byId("banner").classList.add("is-shown");
   clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => {
-    banner.hidden = true;
-  }, 8000);
+  bannerTimer = setTimeout(hideToast, 5000);
+}
+
+function hideToast() {
+  clearTimeout(bannerTimer);
+  bannerTimer = 0;
+  byId("banner").classList.remove("is-shown");
 }
 
 /* ---------- row gestures: long-press drag + swipe ---------- */
@@ -3594,6 +3641,7 @@ function startDrag() {
   const source = hit.kind === "list" ? state.checklists : state.items;
   const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
   if (!rows.length) return;
+  navigator.vibrate?.(10);
   const rect = rows[0].getBoundingClientRect();
   const clone = el("div", "drag-clone");
   for (const row of rows) {
@@ -3640,7 +3688,7 @@ function gapPad(rows) {
 }
 
 function moveClone() {
-  drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px)`;
+  drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03) rotate(1.5deg)`;
 }
 
 function updateDrag(x, y) {
@@ -4154,6 +4202,7 @@ function bind() {
   byId("btn-add").addEventListener("click", addChecklist);
   byId("btn-settings").addEventListener("click", toggleSettings);
   byId("btn-help").addEventListener("click", openHelp);
+  byId("banner-close").addEventListener("click", hideToast);
   byId("page-prev").addEventListener("click", () => {
     state.ui.page -= 1;
     commit();
