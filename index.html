@@ -518,10 +518,15 @@
 
   .pager {
     align-items: center;
+    background: var(--bg);
+    bottom: max(0px, env(safe-area-inset-bottom));
     display: flex;
     gap: 12px;
     justify-content: center;
     margin-top: 14px;
+    padding-block: 10px;
+    position: sticky;
+    z-index: 3;
   }
 
   .pager__nav {
