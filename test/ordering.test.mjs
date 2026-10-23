@@ -29,6 +29,8 @@ const NAMES = [
   "archiveMany",
   "deleteMany",
   "actionMessage",
+  "bulkOwner",
+  "setBulk",
   "unselect",
   "togglePick",
   "startBulk",

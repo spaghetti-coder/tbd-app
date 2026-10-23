@@ -61,25 +61,6 @@
     color-scheme: dark;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root[data-theme="system"] {
-      --bg: #0e1116;
-      --surface: #171b21;
-      --surface-2: #22272f;
-      --surface-3: #2c323b;
-      --text: #e8eaf0;
-      --muted: #8b94a3;
-      --line: #262c35;
-      --accent: #8091ff;
-      --accent-soft: rgb(128 145 255 / 0.20);
-      --on-accent: #0e1116;
-      --danger: #f0776c;
-      --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
-
-      color-scheme: dark;
-    }
-  }
-
   [data-theme="light"] {
     color-scheme: light;
   }
@@ -293,17 +274,21 @@
     z-index: 2;
   }
 
-  .card__row {
+  .card__row,
+  .item__row {
     align-items: center;
     background: var(--surface);
-    border-radius: inherit;
     display: flex;
     gap: 2px;
-    min-height: 52px;
-    padding: 2px 4px 2px 6px;
     position: relative;
     transition: transform var(--dur) ease;
     z-index: 1;
+  }
+
+  .card__row {
+    border-radius: inherit;
+    min-height: 52px;
+    padding: 2px 4px 2px 6px;
   }
 
   .card.is-open > .card__head {
@@ -345,16 +330,9 @@
   }
 
   .item__row {
-    align-items: center;
-    background: var(--surface);
     border-radius: var(--r-sm);
-    display: flex;
-    gap: 2px;
     min-height: 44px;
     padding: 0 4px 0 6px;
-    position: relative;
-    transition: transform var(--dur) ease;
-    z-index: 1;
   }
 
   .item__text {
@@ -2020,6 +1998,7 @@ function load() {
 }
 
 const state = load();
+const dark = matchMedia("(prefers-color-scheme: dark)");
 let saveTimer = 0;
 
 /* Set once this tab is on its way out with storage already decided (reset, or reloading for another
@@ -2230,20 +2209,6 @@ function cancelEdit() {
   commit();
 }
 
-function archiveChecklist(id) {
-  archiveChecklistQuiet(id);
-  unselect(id);
-  commit();
-  showToast(t("toast_archived"));
-}
-
-function archiveItem(id) {
-  archiveItemQuiet(id);
-  unselect(id);
-  commit();
-  showToast(t("toast_archived"));
-}
-
 function archiveItemQuiet(id) {
   const item = findItem(id);
   if (!item) return;
@@ -2271,12 +2236,6 @@ function archiveChecklistQuiet(id) {
       item.archivedBy = "list";
     }
   }
-}
-
-function deleteEntity(kind, id) {
-  removeEntity(kind, id);
-  commit();
-  showToast(t("toast_deleted"));
 }
 
 function deleteMany(kind, ids) {
@@ -2327,51 +2286,49 @@ function setExpandedAll(open) {
 
 /* ---------- bulk ---------- */
 
+function bulkOwner(kind, id) {
+  return kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
+}
+
+/* An empty id list is no selection: kind and owner go with it. */
+function setBulk(kind, checklistId, ids) {
+  const open = ids.length > 0;
+  state.ui.bulk = { kind: open ? kind : null, checklistId: open ? checklistId : null, ids };
+}
+
 function startBulk(kind, id) {
-  const checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
-  state.ui.bulk = { kind, checklistId, ids: [id] };
+  setBulk(kind, bulkOwner(kind, id), [id]);
   state.ui.editing = null;
   state.ui.panel.collapsed = false;
   commit();
 }
 
 function cancelBulk() {
-  state.ui.bulk = { kind: null, checklistId: null, ids: [] };
+  setBulk(null, null, []);
   commit();
 }
 
 function unselect(id) {
   const bulk = state.ui.bulk;
+  // The checklist that owns the selection is gone; the picked ids went with it.
   if (bulk.checklistId === id) {
-    // The checklist that owns the selection is gone; the picked ids went with it.
-    bulk.kind = null;
-    bulk.checklistId = null;
-    bulk.ids = [];
+    setBulk(null, null, []);
     return;
   }
-  bulk.ids = bulk.ids.filter((x) => x !== id);
-  if (!bulk.ids.length && bulk.kind) {
-    bulk.kind = null;
-    bulk.checklistId = null;
-  }
+  setBulk(bulk.kind, bulk.checklistId, bulk.ids.filter((x) => x !== id));
 }
 
 function togglePick(kind, id) {
   const bulk = state.ui.bulk;
   const inBulk = bulk.kind === kind && bulk.ids.length > 0;
   if (bulk.kind !== kind) {
-    bulk.kind = kind;
-    bulk.checklistId = kind === "item" ? (findItem(id) ?? {}).checklistId ?? null : null;
-    bulk.ids = [];
     state.ui.panel.collapsed = false;
   }
-  bulk.ids = bulk.ids.includes(id) ? bulk.ids.filter((x) => x !== id) : [...bulk.ids, id];
-  if (!bulk.ids.length) {
-    bulk.kind = null;
-    bulk.checklistId = null;
-  }
+  const ids = inBulk ? bulk.ids : [];
+  const picked = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  setBulk(kind, inBulk ? bulk.checklistId : bulkOwner(kind, id), picked);
   // Inside a running selection only this row and the panel change; starting or ending one repaints every row.
-  if (inBulk && bulk.kind === kind) {
+  if (inBulk && state.ui.bulk.kind === kind) {
     queueSave();
     repaintRow(kind, id);
   } else {
@@ -2460,7 +2417,8 @@ function render() {
 
 function renderChrome() {
   document.documentElement.lang = langCode();
-  document.documentElement.dataset.theme = state.ui.theme;
+  const system = dark.matches ? "dark" : "light";
+  document.documentElement.dataset.theme = state.ui.theme === "system" ? system : state.ui.theme;
   labelNode(byId("btn-add"), "add_list");
   labelNode(byId("btn-settings"), "settings");
   labelNode(byId("btn-help"), "help");
@@ -2535,13 +2493,7 @@ function paintHead(node, cl, open) {
   labelNode(node.querySelector(".act--menu"), "a_menu");
   node.querySelector(".card__title").textContent = cl.title || t("new_list_ph");
   paintHeadBulk(node, cl);
-  const editing = state.ui.editing;
-  if (editing && editing.kind === "list" && editing.id === cl.id) {
-    paintEditor(node, cl.title, cl.title ? "edit_list_ph" : "new_list_ph");
-    needFocus = true;
-  } else {
-    paintEditor(node, cl.title, null);
-  }
+  paintRowEditor(node, "list", cl.id, cl.title);
 }
 
 function paintHeadBulk(node, cl) {
@@ -2567,6 +2519,16 @@ function checkBox(node, on, label) {
   const box = node.querySelector(".mark__box");
   box.replaceChildren();
   if (on) box.append(...iconPair("check"));
+}
+
+function paintRowEditor(node, kind, id, text) {
+  const editing = state.ui.editing;
+  if (editing && editing.kind === kind && editing.id === id) {
+    paintEditor(node, text, text ? `edit_${kind}_ph` : `new_${kind}_ph`);
+    needFocus = true;
+  } else {
+    paintEditor(node, text, null);
+  }
 }
 
 /* phKey === null closes the editor: the row goes back to its plain state. */
@@ -2619,13 +2581,7 @@ function paintItem(node, item) {
     check.hidden = false;
     pick.hidden = true;
   }
-  const editing = state.ui.editing;
-  if (editing && editing.kind === "item" && editing.id === item.id) {
-    paintEditor(node, item.text, item.text ? "edit_item_ph" : "new_item_ph");
-    needFocus = true;
-  } else {
-    paintEditor(node, item.text, null);
-  }
+  paintRowEditor(node, "item", item.id, item.text);
 }
 
 function renderPager() {
@@ -2837,8 +2793,12 @@ function openModal(opts) {
 function actionRow(actions) {
   const row = el("div", "modal__actions");
   for (const action of actions) {
-    const button = el("button", `btn btn--pill ${action.cls ?? ""}`, action.label);
+    const button = el("button", `btn btn--pill ${action.cls ?? ""}`);
     button.type = "button";
+    if (action.icon) button.append(...iconPair(action.icon));
+    button.append(el("span", null, action.label));
+    // data-count: the archive sheet enables these itself once something is picked.
+    if (action.count) button.dataset.count = "1";
     button.addEventListener("click", action.onClick);
     row.append(button);
   }
@@ -2880,10 +2840,7 @@ function actionMessage(kind, n, verb) {
 }
 
 function archiveOne(kind, id) {
-  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => {
-    if (kind === "list") archiveChecklist(id);
-    else archiveItem(id);
-  });
+  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => archiveMany(kind, [id]));
 }
 
 function openEntityMenu(kind, id) {
@@ -2893,7 +2850,7 @@ function openEntityMenu(kind, id) {
     fn();
   };
   const askArchive = run(() => archiveOne(kind, id));
-  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteEntity(kind, id)));
+  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteMany(kind, [id])));
   const list = el("div", "menu-list");
   list.append(
     menuItem("archive", t("a_archive"), askArchive),
@@ -3106,14 +3063,6 @@ function openArchive() {
   const host = el("div", "sheet-body");
   const handle = openModal({ title: t("archive_title"), sheet: true, body: host, focusBack: byId("btn-settings") });
   const selected = () => [...view.sel];
-  const act = (icon, label, cls, onClick, countable) => {
-    const button = el("button", `btn btn--pill ${cls}`);
-    button.type = "button";
-    button.append(...iconPair(icon), el("span", null, label));
-    if (countable) button.dataset.count = "1";
-    button.addEventListener("click", onClick);
-    return button;
-  };
   const paint = () => {
     const rows = view.tab === "lists" ? archivedLists() : archivedItems();
     host.replaceChildren();
@@ -3143,32 +3092,41 @@ function openArchive() {
       }));
     }
     host.append(list);
-    const actions = el("div", "modal__actions");
-    actions.append(
-      act("close", t("a_cancel"), "", () => handle.close()),
-      act("restore", t("a_restore"), "", () => {
-        const ids = selected();
-        if (!ids.length) return;
-        if (view.tab === "lists") restoreLists(ids);
-        else restoreItems(ids);
-        view.sel.clear();
-        commit();
-        paint();
-      }, true),
-      act("trash", t("a_delete"), "btn--danger", () => {
-        const ids = selected();
-        if (!ids.length) return;
-        const kind = view.tab === "lists" ? "list" : "item";
-        confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => {
-          deleteMany(kind, ids);
+    host.append(actionRow([
+      { icon: "close", label: t("a_cancel"), onClick: () => handle.close() },
+      {
+        icon: "restore",
+        label: t("a_restore"),
+        count: true,
+        onClick: () => {
+          const ids = selected();
+          if (!ids.length) return;
+          if (view.tab === "lists") restoreLists(ids);
+          else restoreItems(ids);
           view.sel.clear();
+          commit();
           paint();
-          const tab = usable(host.querySelector(".tabs__tab.is-active"));
-          if (tab) tab.focus({ preventScroll: true });
-        });
-      }, true),
-    );
-    host.append(actions);
+        },
+      },
+      {
+        icon: "trash",
+        label: t("a_delete"),
+        cls: "btn--danger",
+        count: true,
+        onClick: () => {
+          const ids = selected();
+          if (!ids.length) return;
+          const kind = view.tab === "lists" ? "list" : "item";
+          confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => {
+            deleteMany(kind, ids);
+            view.sel.clear();
+            paint();
+            const tab = usable(host.querySelector(".tabs__tab.is-active"));
+            if (tab) tab.focus({ preventScroll: true });
+          });
+        },
+      },
+    ]));
     paintActions();
   };
   const paintActions = () => {
@@ -3315,8 +3273,7 @@ function onRowUp() {
     suppressNextClick();
     finishSwipe();
   }
-  clearTimeout(gesture.timer);
-  gesture = null;
+  endGesture();
 }
 
 function endGesture() {
@@ -3610,11 +3567,9 @@ function dropItemsInto(ids, checklistId, refId) {
   const picked = new Set(ids);
   const group = state.items.filter((item) => picked.has(item.id));
   const rest = state.items.filter((item) => !picked.has(item.id));
-  let index = refId ? rest.findIndex((item) => item.id === refId) : -1;
-  if (index === -1) {
-    const lastPeer = [...rest].reverse().find((item) => item.checklistId === checklistId && !item.archived);
-    index = lastPeer ? rest.indexOf(lastPeer) + 1 : rest.length;
-  }
+  const live = rest.filter((item) => item.checklistId === checklistId && !item.archived);
+  const at = refId ? rest.findIndex((item) => item.id === refId) : -1;
+  const index = at === -1 ? joinIndex(rest, live, true) : at;
   for (const item of group) {
     item.checklistId = checklistId;
   }
@@ -3725,10 +3680,6 @@ function cssBottomInset() {
   return parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
 }
 
-function panelRoom(rect, width) {
-  return rect.left >= width + GESTURE.gap * 2;
-}
-
 // Vertical band the panel may occupy: below the sticky topbar, above the bottom safe area.
 function panelTopRange(height) {
   const min = Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom) + GESTURE.gap;
@@ -3769,7 +3720,7 @@ function panelFraction(top, base) {
 function panelX(side, width) {
   const margin = GESTURE.gap;
   const wrap = document.querySelector(".wrap").getBoundingClientRect();
-  if (panelRoom(wrap, width)) {
+  if (wrap.left >= width + GESTURE.gap * 2) {
     return side === "left" ? Math.round(wrap.left - width - margin) : Math.round(wrap.right + margin);
   }
   return side === "left"
@@ -4142,6 +4093,7 @@ function bind() {
   document.addEventListener("pointerdown", onDocumentDown, true);
   document.addEventListener("keydown", onKey);
   addEventListener("resize", onResize);
+  dark.addEventListener("change", render);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       flushSave();
