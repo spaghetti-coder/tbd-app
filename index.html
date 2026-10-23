@@ -636,6 +636,10 @@
     overflow-wrap: anywhere;
   }
 
+  .modal--sheet .modal__title {
+    text-align: center;
+  }
+
   .modal__body {
     color: var(--text);
     overflow-wrap: anywhere;
@@ -838,14 +842,22 @@
     width: auto;
   }
 
-  .help h3 {
-    font-size: 14px;
-    margin-block: 16px 6px;
-    text-transform: uppercase;
+  .help {
+    list-style: disc;
+    padding-inline-start: 22px;
   }
 
   .help li {
-    margin-bottom: 6px;
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .help li + li {
+    margin-top: 4px;
+  }
+
+  .help li::marker {
+    color: var(--muted);
   }
 
   /* Hover states only with a mouse pointer; touch uses :active below. */
@@ -3214,16 +3226,33 @@ function openArchive() {
 
 /* ---------- help ---------- */
 
+const HELP_TABS = [
+  { label: "help_m", lines: ["help_drag", "help_swipe_l", "help_swipe_r", "help_dbl", "help_menu", "help_full", "help_panel"] },
+  { label: "help_d", lines: ["help_edit_d", "help_full", "help_drag", "help_menu", "help_panel_all", "help_panel"] },
+];
+
 function openHelp() {
-  const body = el("div", "help");
-  const section = (title, lines) => {
-    body.append(el("h3", null, title));
-    const list = el("ul");
-    for (const line of lines) list.append(el("li", null, line));
-    body.append(list);
+  const bar = el("div", "tabs");
+  const list = el("ul", "help");
+  const buttons = [];
+  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
+  const show = (index) => {
+    buttons.forEach((button, i) => {
+      button.classList.toggle("is-active", i === index);
+      button.setAttribute("aria-pressed", String(i === index));
+    });
+    list.replaceChildren(...HELP_TABS[index].lines.map((key) => el("li", null, t(key))));
   };
-  section(t("help_m"), [t("help_drag"), t("help_swipe_l"), t("help_swipe_r"), t("help_dbl"), t("help_menu"), t("help_full"), t("help_panel")]);
-  section(t("help_d"), [t("help_edit_d"), t("help_full"), t("help_drag"), t("help_menu"), t("help_panel_all"), t("help_panel")]);
+  HELP_TABS.forEach((tab, index) => {
+    const button = el("button", "tabs__tab", t(tab.label));
+    button.type = "button";
+    button.addEventListener("click", () => show(index));
+    buttons.push(button);
+    bar.append(button);
+  });
+  const body = el("div", "sheet-body");
+  body.append(bar, list);
+  show(matchMedia("(hover: none)").matches ? 0 : 1);
   openModal({
     title: t("help"),
     sheet: true,
