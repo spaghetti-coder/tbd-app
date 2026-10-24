@@ -170,7 +170,7 @@
   .ic--grip-vertical { mask-image: var(--ic-grip-vertical, none); }
   .ic--grip-horizontal { mask-image: var(--ic-grip-horizontal, none); }
 
-  /* Fallback glyphs stay hidden until the icon hosts are confirmed reachable. */
+  /* Fallback glyphs. The document starts at .icons-off, so these show until a CDN answers. */
   .ic-alt {
     display: block;
     font-size: 18px;
@@ -2207,8 +2207,7 @@ function maybeReload() {
     return;
   }
   externalWrite = false;
-  // A save still in the debounce is newer than the write about to be picked up, so it wins.
-  // Flushing always would put this tab's older copy back on top on every reload.
+  // A pending save is newer than the other tab's write; flushing an old state would bury that write.
   if (saveTimer) {
     flushSave();
   }
@@ -2245,7 +2244,7 @@ function moveGroup(list, ids, index) {
   return rest;
 }
 
-// Where a row joins its peers: before the first one, after the last one, or at the end when there are none.
+/* With last: after the last peer; otherwise before the first; at the end when there are none. */
 function joinIndex(rest, peers, last) {
   if (!peers.length) {
     return rest.length;
@@ -2615,7 +2614,7 @@ function isMuted(items) {
   return items.length > 0 && items.every((i) => i.done);
 }
 
-/* Membership or order changed: the item nodes have to be rebuilt, not repainted. */
+/* True when the host already mirrors items 1:1; anything else needs a real rebuild. */
 function sameRows(host, items) {
   return host.children.length === items.length
     && [...host.children].every((child, index) => child.dataset.id === items[index].id);
@@ -2678,7 +2677,6 @@ function paintHeadBulk(node, cl) {
   checkBox(pick, bulk.ids.includes(cl.id), cl.title || t("new_list_ph"));
 }
 
-// Three marks use one box: the checklist pick, the item done mark and the item pick.
 function checkBox(node, on, label) {
   node.setAttribute("role", "checkbox");
   node.setAttribute("aria-checked", on ? "true" : "false");
@@ -2926,8 +2924,6 @@ function applyScrollTarget() {
 
 /* ---------- modal layer ---------- */
 
-/* One <dialog> per modal: the platform gives us the focus trap, the inert background, focus restore and the top layer. */
-
 function modalOpen() {
   return Boolean(document.querySelector("#layer dialog[open]"));
 }
@@ -2994,8 +2990,8 @@ function openModal(opts) {
   byId("layer").append(box);
   document.documentElement.classList.add("is-locked");
   box.showModal();
-  // Positioning runs after showModal: the scroll lock can move the viewport edge.
-  // Pickers and dropdowns are menus at every width; the rest keep their mobile sheets below the breakpoint.
+  /* Positioning runs after showModal: the scroll lock can move the viewport edge.
+     Pickers and dropdowns are menus at every width; the rest stay sheets below the breakpoint. */
   if (opts.anchor && (opts.picker || opts.dropdown || wide.matches)) {
     box.classList.add("modal--anchored");
     box.anchor = opts.anchor;
@@ -3032,7 +3028,7 @@ function positionAnchored() {
   }
 }
 
-// Popovers are transient: crossing the breakpoint closes them instead of re-anchoring them.
+// A sheet opened under the other breakpoint would be misplaced; closing beats re-anchoring it.
 function closePopovers() {
   for (const box of document.querySelectorAll("#layer dialog[open]")) {
     box.close();
@@ -3123,7 +3119,7 @@ function field(labelKey, control) {
   return row;
 }
 
-// Focus within a list of options: arrows step and stop at the ends, Home/End jump.
+// Next index for a nav key: arrows step and stop at the ends, Home/End jump.
 function optionKeyIndex(index, key, count) {
   if (key === "ArrowDown") {
     return Math.min(index + 1, count - 1);
@@ -3140,7 +3136,7 @@ function optionKeyIndex(index, key, count) {
   return index;
 }
 
-// The typed character sends the focus to the next label starting with it, wrapping past the end.
+// Next label after `from` starting with `char`, wrapping past the end; `from` when none.
 function prefixMatchIndex(labels, char, from) {
   const needle = char.normalize("NFC").toLowerCase();
   for (let step = 1; step <= labels.length; step += 1) {
@@ -3473,7 +3469,6 @@ function openHelp() {
   const bar = el("div", "tabs");
   const list = el("ul", "help");
   const buttons = [];
-  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
   const show = (index) => {
     buttons.forEach((button, i) => {
       button.classList.toggle("is-active", i === index);
@@ -3481,6 +3476,7 @@ function openHelp() {
     });
     list.replaceChildren(...HELP_TABS[index].lines.map((key) => el("li", null, t(key))));
   };
+  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
   HELP_TABS.forEach((tab, index) => {
     const button = el("button", "tabs__tab", t(tab.label));
     button.type = "button";
@@ -3759,7 +3755,7 @@ function cloneCenter() {
   return drag.y - drag.dy + drag.cloneHalf;
 }
 
-/* All layout reads first, all writes after: interleaving them relayouts once per pass. */
+/* Reads before writes: interleaving costs one relayout per pass. */
 function retarget() {
   const cy = cloneCenter();
   const hovered = drag.kind === "item" && !autoScrolling ? collapsedHeadAt(cy) : null;
@@ -4011,6 +4007,7 @@ document.addEventListener("touchmove", (event) => {
 
 let panelDrag = null;
 let panelGhost = null;
+/* Set during a panel drag and briefly after: the click that ends it must not open the menu. */
 let panelSuppress = false;
 
 function cssVarPx(name) {
@@ -4028,8 +4025,8 @@ function panelTopRange(height) {
   return [min, max];
 }
 
-// The pill as collapsed: the grip is always the first child, so the band the
-// drag anchor is scaled against never changes with the panel's real height.
+/* The pill as collapsed: the grip is always the first child, so the band the
+   drag anchor is scaled against never changes with the panel's real height. */
 function collapsedHeight() {
   const panel = byId("panel");
   const grip = panel.firstElementChild;
@@ -4042,8 +4039,8 @@ function collapsedHeight() {
     + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
 }
 
-// `pct` is a fraction of the collapsed band; a taller panel is clamped into its own band,
-// so the grip only moves when there is genuinely no room left for it.
+/* `pct` is a fraction of the collapsed band; a taller panel is clamped into its own band,
+   so the grip only moves when there is genuinely no room left for it. */
 function panelTop(pct, height, base) {
   const [min, baseMax] = panelTopRange(base);
   const [floor, ceiling] = panelTopRange(height);
@@ -4089,7 +4086,7 @@ function detached(desired, dock, wasDetached) {
   return wasDetached || Math.abs(desired - dock) >= GESTURE.detach;
 }
 
-// Switches only after the panel has moved 33% of the way from the dock it is on.
+// Switch docks only past 33% of the span from the current one.
 function sideFor(center, left, right, side) {
   const trigger = (right - left) * 0.33;
   if (side === "left") {
@@ -4305,8 +4302,8 @@ function onListDblClick(event) {
   if (row) startEdit("item", row.dataset.id);
 }
 
-// Set when Enter already committed: the browser still fires a trailing focusout for the
-// replaced input, and by then `editing` may point at the fresh row, whose text is empty.
+/* Set when Enter already committed: the browser still fires a trailing focusout for the
+   replaced input, and by then `editing` may point at the fresh row, whose text is empty. */
 let blurSuppress = false;
 
 function onListKeyDown(event) {
@@ -4326,7 +4323,6 @@ function onListKeyDown(event) {
       addItem(findItem(editing.id).checklistId);
     } else {
       const cl = findList(editing.id);
-      // A renamed checklist with items just closes; an empty one opens its first item.
       if (cl && withoutArchived(state.items, cl.id).length === 0) {
         addItem(cl.id);
       }
@@ -4400,7 +4396,7 @@ function bind() {
   lists.addEventListener("keydown", onListKeyDown);
   lists.addEventListener("focusout", onListBlur);
   lists.addEventListener("pointerdown", onRowDown);
-  // Long-press menu must not pop over a running gesture.
+  // No long-press menu over a running row gesture or drag.
   lists.addEventListener("contextmenu", (event) => {
     if (gesture || drag) {
       event.preventDefault();
@@ -4416,7 +4412,7 @@ function bind() {
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
   panel.addEventListener("pointerdown", onPanelDown);
-  // Long-press menu must not pop over a running drag.
+  // No long-press menu over a running panel drag.
   panel.addEventListener("contextmenu", (event) => {
     if (panelDrag) event.preventDefault();
   });
