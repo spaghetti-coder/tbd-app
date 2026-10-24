@@ -76,6 +76,11 @@
     margin: 0;
   }
 
+  /* The viewport edge stays put when a modal locks scrolling and the scrollbar goes away. */
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     min-height: 100dvh;
     padding-bottom: max(24px, env(safe-area-inset-bottom));
@@ -617,6 +622,19 @@
     background: rgb(8 10 14 / 0.5);
   }
 
+  /* The inline top/left set after showModal place the popup; the auto edges keep the base centering from fighting them. */
+  .modal--anchored {
+    bottom: auto;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    right: auto;
+  }
+
+  .modal--anchored::backdrop {
+    animation: none;
+    background: none;
+  }
+
   .modal--sheet {
     border-radius: 0;
     display: flex;
@@ -736,17 +754,10 @@
     white-space: nowrap;
   }
 
-  .sheet {
-    background: var(--surface);
+  .modal--dropdown {
     border: 1px solid var(--line);
-    border-radius: var(--r);
-    box-shadow: var(--shadow);
-    max-height: calc(100dvh - 16px);
-    overflow-y: auto;
     padding: 12px 14px 14px;
-    position: fixed;
     width: min(320px, calc(100vw - 16px));
-    z-index: 35;
   }
 
   .field {
@@ -817,6 +828,7 @@
     font-size: 14px;
     gap: 10px;
     left: 50%;
+    /* bottom is per breakpoint: above the pager on mobile, under the header on desktop. */
     max-width: min(460px, calc(100vw - 24px));
     padding: 12px 14px;
     position: fixed;
@@ -940,7 +952,11 @@
   }
 
   @media (width <= 560px) {
-    .modal:not(.modal--sheet) {
+    .banner {
+      bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--pager-h, 0px));
+    }
+
+    .modal:not(.modal--sheet, .modal--dropdown) {
       border-radius: var(--r);
       left: 0;
       max-width: none;
@@ -992,6 +1008,15 @@
 
     .modal--sheet .modal__actions {
       margin-top: 18px;
+    }
+
+    .modal--sheet.modal--anchored {
+      transform: none;
+    }
+
+    .banner {
+      bottom: auto;
+      top: calc(var(--topbar-h) + 8px);
     }
   }
 
@@ -2104,6 +2129,7 @@ function load() {
 
 const state = load();
 const dark = matchMedia("(prefers-color-scheme: dark)");
+const wide = matchMedia("(width > 560px)");
 let saveTimer = 0;
 
 /* Set once this tab is on its way out with storage already decided (reset, or reloading for another
@@ -2138,7 +2164,7 @@ function flushSave() {
 let externalWrite = false;
 
 function safeToReload() {
-  return !state.ui.editing && !gesture && !drag && !modalOpen() && !settingsOpen();
+  return !state.ui.editing && !gesture && !drag && !modalOpen();
 }
 
 function maybeReload() {
@@ -2879,15 +2905,14 @@ function closeModal() {
   }
 }
 
-function openModal(opts) {
-  const box = el("dialog", opts.sheet ? "modal modal--sheet" : "modal");
+function fillModal(box, opts) {
   const body = el("div", "modal__body");
   if (typeof opts.body === "string") {
     body.textContent = opts.body;
   } else if (opts.body) {
     body.append(opts.body);
   }
-  const label = opts.title ?? (typeof opts.body === "string" ? opts.body : null);
+  const label = opts.label ?? opts.title ?? (typeof opts.body === "string" ? opts.body : null);
   if (label) {
     box.setAttribute("aria-label", label);
   }
@@ -2895,11 +2920,23 @@ function openModal(opts) {
     box.append(el("h2", "modal__title", opts.title));
   }
   box.append(body);
+  return body;
+}
+
+function openModal(opts) {
+  let cls = "modal";
+  if (opts.sheet) {
+    cls = "modal modal--sheet";
+  } else if (opts.dropdown) {
+    cls = "modal modal--dropdown";
+  }
+  const box = el("dialog", cls);
+  const body = fillModal(box, opts);
   if (opts.actions && opts.actions.length) {
     box.append(actionRow(opts.actions));
   }
   // showModal remembers the focused element and restores it on close, so the trigger goes first.
-  (opts.focusBack ?? document.activeElement)?.focus({ preventScroll: true });
+  (opts.anchor ?? document.activeElement)?.focus({ preventScroll: true });
   box.addEventListener("click", (event) => {
     if (event.target === box) {
       closeModal();
@@ -2912,11 +2949,52 @@ function openModal(opts) {
     if (!modalOpen()) {
       document.documentElement.classList.remove("is-locked");
     }
+    if (opts.onClosed) {
+      opts.onClosed();
+    }
   });
   byId("layer").append(box);
   document.documentElement.classList.add("is-locked");
   box.showModal();
+  // Positioning runs after showModal: the scroll lock can move the viewport edge.
+  // A dropdown is a menu at every width; the rest keep their mobile sheets below the breakpoint.
+  if (opts.anchor && (opts.dropdown || wide.matches)) {
+    box.classList.add("modal--anchored");
+    box.anchor = opts.anchor;
+    positionPopup(box, opts.anchor);
+  }
   return { box, body, close: closeModal };
+}
+
+/* Dropdown placement: below the trigger, right-aligned to it; flips above when it would not fit below. */
+function anchoredBox(rect, width, height) {
+  const minLeft = 8 + cssVarPx("--safe-left");
+  const maxLeft = Math.max(minLeft, innerWidth - width - 8 - cssVarPx("--safe-right"));
+  const below = rect.bottom + 8;
+  const top = below + height <= innerHeight - 12 ? below : rect.top - 8 - height;
+  return {
+    top: Math.max(8, Math.min(top, innerHeight - height - 12)),
+    left: Math.round(clamp(rect.right - width, minLeft, maxLeft)),
+  };
+}
+
+function positionPopup(node, anchor) {
+  const pos = anchoredBox(anchor.getBoundingClientRect(), node.offsetWidth, node.offsetHeight);
+  node.style.top = `${pos.top}px`;
+  node.style.left = `${pos.left}px`;
+}
+
+function positionAnchored() {
+  for (const box of document.querySelectorAll("#layer dialog.modal--anchored[open]")) {
+    positionPopup(box, box.anchor);
+  }
+}
+
+// Popovers are transient: crossing the breakpoint closes them instead of re-anchoring them.
+function closePopovers() {
+  for (const box of document.querySelectorAll("#layer dialog[open]")) {
+    box.close();
+  }
 }
 
 function actionRow(actions) {
@@ -2934,8 +3012,9 @@ function actionRow(actions) {
   return row;
 }
 
-function confirmModal(message, yesLabel, onYes) {
+function confirmModal(message, yesLabel, onYes, anchor) {
   openModal({
+    anchor,
     body: message,
     actions: [
       { label: t("a_cancel"), onClick: closeModal },
@@ -2968,18 +3047,18 @@ function actionMessage(kind, n, verb) {
   return t(`c_${verb}_${kind}${n > 1 ? "s" : ""}`);
 }
 
-function archiveOne(kind, id) {
-  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => archiveMany(kind, [id]));
+function archiveOne(kind, id, anchor) {
+  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => archiveMany(kind, [id]), anchor);
 }
 
-function openEntityMenu(kind, id) {
+function openEntityMenu(kind, id, anchor) {
   const text = entityText(kind, id) || t(kind === "list" ? "new_list_ph" : "new_item_ph");
   const run = (fn) => () => {
     closeModal();
     fn();
   };
-  const askArchive = run(() => archiveOne(kind, id));
-  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteMany(kind, [id])));
+  const askArchive = run(() => archiveOne(kind, id, anchor));
+  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteMany(kind, [id]), anchor));
   const list = el("div", "menu-list");
   list.append(
     menuItem("archive", t("a_archive"), askArchive),
@@ -2990,23 +3069,10 @@ function openEntityMenu(kind, id) {
     menuSep(),
     menuItem("bulk", t("bulk"), run(() => startBulk(kind, id))),
   );
-  openModal({ title: text, body: list });
+  openModal({ title: text, body: list, anchor });
 }
 
 /* ---------- settings ---------- */
-
-let settingsSheet = null;
-
-function settingsOpen() {
-  return Boolean(settingsSheet);
-}
-
-function closeSettings() {
-  if (!settingsSheet) return;
-  settingsSheet.remove();
-  settingsSheet = null;
-  byId("btn-settings").setAttribute("aria-expanded", "false");
-}
 
 function field(labelKey, control) {
   const row = el("div", "field");
@@ -3054,23 +3120,10 @@ function segmentControl(name, value, pairs, onChange) {
   return box;
 }
 
-function positionSettings() {
-  if (!settingsSheet) return;
-  const rect = byId("btn-settings").getBoundingClientRect();
-  const width = settingsSheet.offsetWidth;
-  const height = settingsSheet.offsetHeight;
-  const minLeft = 8 + cssVarPx("--safe-left");
-  const maxLeft = Math.max(minLeft, innerWidth - width - 8 - cssVarPx("--safe-right"));
-  const top = Math.min(rect.bottom + 8, innerHeight - height - 12);
-  settingsSheet.style.top = `${Math.max(8, top)}px`;
-  settingsSheet.style.left = `${Math.round(clamp(rect.right - width, minLeft, maxLeft))}px`;
-}
-
 function openSettings() {
-  const sheet = el("div", "sheet");
-  sheet.id = "settings-sheet";
+  const body = el("div");
   const ui = state.ui;
-  sheet.append(
+  body.append(
     field("set_theme", selectControl(
       [["system", t("theme_system")], ["dark", t("theme_dark")], ["light", t("theme_light")]],
       ui.theme,
@@ -3084,8 +3137,10 @@ function openSettings() {
       ui.lang,
       (value) => {
         state.ui.lang = value;
-        openSettings();
         commit();
+        // Relabel in the new language: the dialog is rebuilt, not patched in place.
+        document.querySelector("#layer .modal--dropdown[open]")?.close();
+        openSettings();
       },
     )),
     field("set_page_size", selectControl(
@@ -3110,20 +3165,27 @@ function openSettings() {
   archive.type = "button";
   archive.append(el("span", "ic ic--archive"), el("span", null, t("archive_title")));
   archive.addEventListener("click", () => {
-    closeSettings();
+    closeModal();
     openArchive();
   });
-  sheet.append(archive);
-  document.body.append(sheet);
-  if (settingsSheet) settingsSheet.remove();
-  settingsSheet = sheet;
+  body.append(archive);
+  openModal({
+    dropdown: true,
+    label: t("settings"),
+    body,
+    anchor: byId("btn-settings"),
+    onClosed: () => byId("btn-settings").setAttribute("aria-expanded", "false"),
+  });
   byId("btn-settings").setAttribute("aria-expanded", "true");
-  positionSettings();
 }
 
 function toggleSettings() {
-  if (settingsOpen()) closeSettings();
-  else openSettings();
+  const open = document.querySelector("#layer .modal--dropdown[open]");
+  if (open) {
+    open.close();
+    return;
+  }
+  openSettings();
 }
 
 /* ---------- archive ---------- */
@@ -3190,7 +3252,18 @@ function archiveRow(text, on, onChange) {
 function openArchive() {
   const view = { tab: "lists", sel: new Set() };
   const host = el("div", "sheet-body");
-  const handle = openModal({ title: t("archive_title"), sheet: true, body: host, focusBack: byId("btn-settings") });
+  const handle = openModal({
+    title: t("archive_title"),
+    sheet: true,
+    body: host,
+    anchor: byId("btn-settings"),
+    // Archive takes the settings menu's place, so on desktop closing it gives the menu back.
+    onClosed: () => {
+      if (handle.box.classList.contains("modal--anchored") && wide.matches) {
+        openSettings();
+      }
+    },
+  });
   const selected = () => [...view.sel];
   const paint = () => {
     const rows = view.tab === "lists" ? archivedLists() : archivedItems();
@@ -3242,7 +3315,7 @@ function openArchive() {
         label: t("a_delete"),
         cls: "btn--danger",
         count: true,
-        onClick: () => {
+        onClick: (event) => {
           const ids = selected();
           if (!ids.length) return;
           const kind = view.tab === "lists" ? "list" : "item";
@@ -3252,7 +3325,7 @@ function openArchive() {
             paint();
             const tab = usable(host.querySelector(".tabs__tab.is-active"));
             if (tab) tab.focus({ preventScroll: true });
-          });
+          }, event.currentTarget);
         },
       },
     ]));
@@ -3300,7 +3373,7 @@ function openHelp() {
     title: t("help"),
     sheet: true,
     body,
-    focusBack: byId("btn-help"),
+    anchor: byId("btn-help"),
     actions: [{ label: t("a_ok"), cls: "btn--primary", onClick: closeModal }],
   });
 }
@@ -3470,7 +3543,7 @@ function finishSwipe() {
     startEdit(current.kind, current.id);
     return;
   }
-  archiveOne(current.kind, current.id);
+  archiveOne(current.kind, current.id, current.handle);
 }
 
 /* ---------- drag ---------- */
@@ -4009,7 +4082,7 @@ function commitEditNode(row) {
   commitText(editing.kind, editing.id, input.value);
 }
 
-function onRowAct(act, kind, id, row) {
+function onRowAct(act, kind, id, row, trigger) {
   if (act === "toggle") {
     const cl = findList(id);
     if (cl) {
@@ -4041,7 +4114,7 @@ function onRowAct(act, kind, id, row) {
     return;
   }
   if (act === "menu") {
-    openEntityMenu(kind, id);
+    openEntityMenu(kind, id, trigger);
     return;
   }
   if (act === "save") {
@@ -4049,7 +4122,7 @@ function onRowAct(act, kind, id, row) {
   }
 }
 
-function onPanelAct(act) {
+function onPanelAct(act, button) {
   const bulk = state.ui.bulk;
   if (act === "panel-toggle") {
     state.ui.panel.collapsed = !state.ui.panel.collapsed;
@@ -4082,13 +4155,13 @@ function onPanelAct(act) {
   if (act === "bulk-archive") {
     const kind = bulk.kind;
     const ids = [...bulk.ids];
-    confirmModal(actionMessage(kind, ids.length, "archive"), t("a_archive"), () => archiveMany(kind, ids));
+    confirmModal(actionMessage(kind, ids.length, "archive"), t("a_archive"), () => archiveMany(kind, ids), button);
     return;
   }
   if (act === "bulk-delete") {
     const kind = bulk.kind;
     const ids = [...bulk.ids];
-    confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => deleteMany(kind, ids));
+    confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => deleteMany(kind, ids), button);
   }
 }
 
@@ -4100,7 +4173,7 @@ function onListClick(event) {
   if (!button) return;
   const row = button.closest("[data-id]");
   if (!row) return;
-  onRowAct(button.dataset.act, row.dataset.kind, row.dataset.id, row);
+  onRowAct(button.dataset.act, row.dataset.kind, row.dataset.id, row, button);
 }
 
 function onListDblClick(event) {
@@ -4160,23 +4233,11 @@ function onListBlur(event) {
 function onPanelClick(event) {
   if (panelSuppress) return;
   const button = event.target.closest("[data-act]");
-  if (button) onPanelAct(button.dataset.act);
-}
-
-function onDocumentDown(event) {
-  if (!settingsOpen()) return;
-  if (event.target.closest && event.target.closest("#settings-sheet, #btn-settings")) {
-    return;
-  }
-  closeSettings();
+  if (button) onPanelAct(button.dataset.act, button);
 }
 
 function onKey(event) {
   if (event.key !== "Escape") {
-    return;
-  }
-  if (settingsOpen()) {
-    closeSettings();
     return;
   }
   if (drag) {
@@ -4194,7 +4255,7 @@ function onResize() {
     // No render(): a rebuild would destroy the focused editor, and mobile keyboards fire resize.
     updateOverflow(document.querySelectorAll("#lists [data-kind]"));
     positionPanel();
-    positionSettings();
+    positionAnchored();
   }, 120);
 }
 
@@ -4237,10 +4298,10 @@ function bind() {
   panel.addEventListener("contextmenu", (event) => {
     if (panelDrag) event.preventDefault();
   });
-  document.addEventListener("pointerdown", onDocumentDown, true);
   document.addEventListener("keydown", onKey);
   addEventListener("resize", onResize);
   dark.addEventListener("change", render);
+  wide.addEventListener("change", closePopovers);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") {
       flushSave();
