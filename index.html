@@ -133,7 +133,6 @@
   }
 
   input,
-  select,
   textarea {
     color: inherit;
     font: inherit;
@@ -649,6 +648,12 @@
     width: 100vw;
   }
 
+  .modal--picker {
+    border: 1px solid var(--line);
+    max-width: min(320px, calc(100vw - 16px));
+    padding: 6px;
+  }
+
   .modal__title {
     font-size: 18px;
     font-weight: 650;
@@ -716,6 +721,18 @@
     margin-block: 6px;
   }
 
+  .picker__option > :first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .picker__option[aria-selected="true"] {
+    color: var(--accent);
+  }
+
   .tabs {
     background: var(--surface-2);
     border-radius: 999px;
@@ -760,12 +777,18 @@
     width: min(320px, calc(100vw - 16px));
   }
 
-  .field {
+  /* One grid for the whole settings panel: labels share the first column, controls the second,
+     so every closed picker gets the same width. */
+  .fields {
     align-items: center;
     display: grid;
-    gap: 10px;
+    gap: 14px 10px;
     grid-template-columns: minmax(0, 1fr) auto;
     padding-block: 7px;
+  }
+
+  .field {
+    display: contents;
   }
 
   .field__label {
@@ -773,18 +796,29 @@
     font-size: 14px;
   }
 
-  .select {
+  .picker {
+    align-items: center;
     background: var(--surface-2);
-    border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: var(--r-sm);
+    display: inline-flex;
+    gap: 6px;
+    justify-content: space-between;
+    min-height: 40px;
+    padding: 6px 10px;
+  }
+
+  .picker > :first-child {
     min-width: 0;
-    padding: 6px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .seg {
     background: var(--surface-2);
     border-radius: 999px;
     display: inline-flex;
+    justify-self: end;
     min-width: 0;
     padding: 2px;
     position: relative;
@@ -863,6 +897,7 @@
     background: var(--surface-2);
     border-radius: var(--r-sm);
     gap: 10px;
+    grid-column: 1 / -1;
     height: auto;
     justify-content: flex-start;
     padding: 11px 14px;
@@ -956,7 +991,7 @@
       bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--pager-h, 0px));
     }
 
-    .modal:not(.modal--sheet, .modal--dropdown) {
+    .modal:not(.modal--sheet, .modal--dropdown, .modal--picker) {
       border-radius: var(--r);
       left: 0;
       max-width: none;
@@ -2736,6 +2771,7 @@ const GLYPHS = {
   archive: "▣",
   bottom: "↓",
   bulk: "☰",
+  "chevron-down": "⌄",
   check: "✓",
   collapse: "−",
   close: "←",
@@ -2927,6 +2963,8 @@ function openModal(opts) {
   let cls = "modal";
   if (opts.sheet) {
     cls = "modal modal--sheet";
+  } else if (opts.picker) {
+    cls = "modal modal--picker";
   } else if (opts.dropdown) {
     cls = "modal modal--dropdown";
   }
@@ -2957,8 +2995,8 @@ function openModal(opts) {
   document.documentElement.classList.add("is-locked");
   box.showModal();
   // Positioning runs after showModal: the scroll lock can move the viewport edge.
-  // A dropdown is a menu at every width; the rest keep their mobile sheets below the breakpoint.
-  if (opts.anchor && (opts.dropdown || wide.matches)) {
+  // Pickers and dropdowns are menus at every width; the rest keep their mobile sheets below the breakpoint.
+  if (opts.anchor && (opts.picker || opts.dropdown || wide.matches)) {
     box.classList.add("modal--anchored");
     box.anchor = opts.anchor;
     positionPopup(box, opts.anchor);
@@ -2966,20 +3004,24 @@ function openModal(opts) {
   return { box, body, close: closeModal };
 }
 
-/* Dropdown placement: below the trigger, right-aligned to it; flips above when it would not fit below. */
+/* Dropdown placement: below the trigger, right-aligned to it. A popup never drifts off its trigger —
+   when the list fits neither below nor above, it takes the roomier side and scrolls there. */
 function anchoredBox(rect, width, height) {
   const minLeft = 8 + cssVarPx("--safe-left");
   const maxLeft = Math.max(minLeft, innerWidth - width - 8 - cssVarPx("--safe-right"));
-  const below = rect.bottom + 8;
-  const top = below + height <= innerHeight - 12 ? below : rect.top - 8 - height;
+  const spaceBelow = innerHeight - rect.bottom - 20;
+  const spaceAbove = rect.top - 16;
+  const up = height > spaceBelow && (height <= spaceAbove || spaceAbove > spaceBelow);
   return {
-    top: Math.max(8, Math.min(top, innerHeight - height - 12)),
     left: Math.round(clamp(rect.right - width, minLeft, maxLeft)),
+    maxHeight: up ? spaceAbove : spaceBelow,
+    top: Math.max(8, up ? rect.top - 8 - height : rect.bottom + 8),
   };
 }
 
 function positionPopup(node, anchor) {
   const pos = anchoredBox(anchor.getBoundingClientRect(), node.offsetWidth, node.offsetHeight);
+  node.style.maxHeight = `${pos.maxHeight}px`;
   node.style.top = `${pos.top}px`;
   node.style.left = `${pos.left}px`;
 }
@@ -3076,31 +3118,103 @@ function openEntityMenu(kind, id, anchor) {
 
 function field(labelKey, control) {
   const row = el("div", "field");
-  const label = el("label", "field__label", t(labelKey));
-  if (control.tagName === "SELECT") {
-    const id = `f-${labelKey}`;
-    label.htmlFor = id;
-    control.id = id;
-  } else {
-    control.setAttribute("aria-label", t(labelKey));
-  }
-  row.append(label, control);
+  control.setAttribute("aria-label", t(labelKey));
+  row.append(el("span", "field__label", t(labelKey)), control);
   return row;
 }
 
-function selectControl(items, value, onChange) {
-  const select = el("select", "select");
-  for (const [val, label] of items) {
-    const option = document.createElement("option");
-    option.value = String(val);
-    option.textContent = label;
-    if (String(val) === String(value)) {
-      option.selected = true;
-    }
-    select.append(option);
+// Focus within a list of options: arrows step and stop at the ends, Home/End jump.
+function optionKeyIndex(index, key, count) {
+  if (key === "ArrowDown") {
+    return Math.min(index + 1, count - 1);
   }
-  select.addEventListener("change", () => onChange(select.value));
-  return select;
+  if (key === "ArrowUp") {
+    return Math.max(index - 1, 0);
+  }
+  if (key === "Home") {
+    return 0;
+  }
+  if (key === "End") {
+    return count - 1;
+  }
+  return index;
+}
+
+// The typed character sends the focus to the next label starting with it, wrapping past the end.
+function prefixMatchIndex(labels, char, from) {
+  const needle = char.normalize("NFC").toLowerCase();
+  for (let step = 1; step <= labels.length; step += 1) {
+    const index = (from + step) % labels.length;
+    if (labels[index].normalize("NFC").toLowerCase().startsWith(needle)) {
+      return index;
+    }
+  }
+  return from;
+}
+
+function openPicker(labelKey, items, value, onPick, anchor) {
+  const labels = items.map(([, text]) => String(text));
+  const selected = items.findIndex(([item]) => String(item) === String(value));
+  const rows = items.map(([item, text], index) => {
+    const row = el("button", "menu-list__item picker__option");
+    row.type = "button";
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(index === selected));
+    row.append(el("span", null, String(text)));
+    if (index === selected) {
+      row.append(...iconPair("check"));
+    }
+    row.addEventListener("click", () => {
+      handle.close();
+      onPick(item);
+    });
+    return row;
+  });
+  const list = el("div", "menu-list");
+  list.setAttribute("role", "listbox");
+  list.setAttribute("aria-label", t(labelKey));
+  list.append(...rows);
+  list.addEventListener("keydown", (event) => {
+    const from = rows.indexOf(document.activeElement);
+    if (from < 0 || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    const typed = event.key.length === 1 && event.key !== " ";
+    const next = typed ? prefixMatchIndex(labels, event.key, from) : optionKeyIndex(from, event.key, rows.length);
+    if (next === from) {
+      return;
+    }
+    event.preventDefault();
+    rows[next].focus();
+  });
+  const handle = openModal({
+    picker: true,
+    label: t(labelKey),
+    body: list,
+    anchor,
+    onClosed: () => anchor.setAttribute("aria-expanded", "false"),
+  });
+  anchor.setAttribute("aria-expanded", "true");
+  (rows[selected] ?? rows[0])?.focus();
+  return handle;
+}
+
+function pickerControl(labelKey, items, value, onChange) {
+  // A stored value that is no longer offered shows the first option instead of breaking the dialog.
+  const labelFor = (val) => String((items.find(([item]) => String(item) === String(val)) ?? items[0])[1]);
+  let current = value;
+  const trigger = el("button", "picker");
+  trigger.type = "button";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  const paint = () => trigger.replaceChildren(el("span", null, labelFor(current)), ...iconPair("chevron-down"));
+  trigger.addEventListener("click", () => openPicker(labelKey, items, current, (next) => {
+    current = next;
+    paint();
+    onChange(next);
+  }, trigger));
+  paint();
+  return trigger;
 }
 
 function segmentControl(name, value, pairs, onChange) {
@@ -3121,10 +3235,11 @@ function segmentControl(name, value, pairs, onChange) {
 }
 
 function openSettings() {
-  const body = el("div");
+  const body = el("div", "fields");
   const ui = state.ui;
   body.append(
-    field("set_theme", selectControl(
+    field("set_theme", pickerControl(
+      "set_theme",
       [["system", t("theme_system")], ["dark", t("theme_dark")], ["light", t("theme_light")]],
       ui.theme,
       (value) => {
@@ -3132,7 +3247,8 @@ function openSettings() {
         commit();
       },
     )),
-    field("set_lang", selectControl(
+    field("set_lang", pickerControl(
+      "set_lang",
       LANGUAGES.map(([code, label]) => [code, code === "auto" ? t("lang_auto") : label]),
       ui.lang,
       (value) => {
@@ -3143,7 +3259,8 @@ function openSettings() {
         openSettings();
       },
     )),
-    field("set_page_size", selectControl(
+    field("set_page_size", pickerControl(
+      "set_page_size",
       PAGE_SIZES.map((size) => [size, size === "all" ? t("page_all") : String(size)]),
       ui.pageSize,
       (value) => {
@@ -3174,7 +3291,12 @@ function openSettings() {
     label: t("settings"),
     body,
     anchor: byId("btn-settings"),
-    onClosed: () => byId("btn-settings").setAttribute("aria-expanded", "false"),
+    // A language change closes this dialog and immediately opens its replacement in the new language.
+    onClosed: () => {
+      if (!document.querySelector("#layer .modal--dropdown[open]")) {
+        byId("btn-settings").setAttribute("aria-expanded", "false");
+      }
+    },
   });
   byId("btn-settings").setAttribute("aria-expanded", "true");
 }

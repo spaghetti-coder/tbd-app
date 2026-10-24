@@ -1,5 +1,6 @@
 // Unit tests for anchored popover placement: below the trigger, flip above when it would not fit,
-// clamped into the viewport. The functions are sliced out of index.html and run in a VM (see html-source.mjs).
+// and stay attached to the trigger — scrolling instead of drifting off — when neither side holds it.
+// The functions are sliced out of index.html and run in a VM (see html-source.mjs).
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -32,7 +33,7 @@ const trigger = (top, bottom, left, right) => ({ top, bottom, left, right });
 
 test("with room below the popup hangs under the trigger, right-aligned to it", () => {
   const pos = box.anchoredBox(trigger(100, 140, 700, 740), 300, 200);
-  assert.deepEqual({ ...pos }, { top: 148, left: 440 });
+  assert.deepEqual({ ...pos }, { top: 148, left: 440, maxHeight: 740 });
 });
 
 test("a popup that would not fit below flips above the trigger", () => {
@@ -41,9 +42,16 @@ test("a popup that would not fit below flips above the trigger", () => {
   assert.equal(pos.top, 700 - 8 - 400);
 });
 
-test("a popup taller than every free edge parks below the viewport top", () => {
+test("a list taller than both free edges stays under its trigger and scrolls", () => {
   const pos = box.anchoredBox(trigger(400, 440, 700, 740), 300, env.innerHeight - 10);
-  assert.equal(pos.top, 8);
+  assert.equal(pos.top, 448, "starts right below the trigger");
+  assert.equal(pos.top + pos.maxHeight, env.innerHeight - 12, "reaches the bottom margin");
+});
+
+test("a too-tall list with room above hangs on the trigger's top edge instead", () => {
+  const pos = box.anchoredBox(trigger(700, 740, 700, 740), 300, env.innerHeight - 100);
+  assert.equal(pos.top, 8, "clamped to the top edge");
+  assert.equal(pos.top + pos.maxHeight, 700 - 8, "its bottom edge touches the trigger");
 });
 
 test("left stays clear of the left safe area", () => {
