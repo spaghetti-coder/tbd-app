@@ -3866,16 +3866,15 @@ function startDrag() {
   const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
   if (!rows.length) return;
   navigator.vibrate?.(10);
-  const rect = rows[0].getBoundingClientRect();
+  // The grab offset comes from the ghosted head itself: a card rect drifts once the sticky head parks under the topbar.
+  const rect = hit.handle.getBoundingClientRect();
   const clone = el("div", "drag-clone");
   for (const row of rows) {
-    const copy = row.cloneNode(true);
-    copy.style.width = `${row.offsetWidth}px`;
-    clone.append(copy);
+    clone.append(dragCopy(row));
   }
   document.body.append(clone);
   const gap = el("div", "drop-gap");
-  gap.style.height = `${rows.reduce((sum, row) => sum + row.offsetHeight, gapPad(rows))}px`;
+  gap.style.height = `${clone.offsetHeight + gapPad(rows)}px`;
   rows[0].before(gap);
   drag = {
     kind: hit.kind,
@@ -3901,6 +3900,17 @@ function startDrag() {
   document.getSelection()?.removeAllRanges();
   retarget();
   startAutoScroll();
+}
+
+// A list drags as a closed card: a tall ghost lets the sticky head slip and aims far below the finger.
+function dragCopy(row) {
+  const copy = row.cloneNode(true);
+  copy.style.width = `${row.offsetWidth}px`;
+  if (copy.classList.contains("card")) {
+    copy.classList.remove("is-open");
+    copy.querySelector(".card__body").remove();
+  }
+  return copy;
 }
 
 function gapPad(rows) {
