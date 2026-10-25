@@ -197,7 +197,8 @@
     width: 40px;
   }
 
-  .btn:disabled {
+  .btn:disabled,
+  .menu-list__item:disabled {
     color: var(--muted);
     opacity: 0.4;
     pointer-events: none;
@@ -2272,6 +2273,15 @@ function joinIndex(rest, peers, last) {
   return last ? rest.indexOf(peers.at(-1)) + 1 : rest.indexOf(peers[0]);
 }
 
+/* True when moving this group to `where` would leave its visible siblings in the same order. */
+function atEdge(kind, ids, where) {
+  const peers = kind === "list"
+    ? visibleChecklists()
+    : withoutArchived(state.items, (findItem(ids[0]) ?? {}).checklistId);
+  const moved = moveGroup(peers, ids, where === "top" ? 0 : peers.length);
+  return moved.every((row, index) => row.id === peers[index].id);
+}
+
 function withoutArchived(items, checklistId) {
   return items.filter((i) => i.checklistId === checklistId && !i.archived);
 }
@@ -2856,8 +2866,8 @@ function renderPanel() {
       ]));
       const mixed = spansLists(bulk);
       nodes.push(panelSeparator(), panelGroup("panel_group_move", [
-        panelButton("top", "a_top", "bulk-top", !any || mixed),
-        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed),
+        panelButton("top", "a_top", "bulk-top", !any || mixed || atEdge(bulk.kind, bulk.ids, "top")),
+        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed || atEdge(bulk.kind, bulk.ids, "bottom")),
       ]));
       nodes.push(panelSeparator(), panelButton("close", "a_cancel", "bulk-cancel", false));
     }
@@ -3088,10 +3098,11 @@ function confirmModal(message, yesLabel, onYes, anchor) {
   });
 }
 
-function menuItem(icon, label, onClick, danger) {
+function menuItem(icon, label, onClick, danger, disabled = false) {
   const button = el("button", danger ? "menu-list__item btn--danger" : "menu-list__item");
   button.type = "button";
   button.title = label;
+  button.disabled = disabled;
   button.append(...iconPair(icon), el("span", null, label));
   button.addEventListener("click", onClick);
   return button;
@@ -3122,8 +3133,8 @@ function openEntityMenu(kind, id, anchor) {
     menuItem("archive", t("a_archive"), askArchive),
     menuItem("trash", t("a_delete"), askDelete, true),
     menuSep(),
-    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top"))),
-    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom"))),
+    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top")), false, atEdge(kind, [id], "top")),
+    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom")), false, atEdge(kind, [id], "bottom")),
     menuSep(),
     menuItem("bulk", t("bulk"), run(() => startBulk(kind, id))),
   );

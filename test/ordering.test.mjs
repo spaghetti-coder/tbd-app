@@ -12,6 +12,7 @@ const NAMES = [
   "normalize",
   "moveGroup",
   "refIndex",
+  "atEdge",
   "withoutArchived",
   "findList",
   "findItem",
@@ -151,6 +152,38 @@ test("refIndex falls back to the row before the gap, so a drop at the end of a p
   assert.equal(api.refIndex(all, ["3", "7"], "gone", "6"), 5);
   assert.equal(api.refIndex(all, ["3", "7"], null, "gone"), 5, "neither side: the end of the list");
   assert.equal(api.refIndex(all, ["3", "7"], null), 5, "3-argument calls keep the old behaviour");
+});
+
+test("atEdge is true at the edges of the visible list and false in the middle", () => {
+  store([list("a"), list("b"), list("c")], []);
+  assert.equal(api.atEdge("list", ["a"], "top"), true);
+  assert.equal(api.atEdge("list", ["a"], "bottom"), false);
+  assert.equal(api.atEdge("list", ["b"], "top"), false, "a middle row moves either way");
+  assert.equal(api.atEdge("list", ["b"], "bottom"), false);
+  assert.equal(api.atEdge("list", ["c"], "bottom"), true);
+});
+
+test("atEdge counts only visible siblings: its own list's rows, archived aside", () => {
+  store([list("old", { archived: true }), list("c1"), list("c2")],
+    [item("gone", "c1", { archived: true }), item("p", "c1"), item("q", "c1"), item("only", "c2")]);
+  assert.equal(api.atEdge("list", ["c1"], "top"), true, "the first visible list stays first");
+  assert.equal(api.atEdge("item", ["p"], "top"), true, "an archived row above is no reason to move");
+  assert.equal(api.atEdge("item", ["p"], "bottom"), false);
+  assert.equal(api.atEdge("item", ["q"], "bottom"), true);
+  assert.equal(api.atEdge("item", ["only"], "top"), true, "a lone item has no edge to reach");
+  assert.equal(api.atEdge("item", ["only"], "bottom"), true);
+});
+
+test("atEdge is false for a bulk group that still has room, even when one row holds the edge", () => {
+  store([list("a"), list("b"), list("c")], [item("p", "c1"), item("q", "c1"), item("r", "c1")]);
+  assert.equal(api.atEdge("item", ["p", "r"], "top"), false, "the last one moves up past the middle");
+  assert.equal(api.atEdge("item", ["p", "r"], "bottom"), false, "the first one moves down past the middle");
+  assert.equal(api.atEdge("item", ["p", "q"], "top"), true, "a group already at the edge in order");
+  assert.equal(api.atEdge("item", ["p", "q"], "bottom"), false);
+  assert.equal(api.atEdge("item", ["q", "r"], "top"), false);
+  assert.equal(api.atEdge("item", ["q", "r"], "bottom"), true);
+  assert.equal(api.atEdge("item", ["p", "q", "r"], "top"), true, "everything has nowhere to go");
+  assert.equal(api.atEdge("item", ["p", "q", "r"], "bottom"), true);
 });
 
 test("moveItemsTo keeps a bulk group together and in order", () => {
