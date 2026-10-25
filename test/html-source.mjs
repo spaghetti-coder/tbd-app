@@ -2,8 +2,11 @@
 // index.html by name and evaluated in a VM. A parser locates the declarations, so slicing
 // does not depend on indentation or formatting.
 import { readFileSync } from "node:fs";
+import { createContext, runInContext } from "node:vm";
 import { parse } from "acorn";
 import { inlineScripts } from "../scripts/inline-scripts.mjs";
+
+export const vm = (lines, globals = {}) => runInContext(lines.join("\n"), createContext(globals));
 
 export const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 

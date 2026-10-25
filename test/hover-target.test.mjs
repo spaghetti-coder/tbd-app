@@ -1,23 +1,14 @@
-// Unit tests for aiming at a collapsed checklist while dragging: the held target survives jitter,
-// a scrolling page does not arm the hold, and the placeholder keeps its space while hovering.
-// The functions are sliced out of index.html and run in a VM (see html-source.mjs).
+// Aiming a drag at a collapsed checklist: hold targets, jitter, placeholder parking, auto-scroll.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-import { slice } from "./html-source.mjs";
+import { slice, vm } from "./html-source.mjs";
+import { fakeNode } from "./fake-dom.mjs";
 
 let board = [];
 
-const box = {
-  CSS: { escape: (id) => id },
-  document: {
-    querySelectorAll: () => board.filter((card) => !card.classes.has("is-open")).map(headOf),
-    querySelector: (sel) => board.find((card) => card.dataset.id === /data-id="([^"]+)"/.exec(sel)[1]) ?? null,
-  },
-};
-createContext(box);
-runInContext(
+const { GESTURE, aim, timers, setDrag, setScrolling, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget } = vm(
   [
     slice("GESTURE"),
     "let drag = null;",
@@ -36,36 +27,28 @@ runInContext(
     "function moveClone() {}",
     "function placeGap() {}",
     slice("retarget"),
-    "this.GESTURE = GESTURE;",
-    "this.aim = { y: 0, container: null };",
-    "this.timers = timers;",
-    "this.setDrag = (value) => { drag = value; };",
-    "this.setScrolling = (value) => { autoScrolling = value; };",
-    "this.collapsedHeadAt = collapsedHeadAt;",
-    "this.retarget = retarget;",
-    "this.handleHover = handleHover;",
-    "this.clearCollapsedTarget = clearCollapsedTarget;",
-  ].join("\n"),
-  box,
+    "const aim = { y: 0, container: null };",
+    "({ GESTURE, aim, timers, setDrag: (value) => { drag = value; }, setScrolling: (value) => { autoScrolling = value; }, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget });",
+  ],
+  {
+    CSS: { escape: (id) => id },
+    document: {
+      querySelectorAll: () => board.filter((card) => !card.classes.has("is-open")).map(headOf),
+      querySelector: (sel) => board.find((card) => card.dataset.id === /data-id="([^"]+)"/.exec(sel)[1]) ?? null,
+    },
+  },
 );
-const { GESTURE, aim, timers, setDrag, setScrolling, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget } = box;
 
 // A collapsed card is its head: the body is hidden, so both share a rect.
 function card(id, top, bottom, { open = false } = {}) {
-  const classes = new Set(open ? ["card", "is-open"] : ["card"]);
-  const node = {
-    dataset: { kind: "list", id },
-    classes,
-    getBoundingClientRect: () => ({ top, bottom }),
-    querySelector: (sel) => (sel === ":scope > .card__head" ? head : null),
-    classList: {
-      add: (name) => classes.add(name),
-      remove: (name) => classes.delete(name),
-      contains: (name) => classes.has(name),
-    },
-  };
-  const head = { parentElement: node, getBoundingClientRect: () => ({ top, bottom }) };
-  return node;
+  const rect = { top, bottom };
+  return fakeNode({
+    classes: ["card", ...(open ? ["is-open"] : [])],
+    kind: "list",
+    id,
+    rect,
+    children: [fakeNode({ classes: ["card__head"], rect })],
+  });
 }
 
 const headOf = (node) => node.querySelector(":scope > .card__head");
@@ -73,20 +56,10 @@ const headOf = (node) => node.querySelector(":scope > .card__head");
 // timers.armed comes back as the VM realm's array, so copy it into a plain one.
 const armed = () => [...timers.armed];
 
-function placeholder() {
-  const classes = new Set(["drop-gap"]);
-  const classList = {
-    add: (name) => classes.add(name),
-    remove: (name) => classes.delete(name),
-    contains: (name) => classes.has(name),
-  };
-  return { classes, style: {}, classList };
-}
-
 const dragState = (over = null) => ({
   kind: "item",
   ids: ["i1"],
-  gap: placeholder(),
+  gap: fakeNode({ classes: ["drop-gap"] }),
   container: null,
   index: 0,
   hoverId: over,
@@ -174,7 +147,7 @@ const frameBox = {
 Object.defineProperty(frameBox, "innerHeight", { get: () => page.viewport });
 Object.defineProperty(frameBox, "scrollY", { get: () => page.y });
 createContext(frameBox);
-runInContext(
+const { start, run, stop, scrolling } = runInContext(
   [
     slice("GESTURE"),
     slice("clamp"),
@@ -191,18 +164,19 @@ runInContext(
     "function retarget() { calls.push(autoScrolling ? \"scrolling\" : \"held\"); }",
     slice("startAutoScroll"),
     slice("stopAutoScroll"),
-    "this.start = () => { calls.length = 0; startAutoScroll(); };",
-    "this.run = (pointer, times) => {",
-    "  pointerY = pointer;",
-    "  for (let i = 0; i < times; i++) { const step = frames.shift(); if (step) step(); }",
-    "  return calls.join(\",\");",
-    "};",
-    "this.stop = stopAutoScroll;",
-    "this.scrolling = () => autoScrolling;",
+    "({",
+    "  start: () => { calls.length = 0; startAutoScroll(); },",
+    "  run: (pointer, times) => {",
+    "    pointerY = pointer;",
+    "    for (let i = 0; i < times; i++) { const step = frames.shift(); if (step) step(); }",
+    "    return calls.join(\",\");",
+    "  },",
+    "  stop: stopAutoScroll,",
+    "  scrolling: () => autoScrolling,",
+    "});",
   ].join("\n"),
   frameBox,
 );
-const { start, run, stop, scrolling } = frameBox;
 
 test("auto-scroll retargets while it moves and once more when it runs out of page", () => {
   page.y = 994;

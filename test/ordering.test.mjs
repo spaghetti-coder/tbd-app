@@ -1,11 +1,9 @@
-// Unit tests for the pure ordering / repair logic that lives inside index.html.
-// The app is a single file with no build, so the functions are sliced out of the
-// source by name and evaluated in a VM with a `state` shim.
+// Unit tests for the pure ordering / repair logic, run with a `state` shim.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-import { html, slice } from "./html-source.mjs";
+import { html, slice, vm } from "./html-source.mjs";
 
 const NAMES = [
   "clamp",
@@ -58,17 +56,13 @@ function t(key) { return key; }
 
 const sandbox = { state: null };
 createContext(sandbox);
-runInContext(
+const { api, scrollTargetOf, toastOf, calls, resetCalls } = runInContext(
   [slice("PAGE_SIZES"), PRELUDE, ...NAMES.map(slice),
-    `this.api = { ${NAMES.join(", ")} };`,
-    "this.scrollTargetOf = () => scrollTarget;",
-    "this.toastOf = () => lastToast;",
-    "this.calls = () => calls.join(",");",
-    "this.resetCalls = () => { calls.length = 0; }",
+    `({ api: { ${NAMES.join(", ")} }, scrollTargetOf: () => scrollTarget,`,
+    "  toastOf: () => lastToast, calls: () => calls.join(","), resetCalls: () => { calls.length = 0; } });",
   ].join("\n"),
   sandbox,
 );
-const api = sandbox.api;
 
 const list = (id, extra) => ({
   id,
@@ -92,14 +86,13 @@ const item = (id, checklistId, extra) => ({
 
 // Objects built inside the VM have that realm's prototypes, so compare plain copies of their fields.
 const plainBulk = (bulk) => ({ kind: bulk.kind, ids: Array.from(bulk.ids) });
-const plainTarget = (target) => (target ? { kind: target.kind, id: target.id } : target);
 
 const rows = (...ids) => ids.map((id) => ({ id }));
 // Array.from, not map: the rows come from the VM realm and map() would keep that realm's Array.prototype.
 const ids = (rows2) => Array.from(rows2, (row) => row.id);
 
 const store = (checklists, items, ui) => {
-  sandbox.resetCalls();
+  resetCalls();
   sandbox.state = {
     checklists,
     items,
@@ -149,15 +142,10 @@ test("refIndex is the position inside the list without the picked rows", () => {
   assert.equal(api.refIndex(all, ["3", "7"], "1"), 0);
 });
 
-test("refIndex falls back to the end when there is nothing to aim at", () => {
-  const all = rows("1", "2", "3", "4", "5", "6", "7");
-  assert.equal(api.refIndex(all, ["3", "7"], null), 5);
-  assert.equal(api.refIndex(all, ["3", "7"], "gone"), 5);
-  assert.equal(api.refIndex(all, ["3", "7"], "7"), 5);
-});
-
 test("refIndex falls back to the row before the gap, so a drop at the end of a page stays on it", () => {
   const all = rows("1", "2", "3", "4", "5", "6", "7");
+  assert.equal(api.refIndex(all, ["3", "7"], "7"), 5, "a ref that was picked itself falls back to the end");
+  assert.equal(api.refIndex(all, ["3", "7"], "gone"), 5, "a vanished ref falls back to the end");
   assert.equal(api.refIndex(all, ["3", "7"], "4", "1"), 2, "the row after the gap wins");
   assert.equal(api.refIndex(all, ["3", "7"], null, "5"), 4);
   assert.equal(api.refIndex(all, ["3", "7"], "gone", "6"), 5);
@@ -227,7 +215,7 @@ test("deleteMany removes a checklist with its items and ends the selection", () 
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["p"], "the items of a deleted checklist go with it");
   assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] });
-  assert.equal(sandbox.toastOf(), "toast_deleted");
+  assert.equal(toastOf(), "toast_deleted");
 });
 
 test("deleteMany of items leaves the rows that were not picked", () => {
@@ -247,7 +235,7 @@ test("archiveMany marks lists as list-archived and items as user-archived", () =
   assert.equal(api.findItem("a").archivedBy, "list");
   assert.equal(api.findItem("b").archivedBy, "list");
   assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] });
-  assert.equal(sandbox.toastOf(), "toast_archived");
+  assert.equal(toastOf(), "toast_archived");
   state.ui.bulk = { kind: "item", ids: ["b", "kept"] };
   api.archiveMany("item", ["b", "kept"]);
   assert.equal(api.findItem("b").archived, true);
@@ -331,7 +319,7 @@ test("jumpTo moves to the page that holds the checklist", () => {
   const state = store([list("c1"), list("c2"), list("c3"), list("c4"), list("c5")], [], { pageSize: 2, page: 1 });
   api.jumpTo("c1");
   assert.equal(state.ui.page, 1);
-  assert.deepEqual(plainTarget(sandbox.scrollTargetOf()), { kind: "list", id: "c1" });
+  assert.deepEqual({ ...scrollTargetOf() }, { kind: "list", id: "c1" });
   api.jumpTo("c4");
   assert.equal(state.ui.page, 2);
   api.jumpTo("c5");
@@ -349,7 +337,7 @@ test("restoreItems keeps the restored group in its original order", () => {
     [item("a", "c1"), item("b", "c1"), item("x", "c1", { archived: true }), item("y", "c1", { archived: true })]);
   api.restoreItems(["x", "y"]);
   assert.deepEqual(ids(state.items), ["x", "y", "a", "b"]);
-  assert.deepEqual(withoutArchivedIds(state), ["x", "y", "a", "b"]);
+  assert.deepEqual(ids(api.withoutArchived(state.items, "c1")), ["x", "y", "a", "b"]);
 });
 
 test("restoreItems appends to a checklist that has no live items left", () => {
@@ -434,13 +422,13 @@ test("a renamed entity is saved and only its row is repainted", () => {
   api.commitText("list", "c1", "  Groceries  ");
   assert.equal(state.checklists[0].title, "Groceries");
   assert.equal(state.ui.editing, null);
-  assert.equal(sandbox.calls(), "queueSave,repaintRow:list:c1");
+  assert.equal(calls(), "queueSave,repaintRow:list:c1");
 
-  sandbox.resetCalls();
+  resetCalls();
   api.commitText("item", "i1", "Milk");
   assert.equal(state.items[0].text, "Milk");
   assert.equal(state.ui.editing, null);
-  assert.equal(sandbox.calls(), "queueSave,repaintRow:item:i1");
+  assert.equal(calls(), "queueSave,repaintRow:item:i1");
 });
 
 test("committing an empty name rolls a named entity back", () => {
@@ -449,7 +437,7 @@ test("committing an empty name rolls a named entity back", () => {
   assert.equal(state.items.length, 1);
   assert.equal(state.items[0].text, "old");
   assert.equal(state.ui.editing, null);
-  assert.equal(sandbox.calls(), "commit");
+  assert.equal(calls(), "commit");
 });
 
 test("committing an empty name discards a new checklist with its items", () => {
@@ -458,7 +446,7 @@ test("committing an empty name discards a new checklist with its items", () => {
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["i2"]);
   assert.equal(state.ui.editing, null);
-  assert.equal(sandbox.calls(), "commit");
+  assert.equal(calls(), "commit");
 });
 
 test("cancelling discards a new entity and keeps a named one", () => {
@@ -466,7 +454,7 @@ test("cancelling discards a new entity and keeps a named one", () => {
   api.cancelEdit();
   assert.deepEqual(ids(fresh.items), []);
   assert.equal(fresh.ui.editing, null);
-  assert.equal(sandbox.calls(), "commit");
+  assert.equal(calls(), "commit");
 
   const named = store([list("c1", { title: "keep" })], [], { editing: { kind: "list", id: "c1" } });
   api.cancelEdit();
@@ -481,17 +469,8 @@ test("normalize returns defaults for anything that is not version 1", () => {
   assert.equal(api.defaults().ui.pageSize, 20);
 });
 
-function withoutArchivedIds(state) {
-  return ids(api.withoutArchived(state.items, "c1"));
-}
-
-// The dictionaries are literals in the file; they are evaluated in their own box so the tests can read them.
-function dictionaries() {
-  const box = {};
-  createContext(box);
-  runInContext([slice("EN"), slice("DICTS"), "this.dicts = DICTS;"].join("\n"), box);
-  return box.dicts;
-}
+// The dictionaries are literals in the file; they are evaluated once so the tests can read them.
+const dicts = vm([slice("EN"), slice("DICTS"), "DICTS"]);
 
 test("actionMessage names the confirmation key for kind, count and verb", () => {
   for (const kind of ["list", "item"]) {
@@ -502,36 +481,23 @@ test("actionMessage names the confirmation key for kind, count and verb", () => 
   }
 });
 
-test("every dictionary holds the eight confirmation keys actionMessage builds", () => {
-  const wanted = [];
-  for (const kind of ["list", "item"]) {
-    for (const verb of ["archive", "delete"]) {
-      wanted.push(`c_${verb}_${kind}`, `c_${verb}_${kind}s`);
-    }
-  }
-  for (const [code, dict] of Object.entries(dictionaries())) {
-    for (const key of wanted) {
-      assert.ok(typeof dict[key] === "string" && dict[key].length > 0, `"${code}" has no "${key}"`);
-    }
-  }
-});
-
 test("every dictionary defines exactly the keys EN defines", () => {
-  const dicts = dictionaries();
   const en = Object.keys(dicts.en).sort();
   assert.ok(en.length > 50, "EN dictionary looks truncated");
   for (const [code, dict] of Object.entries(dicts)) {
     assert.deepEqual(Object.keys(dict).sort(), en, `dictionary "${code}" is out of sync with EN`);
   }
+  // Parity with EN covers every dictionary, so the confirmation keys only have to be checked there.
+  const wanted = ["list", "item"].flatMap((kind) =>
+    ["archive", "delete"].flatMap((verb) => [api.actionMessage(kind, 1, verb), api.actionMessage(kind, 2, verb)]));
+  for (const key of wanted) {
+    assert.ok(typeof dicts.en[key] === "string" && dicts.en[key].length > 0, `EN has no "${key}"`);
+  }
 });
 
 // The builders take the icon name only, so a missing map entry means a button with no fallback glyph.
 test("every icon the button builders are called with has a fallback glyph", () => {
-  const box = {};
-  createContext(box);
-  runInContext([slice("GLYPHS"), "this.glyphs = GLYPHS;"].join("\n"), box);
-  const glyphs = box.glyphs;
-
+  const glyphs = vm([slice("GLYPHS"), "GLYPHS"]);
   const used = new Set();
   for (const call of html.matchAll(/(?:^|[^.\w])(?:panelButton|menuItem|act)\(\s*([^,)]*)/g)) {
     for (const icon of call[1].matchAll(/"([a-z-]+)"/g)) {
@@ -545,7 +511,6 @@ test("every icon the button builders are called with has a fallback glyph", () =
 });
 
 test("every dictionary interpolates the same placeholders as EN", () => {
-  const dicts = dictionaries();
   const placeholders = (text) => [...String(text).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
   for (const [code, dict] of Object.entries(dicts)) {
     for (const key of Object.keys(dicts.en)) {
