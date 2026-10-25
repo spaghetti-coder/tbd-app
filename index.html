@@ -3827,7 +3827,9 @@ function expandForDrop(id) {
   drag.hoverId = null;
   clearCollapsedTarget();
   cl.expanded = true;
-  commit();
+  // A rebuild would destroy the row under the finger, and Chrome answers that with pointercancel.
+  queueSave();
+  repaintRow("list", id);
   const body = document.querySelector(`#lists [data-id="${CSS.escape(id)}"] .items`);
   if (!body) {
     retarget();
