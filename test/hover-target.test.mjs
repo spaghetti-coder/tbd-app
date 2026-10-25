@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-import { slice, sliceObject } from "./html-source.mjs";
+import { slice } from "./html-source.mjs";
 
 let board = [];
 
@@ -19,7 +19,7 @@ const box = {
 createContext(box);
 runInContext(
   [
-    sliceObject("GESTURE"),
+    slice("GESTURE"),
     "let drag = null;",
     "let autoScrolling = false;",
     "const timers = { armed: [], cleared: 0 };",
@@ -176,7 +176,7 @@ Object.defineProperty(frameBox, "scrollY", { get: () => page.y });
 createContext(frameBox);
 runInContext(
   [
-    sliceObject("GESTURE"),
+    slice("GESTURE"),
     slice("clamp"),
     slice("ramp"),
     "let pointerY = 0;",

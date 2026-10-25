@@ -10,6 +10,7 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "acorn": "^8.19.0",
     "eslint": "^10.7.0",
     "globals": "^17.7.0",
     "postcss-html": "^1.8.1",

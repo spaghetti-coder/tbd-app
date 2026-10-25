@@ -1,23 +1,29 @@
-// The app is a single file with no build, so the functions under test are sliced out of
-// index.html by name and evaluated in a VM.
+// The app is a single file with no build, so the code under test is sliced out of
+// index.html by name and evaluated in a VM. A parser locates the declarations, so slicing
+// does not depend on indentation or formatting.
 import { readFileSync } from "node:fs";
+import { parse } from "acorn";
+import { inlineScripts } from "../scripts/inline-scripts.mjs";
 
 export const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
-// Every app function sits at column 0, so the first `^}` ends it.
-export function slice(name) {
-  const found = new RegExp(`^function ${name}\\b[\\s\\S]*?^\\}`, "m").exec(html);
-  if (!found) {
-    throw new Error(`test harness: function ${name}() not found in index.html (renamed?)`);
+// shortcut: top-level declarations only; walk nested scopes if a tested helper ever moves into a block.
+const declared = new Map();
+for (const body of inlineScripts(html)) {
+  const program = parse(body, { ecmaVersion: "latest", sourceType: "module" });
+  for (const node of program.body) {
+    if (node.type === "FunctionDeclaration" || node.type === "ClassDeclaration") {
+      declared.set(node.id.name, body.slice(node.start, node.end));
+    } else if (node.type === "VariableDeclaration") {
+      for (const d of node.declarations) declared.set(d.id.name, `${node.kind} ${body.slice(d.start, d.end)};`);
+    }
   }
-  return found[0];
 }
 
-// Same trick for the dictionary literals: they end with `^};` at column 0.
-export function sliceObject(name) {
-  const found = new RegExp(`^const ${name} = \\{[\\s\\S]*?^\\};`, "m").exec(html);
-  if (!found) {
-    throw new Error(`test harness: const ${name} not found in index.html (renamed?)`);
+export function slice(name) {
+  const src = declared.get(name);
+  if (!src) {
+    throw new Error(`test harness: ${name} not found in index.html (renamed?)`);
   }
-  return found[0];
+  return src;
 }

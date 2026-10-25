@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-import { slice, sliceObject } from "./html-source.mjs";
+import { slice } from "./html-source.mjs";
 
 const env = { innerHeight: 900, paddingBottom: "24px", topbarBottom: 68 };
 
@@ -19,7 +19,7 @@ Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
 createContext(box);
 runInContext(
   [
-    sliceObject("GESTURE"),
+    slice("GESTURE"),
     slice("clamp"),
     slice("sideFor"),
     slice("cssBottomInset"),

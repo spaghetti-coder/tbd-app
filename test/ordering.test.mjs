@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
-import { html, slice, sliceObject } from "./html-source.mjs";
+import { html, slice } from "./html-source.mjs";
 
 const NAMES = [
   "clamp",
@@ -56,15 +56,10 @@ function showToast(text) { lastToast = text; }
 function t(key) { return key; }
 `;
 
-const pageSizes = /^const PAGE_SIZES = .*$/m.exec(html);
-if (!pageSizes) {
-  throw new Error("test harness: PAGE_SIZES not found in index.html (renamed?)");
-}
-
 const sandbox = { state: null };
 createContext(sandbox);
 runInContext(
-  [pageSizes[0], PRELUDE, ...NAMES.map(slice),
+  [slice("PAGE_SIZES"), PRELUDE, ...NAMES.map(slice),
     `this.api = { ${NAMES.join(", ")} };`,
     "this.scrollTargetOf = () => scrollTarget;",
     "this.toastOf = () => lastToast;",
@@ -494,7 +489,7 @@ function withoutArchivedIds(state) {
 function dictionaries() {
   const box = {};
   createContext(box);
-  runInContext([sliceObject("EN"), sliceObject("DICTS"), "this.dicts = DICTS;"].join("\n"), box);
+  runInContext([slice("EN"), slice("DICTS"), "this.dicts = DICTS;"].join("\n"), box);
   return box.dicts;
 }
 
@@ -534,7 +529,7 @@ test("every dictionary defines exactly the keys EN defines", () => {
 test("every icon the button builders are called with has a fallback glyph", () => {
   const box = {};
   createContext(box);
-  runInContext([sliceObject("GLYPHS"), "this.glyphs = GLYPHS;"].join("\n"), box);
+  runInContext([slice("GLYPHS"), "this.glyphs = GLYPHS;"].join("\n"), box);
   const glyphs = box.glyphs;
 
   const used = new Set();
