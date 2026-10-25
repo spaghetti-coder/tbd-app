@@ -309,6 +309,9 @@
     overflow: hidden;
     padding-block: 6px;
     white-space: nowrap;
+
+    /* The target spans the whole field, so WebKit's gray tap flash reads as a glitch. */
+    -webkit-tap-highlight-color: transparent;
   }
 
   .card.is-muted > .card__head .card__title {
