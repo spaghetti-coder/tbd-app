@@ -33,6 +33,7 @@ const { GESTURE, sideFor, panelTopRange, panelTop, panelFraction, detached } = r
     slice("clamp"),
     slice("sideFor"),
     slice("cssBottomInset"),
+    slice("panelCeiling"),
     slice("panelTopRange"),
     slice("panelTop"),
     slice("panelFraction"),

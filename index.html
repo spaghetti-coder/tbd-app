@@ -91,12 +91,14 @@
     overflow: hidden;
   }
 
+  /* Rows are drag controls; Chrome decides long-press selectability at touchstart, before JS. */
+  .lists,
   html.is-dragging,
   html.is-dragging * {
-    /* stylelint-disable-next-line property-no-vendor-prefix */
+    /* stylelint-disable property-no-vendor-prefix */
     -webkit-touch-callout: none;
-    /* stylelint-disable-next-line property-no-vendor-prefix */
     -webkit-user-select: none;
+    /* stylelint-enable property-no-vendor-prefix */
     user-select: none;
   }
 
@@ -246,13 +248,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--gap);
-
-    /* Rows are drag controls; Chrome decides long-press selectability at touchstart, before JS. */
-    /* stylelint-disable-next-line property-no-vendor-prefix */
-    -webkit-touch-callout: none;
-    /* stylelint-disable-next-line property-no-vendor-prefix */
-    -webkit-user-select: none;
-    user-select: none;
   }
 
   .card__empty,
@@ -309,6 +304,7 @@
     min-width: 0;
     overflow: hidden;
     padding-block: 6px;
+    text-overflow: ellipsis;
     white-space: nowrap;
 
     /* The target spans the whole field, so WebKit's gray tap flash reads as a glitch. */
@@ -350,6 +346,7 @@
     min-width: 0;
     overflow: hidden;
     padding-block: 4px;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -420,14 +417,6 @@
   .act {
     color: var(--muted);
     transition: color var(--dur) ease;
-  }
-
-  .more {
-    color: var(--muted);
-    flex: none;
-    font-size: 15px;
-    line-height: 1;
-    padding: 6px 2px;
   }
 
   .row-edit {
@@ -561,10 +550,10 @@
     top: 0;
     touch-action: none;
     transition: transform var(--dur) ease;
-    /* stylelint-disable-next-line property-no-vendor-prefix */
+    /* stylelint-disable property-no-vendor-prefix */
     -webkit-touch-callout: none;
-    /* stylelint-disable-next-line property-no-vendor-prefix */
     -webkit-user-select: none;
+    /* stylelint-enable property-no-vendor-prefix */
     user-select: none;
     z-index: 25;
   }
@@ -725,14 +714,6 @@
     margin-block: 6px;
   }
 
-  .picker__option > :first-child {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   .picker__option[aria-selected="true"] {
     color: var(--accent);
   }
@@ -765,14 +746,6 @@
 
   .rows__row {
     padding: 8px 6px;
-  }
-
-  .rows__label {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .modal--dropdown {
@@ -811,11 +784,18 @@
     padding: 6px 10px;
   }
 
-  .picker > :first-child {
+  .picker > :first-child,
+  .picker__option > :first-child,
+  .rows__label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .picker__option > :first-child,
+  .rows__label {
+    flex: 1;
   }
 
   .seg {
@@ -944,26 +924,31 @@
     color: var(--muted);
   }
 
-  /* Hover states only with a mouse pointer; touch uses :active below. */
+  .btn:hover,
+  .btn:active {
+    background: var(--surface-2);
+  }
+
+  .act:hover,
+  .act:active {
+    color: var(--text);
+  }
+
+  .btn--primary:hover,
+  .btn--primary:active {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+
+  .menu-list__item:hover,
+  .menu-list__item:active,
+  .rows__row:hover,
+  .rows__row:active {
+    background: var(--surface-2);
+  }
+
+  /* With a mouse the pencil action waits for hover or focus; touch always shows it. */
   @media (hover: hover) {
-    .btn:hover {
-      background: var(--surface-2);
-    }
-
-    .act:hover {
-      color: var(--text);
-    }
-
-    .btn--primary:hover {
-      background: var(--accent);
-      filter: brightness(1.08);
-    }
-
-    .menu-list__item:hover,
-    .rows__row:hover {
-      background: var(--surface-2);
-    }
-
     .act--edit {
       opacity: 0;
       pointer-events: none;
@@ -976,31 +961,7 @@
     }
   }
 
-  @media (hover: none) {
-    .btn:active {
-      background: var(--surface-2);
-    }
-
-    .act:active {
-      color: var(--text);
-    }
-
-    .btn--primary:active {
-      background: var(--accent);
-      filter: brightness(1.08);
-    }
-
-    .menu-list__item:active,
-    .rows__row:active {
-      background: var(--surface-2);
-    }
-  }
-
   @media (width <= 560px) {
-    .banner {
-      bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--pager-h, 0px));
-    }
-
     .modal:not(.modal--sheet, .modal--dropdown, .modal--picker) {
       border-radius: var(--r);
       left: 0;
@@ -1135,7 +1096,6 @@
         <button class="mark mark--toggle" type="button" data-act="toggle"><span class="ic"></span><span class="ic-alt" aria-hidden="true">&#8250;</span></button>
         <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
         <span class="card__title" data-act="toggle"></span>
-        <span class="more" hidden aria-hidden="true">&#8230;</span>
         <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
         <button class="act act--edit" type="button" data-act="edit"><span class="ic ic--pencil"></span><span class="ic-alt" aria-hidden="true">/</span></button>
         <button class="act act--add" type="button" data-act="add-item"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
@@ -1157,7 +1117,6 @@
       <button class="mark mark--check" type="button" data-act="toggle-done"><span class="mark__box"></span></button>
       <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
       <span class="item__text"></span>
-      <span class="more" hidden aria-hidden="true">&#8230;</span>
       <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
       <button class="act act--menu" type="button" data-act="menu"><span class="ic ic--menu"></span><span class="ic-alt" aria-hidden="true">&#8942;</span></button>
     </div>
@@ -2731,7 +2690,6 @@ function paintRowEditor(node, kind, id, text) {
 function paintEditor(row, text, phKey) {
   const editor = row.querySelector(".row-edit");
   const label = row.querySelector(".card__title, .item__text");
-  const more = row.querySelector(".more");
   const editAct = row.querySelector(".act--edit");
   if (!editor || !label) {
     return;
@@ -2743,7 +2701,6 @@ function paintEditor(row, text, phKey) {
     return;
   }
   label.hidden = true;
-  more.hidden = true;
   if (editAct) editAct.hidden = true;
   editor.hidden = false;
   const input = editor.querySelector("input");
@@ -2879,25 +2836,12 @@ function renderPanel() {
   positionPanel();
 }
 
-/* Read every width first, then write: interleaving them relayouts once per row. */
-function updateOverflow(rows) {
-  const targets = [...rows].map((row) => {
-    const zone = rowZone(row);
-    return [zone.querySelector(".more"), zone.querySelector(".card__title, .item__text")];
-  });
-  const hidden = targets.map(([more, label]) => Boolean(more) && (!label || label.scrollWidth <= label.clientWidth));
-  for (const [index, tuple] of targets.entries()) {
-    if (tuple[0]) tuple[0].hidden = hidden[index];
-  }
-}
-
 function repaintRow(kind, id) {
   const row = rowById(kind, id);
   if (!row || !paintRow(row, kind, id)) {
     render();
     return;
   }
-  updateOverflow([row]);
   renderPanel();
   maybeReload();
 }
@@ -2923,7 +2867,6 @@ function paintRow(row, kind, id) {
 }
 
 function afterRender() {
-  updateOverflow(document.querySelectorAll("#lists [data-kind]"));
   restoreFocus();
   if (needFocus && state.ui.editing) {
     focusEditor(state.ui.editing.id);
@@ -3116,8 +3059,14 @@ function actionMessage(kind, n, verb) {
   return t(`c_${verb}_${kind}${n > 1 ? "s" : ""}`);
 }
 
-function archiveOne(kind, id, anchor) {
-  confirmModal(actionMessage(kind, 1, "archive"), t("a_archive"), () => archiveMany(kind, [id]), anchor);
+function ask(kind, ids, verb, anchor, after) {
+  const run = verb === "delete" ? deleteMany : archiveMany;
+  confirmModal(actionMessage(kind, ids.length, verb), t(`a_${verb}`), () => {
+    run(kind, ids);
+    if (after) {
+      after();
+    }
+  }, anchor);
 }
 
 function openEntityMenu(kind, id, anchor) {
@@ -3126,8 +3075,8 @@ function openEntityMenu(kind, id, anchor) {
     closeModal();
     fn();
   };
-  const askArchive = run(() => archiveOne(kind, id, anchor));
-  const askDelete = run(() => confirmModal(actionMessage(kind, 1, "delete"), t("a_delete"), () => deleteMany(kind, [id]), anchor));
+  const askArchive = run(() => ask(kind, [id], "archive", anchor));
+  const askDelete = run(() => ask(kind, [id], "delete", anchor));
   const list = el("div", "menu-list");
   list.append(
     menuItem("archive", t("a_archive"), askArchive),
@@ -3414,72 +3363,75 @@ function openArchive() {
     },
   });
   const selected = () => [...view.sel];
+  const empty = el("p", "empty", t("archive_empty"));
+  const list = el("div", "rows");
+  const tabs = [];
+  const focusTab = () => tabs.find((tab) => tab.dataset.key === view.tab)?.focus({ preventScroll: true });
   const paint = () => {
     const rows = view.tab === "lists" ? archivedLists() : archivedItems();
-    host.replaceChildren();
-    const tabs = el("div", "tabs");
-    const makeTab = (key, label) => {
-      const tab = el("button", view.tab === key ? "tabs__tab is-active" : "tabs__tab", label);
-      tab.type = "button";
-      tab.addEventListener("click", () => {
-        view.tab = key;
-        view.sel.clear();
-        paint();
-      });
-      return tab;
-    };
-    tabs.append(makeTab("lists", t("tab_lists")), makeTab("items", t("tab_items")));
-    host.append(tabs);
-    if (!rows.length) {
-      host.append(el("p", "empty", t("archive_empty")));
+    for (const tab of tabs) {
+      const on = tab.dataset.key === view.tab;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-pressed", String(on));
     }
-    const list = el("div", "rows");
-    for (const row of rows) {
+    empty.hidden = rows.length > 0;
+    list.replaceChildren(...rows.map((row) => {
       const text = view.tab === "lists" ? row.title || t("new_list_ph") : row.text || t("new_item_ph");
-      list.append(archiveRow(text, false, (on) => {
+      return archiveRow(text, false, (on) => {
         if (on) view.sel.add(row.id);
         else view.sel.delete(row.id);
         paintActions();
-      }));
-    }
-    host.append(list);
-    host.append(actionRow([
-      { icon: "close", label: t("a_cancel"), onClick: () => handle.close() },
-      {
-        icon: "restore",
-        label: t("a_restore"),
-        count: true,
-        onClick: () => {
-          const ids = selected();
-          if (!ids.length) return;
-          if (view.tab === "lists") restoreLists(ids);
-          else restoreItems(ids);
-          view.sel.clear();
-          commit();
-          paint();
-        },
-      },
-      {
-        icon: "trash",
-        label: t("a_delete"),
-        cls: "btn--danger",
-        count: true,
-        onClick: (event) => {
-          const ids = selected();
-          if (!ids.length) return;
-          const kind = view.tab === "lists" ? "list" : "item";
-          confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => {
-            deleteMany(kind, ids);
-            view.sel.clear();
-            paint();
-            const tab = usable(host.querySelector(".tabs__tab.is-active"));
-            if (tab) tab.focus({ preventScroll: true });
-          }, event.currentTarget);
-        },
-      },
-    ]));
+      });
+    }));
     paintActions();
   };
+  const bar = el("div", "tabs");
+  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
+  for (const [key, labelKey] of [["lists", "tab_lists"], ["items", "tab_items"]]) {
+    const tab = el("button", "tabs__tab", t(labelKey));
+    tab.type = "button";
+    tab.dataset.key = key;
+    tab.addEventListener("click", () => {
+      view.tab = key;
+      view.sel.clear();
+      paint();
+    });
+    tabs.push(tab);
+    bar.append(tab);
+  }
+  host.append(bar, empty, list, actionRow([
+    { icon: "close", label: t("a_cancel"), onClick: () => handle.close() },
+    {
+      icon: "restore",
+      label: t("a_restore"),
+      count: true,
+      onClick: () => {
+        const ids = selected();
+        if (!ids.length) return;
+        if (view.tab === "lists") restoreLists(ids);
+        else restoreItems(ids);
+        view.sel.clear();
+        commit();
+        paint();
+      },
+    },
+    {
+      icon: "trash",
+      label: t("a_delete"),
+      cls: "btn--danger",
+      count: true,
+      onClick: (event) => {
+        const ids = selected();
+        if (!ids.length) return;
+        const kind = view.tab === "lists" ? "list" : "item";
+        ask(kind, ids, "delete", event.currentTarget, () => {
+          view.sel.clear();
+          paint();
+          focusTab();
+        });
+      },
+    },
+  ]));
   const paintActions = () => {
     const count = view.sel.size;
     for (const button of host.querySelectorAll("[data-count]")) {
@@ -3692,7 +3644,7 @@ function finishSwipe() {
     startEdit(current.kind, current.id);
     return;
   }
-  archiveOne(current.kind, current.id, current.handle);
+  ask(current.kind, [current.id], "archive", current.handle);
 }
 
 /* ---------- drag ---------- */
@@ -4061,11 +4013,14 @@ function cssBottomInset() {
   return parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
 }
 
+function panelCeiling(height, min) {
+  return Math.max(min, innerHeight - height - Math.max(GESTURE.gap, cssBottomInset()));
+}
+
 // Vertical band the panel may occupy: below the sticky topbar, above the bottom safe area.
 function panelTopRange(height) {
   const min = Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom) + GESTURE.gap;
-  const max = Math.max(min, innerHeight - height - Math.max(GESTURE.gap, cssBottomInset()));
-  return [min, max];
+  return [min, panelCeiling(height, min)];
 }
 
 /* The pill as collapsed: the grip is always the first child, so the band the
@@ -4086,8 +4041,7 @@ function collapsedHeight() {
    so the grip only moves when there is genuinely no room left for it. */
 function panelTop(pct, height, base) {
   const [min, baseMax] = panelTopRange(base);
-  const [floor, ceiling] = panelTopRange(height);
-  return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), floor, ceiling);
+  return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), min, panelCeiling(height, min));
 }
 
 function panelFraction(top, base) {
@@ -4315,15 +4269,11 @@ function onPanelAct(act, button) {
     return;
   }
   if (act === "bulk-archive") {
-    const kind = bulk.kind;
-    const ids = [...bulk.ids];
-    confirmModal(actionMessage(kind, ids.length, "archive"), t("a_archive"), () => archiveMany(kind, ids), button);
+    ask(bulk.kind, [...bulk.ids], "archive", button);
     return;
   }
   if (act === "bulk-delete") {
-    const kind = bulk.kind;
-    const ids = [...bulk.ids];
-    confirmModal(actionMessage(kind, ids.length, "delete"), t("a_delete"), () => deleteMany(kind, ids), button);
+    ask(bulk.kind, [...bulk.ids], "delete", button);
   }
 }
 
@@ -4414,7 +4364,6 @@ function onResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     // No render(): a rebuild would destroy the focused editor, and mobile keyboards fire resize.
-    updateOverflow(document.querySelectorAll("#lists [data-kind]"));
     positionPanel();
     positionAnchored();
   }, 120);
@@ -4439,12 +4388,6 @@ function bind() {
   lists.addEventListener("keydown", onListKeyDown);
   lists.addEventListener("focusout", onListBlur);
   lists.addEventListener("pointerdown", onRowDown);
-  // No long-press menu over a running row gesture or drag.
-  lists.addEventListener("contextmenu", (event) => {
-    if (gesture || drag) {
-      event.preventDefault();
-    }
-  });
   addEventListener("storage", (event) => {
     if (event.key !== KEY) {
       return;
@@ -4455,9 +4398,11 @@ function bind() {
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
   panel.addEventListener("pointerdown", onPanelDown);
-  // No long-press menu over a running panel drag.
-  panel.addEventListener("contextmenu", (event) => {
-    if (panelDrag) event.preventDefault();
+  // No long-press menu over a running row gesture, row drag or panel drag.
+  document.addEventListener("contextmenu", (event) => {
+    if (gesture || drag || panelDrag) {
+      event.preventDefault();
+    }
   });
   document.addEventListener("keydown", onKey);
   addEventListener("resize", onResize);
@@ -4496,15 +4441,6 @@ window.__tbd = {
     }
     location.reload();
   },
-  GESTURE,
-  DICTS,
-  render,
-  save,
-  moveGroup,
-  refIndex,
-  t,
-  langCode,
-  get state() { return state; },
 };
 </script>
 </body>
