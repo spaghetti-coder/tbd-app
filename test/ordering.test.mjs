@@ -50,7 +50,11 @@ let lastToast = null;
 const calls = [];
 function commit() { calls.push("commit"); }
 function queueSave() { calls.push("queueSave"); }
+function flushSave() { calls.push("flushSave"); }
 function repaintRow(kind, id) { calls.push("repaintRow:" + kind + ":" + id); }
+function markDirty() {}
+function markGone() {}
+function markOrder() {}
 function showToast(text) { lastToast = text; }
 function t(key) { return key; }
 `;
@@ -455,13 +459,13 @@ test("a renamed entity is saved and only its row is repainted", () => {
   api.commitText("list", "c1", "  Groceries  ");
   assert.equal(state.checklists[0].title, "Groceries");
   assert.equal(state.ui.editing, null);
-  assert.equal(calls(), "queueSave,repaintRow:list:c1");
+  assert.equal(calls(), "flushSave,repaintRow:list:c1");
 
   resetCalls();
   api.commitText("item", "i1", "Milk");
   assert.equal(state.items[0].text, "Milk");
   assert.equal(state.ui.editing, null);
-  assert.equal(calls(), "queueSave,repaintRow:item:i1");
+  assert.equal(calls(), "flushSave,repaintRow:item:i1");
 });
 
 test("committing an empty name rolls a named entity back", () => {

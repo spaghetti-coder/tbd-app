@@ -2021,8 +2021,15 @@ const DICTS = {
 
 /* ---------- store & persistence ---------- */
 
-const KEY = "varlog.tbd.v1";
+const DB_NAME = "varlog.tbd";
+const CHANNEL = "varlog.tbd";
+const UI_KEY = "ui";
+const STORES = ["checklists", "items", "doc"];
 
+/* Order lives in one doc per list plus one for the lists themselves; a row carries no ordinal. */
+const orderKey = (listId) => `order:${listId}`;
+
+let db = null;
 let storageBroken = false;
 
 function el(tag, className, text) {
@@ -2040,11 +2047,10 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+const B36 = "0123456789abcdefghijklmnopqrstuvwxyz";
+
 function uid() {
-  if (globalThis.crypto && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return [...crypto.getRandomValues(new Uint8Array(12))].map((byte) => B36[byte % 36]).join("");
 }
 
 function langCode() {
@@ -2133,16 +2139,44 @@ function normalize(data) {
   return out;
 }
 
-function load() {
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME);
+    req.onupgradeneeded = () => {
+      const idb = req.result;
+      idb.createObjectStore("checklists", { keyPath: "id" });
+      idb.createObjectStore("items", { keyPath: "id" }).createIndex("checklistId", "checklistId");
+      idb.createObjectStore("doc", { keyPath: "key" });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function readAll() {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES);
+    const reqs = STORES.map((name) => tx.objectStore(name).getAll());
+    tx.oncomplete = () => resolve(reqs.map((req) => req.result));
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+/* The whole store, read once at boot; from then on the app works on `state` in memory. */
+async function load() {
   try {
-    return normalize(JSON.parse(localStorage.getItem(KEY)));
+    db = await openDb();
+    const [checklists, items, docRows] = await readAll();
+    const docs = Object.fromEntries(docRows.map((doc) => [doc.key, doc.value]));
+    return applyOrder(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
   } catch {
     storageBroken = true;
     return defaults();
   }
 }
 
-const state = load();
+let state = defaults();
 const dark = matchMedia("(prefers-color-scheme: dark)");
 const wide = matchMedia("(width > 560px)");
 let saveTimer = 0;
@@ -2151,45 +2185,173 @@ let saveTimer = 0;
    tab's write); the visibilitychange and pagehide flushes must not put an older state back. */
 let stopSaving = false;
 
-function save() {
-  if (stopSaving) return;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    storageBroken = true;
+/* What changed since the last transaction. A move marks an order doc, not the rows it moved. */
+const dirty = {
+  lists: new Set(), items: new Set(), order: new Set(), goneLists: new Set(), goneItems: new Set(), ui: false,
+};
+
+/* The one small ui doc: queueSave marks it, so no ui path has to remember a mark of its own. */
+function markUi() {
+  dirty.ui = true;
+}
+
+function markDirty(kind, id) {
+  dirty[kind === "list" ? "lists" : "items"].add(id);
+}
+
+function markGone(kind, id) {
+  if (kind === "list") {
+    dirty.goneLists.add(id);
+    dirty.lists.delete(id);
+    dirty.order.delete(id);
+  } else {
+    dirty.goneItems.add(id);
+    dirty.items.delete(id);
   }
 }
 
+function markOrder(listId) {
+  dirty.order.add(listId);
+}
+
+/* The rows behind the marks, owned by this batch alone. A marked row that state lost in the meantime
+   has nothing left to write; its gone mark, if any, travels in the same batch. */
+function takeBatch() {
+  const batch = {
+    lists: [],
+    items: [],
+    order: [...dirty.order],
+    goneLists: [...dirty.goneLists],
+    goneItems: [...dirty.goneItems],
+    ui: dirty.ui,
+  };
+  for (const row of state.checklists) {
+    if (dirty.lists.has(row.id)) batch.lists.push(row);
+  }
+  for (const row of state.items) {
+    if (dirty.items.has(row.id)) batch.items.push(row);
+  }
+  dirty.lists.clear();
+  dirty.items.clear();
+  dirty.order.clear();
+  dirty.goneLists.clear();
+  dirty.goneItems.clear();
+  dirty.ui = false;
+  return batch;
+}
+
+function emptyBatch(batch) {
+  return !batch.lists.length && !batch.items.length && !batch.order.length
+    && !batch.goneLists.length && !batch.goneItems.length && !batch.ui;
+}
+
+function requeue(batch) {
+  for (const row of batch.lists) dirty.lists.add(row.id);
+  for (const row of batch.items) dirty.items.add(row.id);
+  for (const id of batch.order) dirty.order.add(id);
+  for (const id of batch.goneLists) dirty.goneLists.add(id);
+  for (const id of batch.goneItems) dirty.goneItems.add(id);
+  dirty.ui = dirty.ui || batch.ui;
+}
+
+let flushing = false;
+let pendingFlush = false;
+let inflight = Promise.resolve();
+
+/* One transaction at a time; edits made while one is running wait for the next. A save with nothing
+   dirty stays out of the store, so the other tabs are not told to reload for nothing. */
+function save() {
+  if (stopSaving || !db) return Promise.resolve();
+  const batch = takeBatch();
+  if (emptyBatch(batch)) return Promise.resolve();
+  if (flushing) {
+    requeue(batch);
+    pendingFlush = true;
+    return inflight.then(() => save());
+  }
+  flushing = true;
+  inflight = writeBatch(batch)
+    .then(() => channel?.postMessage(tabId))
+    .catch(() => {
+      requeue(batch);
+      storageBroken = true;
+      showToast(t("storage_error"));
+    })
+    .finally(() => {
+      flushing = false;
+      if (pendingFlush) {
+        pendingFlush = false;
+        queueSave();
+      }
+    });
+  return inflight;
+}
+
+/* One transaction: rows, order docs, the ui doc and the deletes together, so a half-written batch
+   is never readable. A deleted list takes its items and its order doc with it. */
+function writeBatch(batch) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES, "readwrite");
+    const lists = tx.objectStore("checklists");
+    const items = tx.objectStore("items");
+    const docs = tx.objectStore("doc");
+    for (const row of batch.lists) lists.put(row);
+    for (const row of batch.items) items.put(row);
+    for (const id of batch.order) docs.put({ key: orderKey(id), value: orderValue(id) });
+    if (batch.ui) docs.put({ key: UI_KEY, value: state.ui });
+    for (const id of batch.goneItems) items.delete(id);
+    for (const id of batch.goneLists) {
+      lists.delete(id);
+      docs.delete(orderKey(id));
+      const keys = items.index("checklistId").getAllKeys(id);
+      keys.onsuccess = () => keys.result.forEach((key) => items.delete(key));
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
 function queueSave() {
+  markUi();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = 0;
     save();
-    if (storageBroken) showToast(t("storage_error"));
   }, 150);
 }
 
 function flushSave() {
   clearTimeout(saveTimer);
   saveTimer = 0;
-  save();
+  return save();
 }
 
-/* Another tab wrote the key; reload as soon as this tab has nothing unsaved on screen. */
+/* Every commit echoes this tab's own id, so a tab never reloads over its own write. On file:// the
+   origin is opaque and a channel can be missing or deaf: those tabs simply leave each other alone. */
+const tabId = uid();
+let channel = null;
+try {
+  channel = new BroadcastChannel(CHANNEL);
+} catch {
+  // no channel for this origin
+}
+
+/* Another tab wrote; reload as soon as this tab has nothing unsaved on screen. */
 let externalWrite = false;
 
 function safeToReload() {
   return !state.ui.editing && !gesture && !drag && !modalOpen();
 }
 
-function maybeReload() {
+async function maybeReload() {
   if (!externalWrite || !safeToReload()) {
     return;
   }
   externalWrite = false;
   // A pending save is newer than the other tab's write; flushing an old state would bury that write.
   if (saveTimer) {
-    flushSave();
+    await flushSave();
   }
   stopSaving = true;
   location.reload();
@@ -2202,6 +2364,40 @@ function commit() {
 }
 
 /* ---------- pure ordering helpers ---------- */
+
+/* Rows in the order doc's order; rows the doc does not name keep the order they came in. */
+function byOrder(rows, ids) {
+  const rest = new Map(rows.map((row) => [row.id, row]));
+  const out = [];
+  for (const id of Array.isArray(ids) ? ids : []) {
+    const row = rest.get(id);
+    if (row) {
+      out.push(row);
+      rest.delete(id);
+    }
+  }
+  return [...out, ...rest.values()];
+}
+
+/* Items are ordered inside their own list, lists in one doc of their own. */
+function applyOrder(data, docs) {
+  data.checklists = byOrder(data.checklists, docs[orderKey("lists")]);
+  const groups = new Map();
+  for (const item of data.items) {
+    const group = groups.get(item.checklistId) ?? [];
+    group.push(item);
+    groups.set(item.checklistId, group);
+  }
+  data.items = data.checklists.flatMap((cl) => byOrder(groups.get(cl.id) ?? [], docs[orderKey(cl.id)]));
+  return data;
+}
+
+/* The ids a list holds now: state is the only authority on order, a doc merely mirrors it. */
+function orderValue(listId) {
+  return listId === "lists"
+    ? state.checklists.map((c) => c.id)
+    : state.items.filter((i) => i.checklistId === listId).map((i) => i.id);
+}
 
 /* Where a group taken out of `list` lands: before refId; after prevId when the gap sits at the end
    of the page (so a drop at the bottom of a page stays on it); at the end when neither is there. */
@@ -2292,6 +2488,8 @@ function addChecklist() {
   } else {
     state.checklists.push(cl);
   }
+  markDirty("list", cl.id);
+  markOrder("lists");
   state.ui.editing = { kind: "list", id: cl.id };
   jumpTo(cl.id);
   commit();
@@ -2301,6 +2499,7 @@ function addItem(checklistId) {
   const cl = findList(checklistId);
   if (!cl) return;
   cl.expanded = true;
+  markDirty("list", cl.id);
   const item = {
     id: uid(),
     checklistId,
@@ -2312,6 +2511,8 @@ function addItem(checklistId) {
   };
   const peers = state.items.filter((i) => i.checklistId === checklistId);
   state.items.splice(joinIndex(state.items, peers, state.ui.newItem !== "top"), 0, item);
+  markDirty("item", item.id);
+  markOrder(checklistId);
   state.ui.editing = { kind: "item", id: item.id };
   scrollTarget = { kind: "item", id: item.id };
   commit();
@@ -2321,8 +2522,13 @@ function removeEntity(kind, id) {
   if (kind === "list") {
     state.checklists = state.checklists.filter((c) => c.id !== id);
     state.items = state.items.filter((i) => i.checklistId !== id);
+    markGone("list", id);
+    markOrder("lists");
   } else {
+    const item = findItem(id);
     state.items = state.items.filter((i) => i.id !== id);
+    markGone("item", id);
+    if (item) markOrder(item.checklistId);
   }
   pruneSelection();
 }
@@ -2348,8 +2554,9 @@ function commitText(kind, id, raw) {
     if (item) item.text = text;
   }
   state.ui.editing = null;
+  markDirty(kind, id);
   // Repaint only this row: rebuilding would destroy the button that just took focus away, and its click with it.
-  queueSave();
+  flushSave();
   repaintRow(kind, id);
 }
 
@@ -2368,6 +2575,7 @@ function archiveItemQuiet(id) {
   if (!item) return;
   item.archived = true;
   item.archivedBy = "user";
+  markDirty("item", id);
 }
 
 function archiveMany(kind, ids) {
@@ -2384,10 +2592,12 @@ function archiveChecklistQuiet(id) {
   const cl = findList(id);
   if (!cl) return;
   cl.archived = true;
+  markDirty("list", id);
   for (const item of state.items) {
     if (item.checklistId === id && !item.archived) {
       item.archived = true;
       item.archivedBy = "list";
+      markDirty("item", item.id);
     }
   }
 }
@@ -2404,6 +2614,7 @@ function moveTo(kind, ids, where) {
   if (!ids.length) return;
   if (kind === "list") {
     state.checklists = moveGroup(state.checklists, ids, where === "top" ? 0 : state.checklists.length);
+    markOrder("lists");
     const count = pageCount(visibleChecklists().length);
     state.ui.page = where === "top" ? 1 : count;
   } else {
@@ -2419,6 +2630,9 @@ function moveItemsTo(ids, where) {
   const rest = state.items.filter((i) => !picked.has(i.id));
   const peers = rest.filter((i) => i.checklistId === group[0].checklistId);
   state.items = moveGroup(state.items, ids, joinIndex(rest, peers, where !== "top"));
+  for (const checklistId of new Set(group.map((i) => i.checklistId))) {
+    markOrder(checklistId);
+  }
 }
 
 function jumpTo(id) {
@@ -2434,6 +2648,7 @@ function jumpTo(id) {
 function setExpandedAll(open) {
   for (const cl of visibleChecklists()) {
     cl.expanded = open;
+    markDirty("list", cl.id);
   }
   commit();
 }
@@ -3309,15 +3524,18 @@ function restoreLists(ids) {
   for (const cl of state.checklists) {
     if (picked.has(cl.id)) {
       cl.archived = false;
+      markDirty("list", cl.id);
       moved.push(cl);
     } else {
       rest.push(cl);
     }
   }
   state.checklists = [...moved, ...rest];
+  markOrder("lists");
   for (const item of state.items) {
     if (picked.has(item.checklistId) && item.archived && item.archivedBy === "list") {
       item.archived = false;
+      markDirty("item", item.id);
     }
   }
 }
@@ -3328,12 +3546,16 @@ function restoreItems(ids) {
   state.items = state.items.filter((item) => {
     if (!picked.has(item.id)) return true;
     item.archived = false;
+    markDirty("item", item.id);
     moved.push(item);
     return false;
   });
   for (const item of [...moved].reverse()) {
     const peers = state.items.filter((i) => i.checklistId === item.checklistId);
     state.items.splice(joinIndex(state.items, peers, false), 0, item);
+  }
+  for (const checklistId of new Set(moved.map((i) => i.checklistId))) {
+    markOrder(checklistId);
   }
 }
 
@@ -3593,6 +3815,7 @@ function onRowUp() {
   if (gesture.mode === "drag") {
     suppressNextClick();
     endDrag(true);
+    flushSave();
   } else if (gesture.mode === "swipe") {
     suppressNextClick();
     finishSwipe();
@@ -3793,6 +4016,7 @@ function expandForDrop(id) {
   drag.hoverId = null;
   clearCollapsedTarget();
   cl.expanded = true;
+  markDirty("list", id);
   // A rebuild would destroy the row under the finger, and Chrome answers that with pointercancel.
   queueSave();
   repaintRow("list", id);
@@ -3903,16 +4127,23 @@ function siblingId(gap, dir) {
 function dropItemsInto(ids, checklistId, refId) {
   const picked = new Set(ids);
   const group = state.items.filter((item) => picked.has(item.id));
+  const touched = new Set(group.map((item) => item.checklistId));
   const rest = state.items.filter((item) => !picked.has(item.id));
   const live = rest.filter((item) => item.checklistId === checklistId && !item.archived);
   const at = refId ? rest.findIndex((item) => item.id === refId) : -1;
   const index = at === -1 ? joinIndex(rest, live, true) : at;
   for (const item of group) {
     item.checklistId = checklistId;
+    markDirty("item", item.id);
   }
   state.items = moveGroup(state.items, ids, index);
   const target = findList(checklistId);
-  if (target) target.expanded = true;
+  if (target) {
+    target.expanded = true;
+    markDirty("list", checklistId);
+  }
+  touched.add(checklistId);
+  for (const id of touched) markOrder(id);
 }
 
 function endDrag(apply) {
@@ -3944,6 +4175,7 @@ function endDrag(apply) {
   }
   if (kind === "list") {
     state.checklists = moveGroup(state.checklists, ids, refIndex(state.checklists, ids, refId, prevId));
+    markOrder("lists");
   } else if (current.collapsedId) {
     dropItemsInto(ids, current.collapsedId, null);
   } else if (checklistId) {
@@ -4177,7 +4409,8 @@ function endPanelDrag() {
   document.documentElement.classList.remove("is-dragging");
   hideGhost();
   stopAutoScroll();
-  queueSave();
+  markUi();
+  flushSave();
   positionPanel();
   setTimeout(() => { panelSuppress = false; }, 250);
 }
@@ -4203,6 +4436,7 @@ function onRowAct(act, kind, id, row, trigger) {
     const cl = findList(id);
     if (cl) {
       cl.expanded = !cl.expanded;
+      markDirty("list", id);
       queueSave();
       repaintRow("list", id);
     }
@@ -4216,6 +4450,7 @@ function onRowAct(act, kind, id, row, trigger) {
     const item = findItem(id);
     if (item) {
       item.done = !item.done;
+      markDirty("item", id);
       queueSave();
       repaintRow("item", id);
     }
@@ -4388,13 +4623,15 @@ function bind() {
   lists.addEventListener("keydown", onListKeyDown);
   lists.addEventListener("focusout", onListBlur);
   lists.addEventListener("pointerdown", onRowDown);
-  addEventListener("storage", (event) => {
-    if (event.key !== KEY) {
-      return;
-    }
-    externalWrite = true;
-    maybeReload();
-  });
+  if (channel) {
+    channel.onmessage = (event) => {
+      if (event.data === tabId) {
+        return;
+      }
+      externalWrite = true;
+      maybeReload();
+    };
+  }
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
   panel.addEventListener("pointerdown", onPanelDown);
@@ -4421,9 +4658,12 @@ function bind() {
   });
 }
 
-function boot() {
+async function boot() {
   document.documentElement.style.setProperty("--hover-ms", `${GESTURE.hover}ms`);
   loadIcons();
+  // Best effort: the browser still decides whether this origin keeps its data past eviction.
+  navigator.storage?.persist?.().catch(() => {});
+  state = await load();
   bind();
   render();
   if (storageBroken) showToast(t("storage_error"));
@@ -4432,14 +4672,24 @@ function boot() {
 boot();
 
 window.__tbd = {
-  reset() {
+  /* Empties the stores rather than deleting the database, which other open tabs would block. */
+  async reset() {
     stopSaving = true;
     try {
-      localStorage.removeItem(KEY);
+      if (db) {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORES, "readwrite");
+          for (const name of STORES) tx.objectStore(name).clear();
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+      }
     } catch {
       // storage unavailable: nothing to clear
+    } finally {
+      location.reload();
     }
-    location.reload();
   },
 };
 </script>
