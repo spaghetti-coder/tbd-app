@@ -4284,15 +4284,20 @@ function panelFraction(top, base) {
   return clamp((top - min) / (max - min), 0, 1);
 }
 
-function panelX(side, width) {
-  const margin = GESTURE.gap;
+/* The docks [left, right] a panel of `width` rests on: beside the content column when it fits,
+   the safe-area edges otherwise. Ordered, and never past the safe area. */
+function panelDocks(width) {
+  const safeLeft = Math.round(cssVarPx("--safe-left"));
+  const safeRight = Math.round(innerWidth - width - cssVarPx("--safe-right"));
   const wrap = document.querySelector(".wrap").getBoundingClientRect();
-  if (wrap.left >= width + GESTURE.gap * 2) {
-    return side === "left" ? Math.round(wrap.left - width - margin) : Math.round(wrap.right + margin);
-  }
-  return side === "left"
-    ? Math.round(cssVarPx("--safe-left"))
-    : Math.round(innerWidth - width - cssVarPx("--safe-right"));
+  const docks = wrap.left >= width + GESTURE.gap * 2
+    ? [Math.max(safeLeft, Math.round(wrap.left - width - GESTURE.gap)), Math.min(safeRight, Math.round(wrap.right + GESTURE.gap))]
+    : [safeLeft, safeRight];
+  return [Math.min(...docks), Math.max(...docks)];
+}
+
+function panelX(side, docks) {
+  return side === "left" ? docks[0] : docks[1];
 }
 
 function positionPanel() {
@@ -4300,19 +4305,18 @@ function positionPanel() {
   if (panelDrag) return;
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
-  panel.style.left = `${panelX(state.ui.panel.side, width)}px`;
+  panel.style.left = `${panelX(state.ui.panel.side, panelDocks(width))}px`;
   panel.style.top = `${panelTop(state.ui.panel.topPct, height, collapsedHeight())}px`;
 }
 
-function snapSide(center, width) {
-  const left = panelX("left", width) + width / 2;
-  const right = panelX("right", width) + width / 2;
-  return sideFor(center, left, right, state.ui.panel.side);
+function snapSide(center, width, docks) {
+  return sideFor(center, docks[0] + width / 2, docks[1] + width / 2, state.ui.panel.side);
 }
 
-// Once off the dock the panel stays free; snapping back at the threshold would flicker.
+// Peel past the threshold, re-glue at half of it: the gap is wider than GESTURE.slop, so jitter cannot oscillate it.
 function detached(desired, dock, wasDetached) {
-  return wasDetached || Math.abs(desired - dock) >= GESTURE.detach;
+  const dist = Math.abs(desired - dock);
+  return wasDetached ? dist >= GESTURE.detach / 2 : dist >= GESTURE.detach;
 }
 
 // Switch docks only past 33% of the span from the current one.
@@ -4324,14 +4328,14 @@ function sideFor(center, left, right, side) {
   return right - center >= trigger ? "left" : "right";
 }
 
-function showGhost(side, top, width, height) {
+function showGhost(left, top, width, height) {
   const ghost = panelGhost ?? el("div", "panel-ghost");
   panelGhost = ghost;
   if (!ghost.isConnected) document.body.append(ghost);
   ghost.hidden = false;
   ghost.style.width = `${width}px`;
   ghost.style.height = `${height}px`;
-  ghost.style.left = `${panelX(side, width)}px`;
+  ghost.style.left = `${left}px`;
   ghost.style.top = `${top}px`;
 }
 
@@ -4387,22 +4391,24 @@ function beginPanelDrag(event, origin) {
 
 function movePanelDrag(event) {
   const panel = byId("panel");
-  const minLeft = cssVarPx("--safe-left");
   const [minTop, maxTop] = panelTopRange(panelDrag.height);
-  const desired = clamp(event.clientX - panelDrag.dx, minLeft, Math.max(minLeft, innerWidth - panelDrag.width - cssVarPx("--safe-right")));
-  const dock = panelX(state.ui.panel.side, panelDrag.width);
+  // Outward of a dock there is nothing to catch the panel, so the docks are the bounds.
+  const docks = panelDocks(panelDrag.width);
+  const desired = clamp(event.clientX - panelDrag.dx, docks[0], docks[1]);
+  const dock = panelX(state.ui.panel.side, docks);
   panelDrag.detached = detached(desired, dock, panelDrag.detached);
   const top = clamp(event.clientY - panelDrag.dy, minTop, maxTop);
   const left = panelDrag.detached ? desired : dock;
   panel.style.left = `${left}px`;
   panel.style.top = `${top}px`;
-  showGhost(snapSide(left + panelDrag.width / 2, panelDrag.width), top, panelDrag.width, panelDrag.height);
+  const side = snapSide(left + panelDrag.width / 2, panelDrag.width, docks);
+  showGhost(panelX(side, docks), top, panelDrag.width, panelDrag.height);
 }
 
 function endPanelDrag() {
   const panel = byId("panel");
   const rect = panel.getBoundingClientRect();
-  state.ui.panel.side = snapSide(rect.left + rect.width / 2, rect.width);
+  state.ui.panel.side = snapSide(rect.left + rect.width / 2, rect.width, panelDocks(rect.width));
   state.ui.panel.topPct = panelFraction(rect.top, collapsedHeight());
   panelDrag = null;
   panel.classList.remove("is-dragging");

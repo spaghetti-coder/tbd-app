@@ -99,19 +99,28 @@ const BASE = 52;
 const MIN = 80;
 const COLLAPSED = 824;
 
-test("detached flips exactly at the threshold and never re-docks", () => {
+test("detached peels at the threshold and re-glues at half of it", () => {
+  assert.ok(GESTURE.detach / 2 > GESTURE.slop, "a band narrower than the jitter flickers the dock");
+  const dock = 500;
   const rows = [
-    [300, false, true],
-    [700, false, true],
+    // On the dock it holds until the pointer is past the peel threshold.
+    [dock + 11, false, false],
+    [dock + 23, false, false],
+    [dock + 24, false, true],
+    [dock - 24, false, true],
+    // Off the dock it re-glues only inside half the threshold.
+    [dock + 13, true, true],
+    [dock + 12, true, true],
+    [dock + 11, true, false],
+    [dock, true, false],
+    [dock - 11, true, false],
+    [dock - 12, true, true],
+    // Far on either side it stays free.
+    [900, true, true],
+    [300, true, true],
   ];
-  for (const offset of [-400, -24, 0, 1, 24, 400]) {
-    rows.push([500 + offset, true, true]);
-  }
-  for (let desired = 450; desired <= 550; desired += 1) {
-    rows.push([desired, false, Math.abs(desired - 500) >= GESTURE.detach]);
-  }
   for (const [desired, wasDetached, want] of rows) {
-    assert.equal(detached(desired, 500, wasDetached), want, `desired ${desired}, wasDetached ${wasDetached}`);
+    assert.equal(detached(desired, dock, wasDetached), want, `desired ${desired}, was ${wasDetached}`);
   }
 });
 
