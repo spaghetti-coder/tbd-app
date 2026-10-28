@@ -6,5 +6,4 @@ services:
       - "8081:80"
     volumes:
       - ./index.html:/app/index.html:ro
-      # ~~~ Config volumes ~~~
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
