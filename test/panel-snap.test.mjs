@@ -27,7 +27,7 @@ const box = {
 };
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
 createContext(box);
-const { GESTURE, sideFor, panelTopRange, panelTop, panelFraction, detached } = runInContext(
+const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached } = runInContext(
   [
     slice("GESTURE"),
     slice("clamp"),
@@ -35,10 +35,11 @@ const { GESTURE, sideFor, panelTopRange, panelTop, panelFraction, detached } = r
     slice("cssBottomInset"),
     slice("panelCeiling"),
     slice("panelTopRange"),
+    slice("panelFits"),
     slice("panelTop"),
     slice("panelFraction"),
     slice("detached"),
-    "({ GESTURE, sideFor, panelTopRange, panelTop, panelFraction, detached });",
+    "({ GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached });",
   ].join("\n"),
   box,
 );
@@ -91,6 +92,19 @@ test("panelTopRange keeps the panel below the topbar and above the bottom inset"
 test("panelTopRange never inverts on a viewport too short for the panel", () => {
   withEnv({ innerHeight: 200 }, () => {
     assert.deepEqual(range(120), [80, 80]);
+  });
+});
+
+test("panelFits is true only while the panel has a band to move within", () => {
+  assert.equal(panelFits(143), true, "the plain pill on a desktop viewport");
+  assert.equal(panelFits(796), false, "exactly the band leaves nowhere to move");
+  withEnv({ innerHeight: 390 }, () => {
+    assert.equal(panelFits(143), true, "landscape without a selection keeps the pill stacked");
+    assert.equal(panelFits(374), false, "the bulk pill on a landscape phone lies down");
+  });
+  withEnv({ innerHeight: 390, paddingBottom: "0px" }, () => {
+    assert.equal(panelFits(297), true, "no inset: the gesture gap is the only floor");
+    assert.equal(panelFits(298), false);
   });
 });
 

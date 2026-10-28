@@ -593,6 +593,23 @@
     z-index: 24;
   }
 
+  /* The pill lies down only when the vertical band cannot hold it. */
+  .panel.is-row {
+    flex-direction: row;
+  }
+
+  .panel.is-row .panel__group {
+    flex-direction: row;
+  }
+
+  /* Centered cross axis would collapse an auto-sized separator to nothing. */
+  .panel.is-row .panel__sep {
+    align-self: stretch;
+    height: auto;
+    margin: 8px 2px;
+    width: 1px;
+  }
+
   .modal {
     animation: pop 160ms ease-out;
     background: var(--surface);
@@ -3003,7 +3020,6 @@ function panelButton(icon, labelKey, act, disabled) {
 function panelSeparator() {
   const sep = el("div", "panel__sep");
   sep.setAttribute("role", "separator");
-  sep.setAttribute("aria-orientation", "horizontal");
   return sep;
 }
 
@@ -4249,6 +4265,12 @@ function panelCeiling(height, min) {
   return Math.max(min, innerHeight - height - Math.max(GESTURE.gap, cssBottomInset()));
 }
 
+// A band of zero height leaves the panel nowhere to sit and its far end past the screen edge.
+function panelFits(height) {
+  const [min, max] = panelTopRange(height);
+  return max > min;
+}
+
 // Vertical band the panel may occupy: below the sticky topbar, above the bottom safe area.
 function panelTopRange(height) {
   const min = Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom) + GESTURE.gap;
@@ -4300,9 +4322,20 @@ function panelX(side, docks) {
   return side === "left" ? docks[0] : docks[1];
 }
 
+// Row mode is decided on the unrowed height: the row layout hides the height it is about.
+function panelLiesDown(panel) {
+  panel.classList.remove("is-row");
+  return !panelFits(panel.offsetHeight);
+}
+
 function positionPanel() {
   const panel = byId("panel");
   if (panelDrag) return;
+  const row = panel.classList.toggle("is-row", panelLiesDown(panel));
+  panel.setAttribute("aria-orientation", row ? "horizontal" : "vertical");
+  for (const sep of panel.querySelectorAll(".panel__sep")) {
+    sep.setAttribute("aria-orientation", row ? "vertical" : "horizontal");
+  }
   const width = panel.offsetWidth;
   const height = panel.offsetHeight;
   panel.style.left = `${panelX(state.ui.panel.side, panelDocks(width))}px`;
