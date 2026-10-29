@@ -86,9 +86,21 @@
     padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 
-  html.is-locked,
+  html.is-locked {
+    overflow: hidden;
+  }
+
+  /* The lock stops the root scrollport, so stickiness dies with it: the header holds the viewport
+     edge itself and the body keeps the height the header leaves in the flow, so nothing jumps. */
   html.is-locked body {
     overflow: hidden;
+    padding-top: var(--topbar-h);
+  }
+
+  html.is-locked .topbar {
+    inset-inline: 0;
+    position: fixed;
+    top: 0;
   }
 
   /* Rows are drag controls; Chrome decides long-press selectability at touchstart, before JS. */
@@ -153,6 +165,7 @@
 
   .ic--plus { mask-image: var(--ic-plus, none); }
   .ic--settings { mask-image: var(--ic-settings, none); }
+  .ic--logout { mask-image: var(--ic-logout, none); }
   .ic--help { mask-image: var(--ic-help, none); }
   .ic--chevron-right { mask-image: var(--ic-chevron-right, none); }
   .ic--chevron-down { mask-image: var(--ic-chevron-down, none); }
@@ -905,6 +918,27 @@
     width: 100%;
   }
 
+  /* Hold-to-enter: nothing for the first second, then a fill that lands with the 3s hold. */
+  .btn--hold {
+    overflow: hidden;
+    position: relative;
+  }
+
+  .hold {
+    background: var(--accent);
+    bottom: 0;
+    left: 0;
+    opacity: 0.22;
+    position: absolute;
+    top: 0;
+    width: 0;
+  }
+
+  /* The fill duration comes from DEMO_HOLD, so JS owns the one timing. */
+  .hold.is-run {
+    width: 100%;
+  }
+
   .btn--primary {
     background: var(--accent);
     color: var(--on-accent);
@@ -1081,6 +1115,7 @@
     <h1 class="topbar__title">TBD</h1>
     <button class="btn" id="btn-add" type="button"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
     <button class="btn" id="btn-settings" type="button" aria-haspopup="true" aria-expanded="false"><span class="ic ic--settings"></span><span class="ic-alt" aria-hidden="true">&#9881;</span></button>
+    <button class="btn" id="btn-demo" type="button" hidden><span class="ic ic--logout"></span><span class="ic-alt" aria-hidden="true">&#9167;</span></button>
     <button class="btn" id="btn-help" type="button"><span class="ic ic--help"></span><span class="ic-alt" aria-hidden="true">?</span></button>
   </div>
 </header>
@@ -1152,6 +1187,7 @@ const ICON_HOSTS = [
 const ICON_FILES = {
   plus: "plus",
   settings: "settings",
+  logout: "log-out",
   help: "circle-help",
   "chevron-right": "chevron-right",
   "chevron-down": "chevron-down",
@@ -1276,6 +1312,10 @@ const EN = {
   tab_lists: "Checklists",
   tab_items: "Items",
   archive_empty: "Nothing archived",
+  demo_start: "Demo stand",
+  demo_start_msg: "Loads sample checklists. Your own lists stay untouched.",
+  demo_exit: "Exit demo",
+  demo_exit_msg: "Demo data will be deleted.",
   bulk: "Bulk mode",
   c_archive_list: "Archive this checklist?",
   c_archive_item: "Archive this item?",
@@ -1352,6 +1392,10 @@ const DICTS = {
     tab_lists: "Чек-листы",
     tab_items: "Пункты",
     archive_empty: "Ничего нет",
+    demo_start: "Демо-стенд",
+    demo_start_msg: "Загрузит примеры чек-листов. Ваши списки не изменятся.",
+    demo_exit: "Выйти из демо",
+    demo_exit_msg: "Демо-данные будут удалены.",
     bulk: "Групповой режим",
     c_archive_list: "Архивировать этот чек-лист?",
     c_archive_item: "Архивировать этот пункт?",
@@ -1425,6 +1469,10 @@ const DICTS = {
     tab_lists: "Списъци",
     tab_items: "Точки",
     archive_empty: "Нищо в архива",
+    demo_start: "Демо среда",
+    demo_start_msg: "Зарежда примерни чек-листи. Вашите списъци не се променят.",
+    demo_exit: "Изход от демо",
+    demo_exit_msg: "Демонстрационните данни ще бъдат изтрити.",
     bulk: "Групов режим",
     c_archive_list: "Архивирай ли този списък?",
     c_archive_item: "Архивирай ли тази точка?",
@@ -1498,6 +1546,10 @@ const DICTS = {
     tab_lists: "Listas",
     tab_items: "Elementos",
     archive_empty: "Nada archivado",
+    demo_start: "Modo demo",
+    demo_start_msg: "Carga listas de ejemplo. Tus listas no cambian.",
+    demo_exit: "Salir de la demo",
+    demo_exit_msg: "Se borrarán los datos de demostración.",
     bulk: "Modo múltiple",
     c_archive_list: "¿Archivar esta lista?",
     c_archive_item: "¿Archivar este elemento?",
@@ -1571,6 +1623,10 @@ const DICTS = {
     tab_lists: "Listes",
     tab_items: "Éléments",
     archive_empty: "Rien d’archivé",
+    demo_start: "Bac à sable",
+    demo_start_msg: "Charge des listes d’exemple. Vos listes restent intactes.",
+    demo_exit: "Quitter le bac à sable",
+    demo_exit_msg: "Les données de démonstration seront supprimées.",
     bulk: "Mode groupé",
     c_archive_list: "Archiver cette liste ?",
     c_archive_item: "Archiver cet élément ?",
@@ -1644,6 +1700,10 @@ const DICTS = {
     tab_lists: "Liste",
     tab_items: "Elemente",
     archive_empty: "Nimic arhivat",
+    demo_start: "Mod demo",
+    demo_start_msg: "Încarcă liste exemplu. Listele tale rămân neschimbate.",
+    demo_exit: "Ieși din demo",
+    demo_exit_msg: "Datele demo vor fi șterse.",
     bulk: "Mod grup",
     c_archive_list: "Arhivezi această listă?",
     c_archive_item: "Arhivezi acest element?",
@@ -1717,6 +1777,10 @@ const DICTS = {
     tab_lists: "清单",
     tab_items: "条目",
     archive_empty: "暂无归档",
+    demo_start: "演示环境",
+    demo_start_msg: "载入示例清单，你的清单不受影响。",
+    demo_exit: "退出演示",
+    demo_exit_msg: "演示数据将被删除。",
     bulk: "批量模式",
     c_archive_list: "归档这个清单？",
     c_archive_item: "归档这个条目？",
@@ -1790,6 +1854,10 @@ const DICTS = {
     tab_lists: "リスト",
     tab_items: "項目",
     archive_empty: "アーカイブはありません",
+    demo_start: "デモ環境",
+    demo_start_msg: "サンプルのチェックリストを読み込みます。自分のリストは変わりません。",
+    demo_exit: "デモを終了",
+    demo_exit_msg: "デモデータは削除されます。",
     bulk: "一括モード",
     c_archive_list: "このリストをアーカイブしますか？",
     c_archive_item: "この項目をアーカイブしますか？",
@@ -1863,6 +1931,10 @@ const DICTS = {
     tab_lists: "Kontrollistoj",
     tab_items: "Punktoj",
     archive_empty: "Nenio arkivita",
+    demo_start: "Demona medio",
+    demo_start_msg: "Ŝargas specimajn kontrollistojn. Viaj listoj ne tuŝiĝas.",
+    demo_exit: "Eliri demon",
+    demo_exit_msg: "La demonaj datumoj estos forigitaj.",
     bulk: "Amasa reĝimo",
     c_archive_list: "Arkivi ĉi tiun kontrolliston?",
     c_archive_item: "Arkivi ĉi tiun punkton?",
@@ -1936,6 +2008,10 @@ const DICTS = {
     tab_lists: "Listas de controlo",
     tab_items: "Punctos",
     archive_empty: "Nihil archivate",
+    demo_start: "Ambiente demo",
+    demo_start_msg: "Incarga listas de exemplo. Tu listas remane insemmiate.",
+    demo_exit: "Exir del demo",
+    demo_exit_msg: "Le datos de demonstration essera delite.",
     bulk: "Modo de gruppo",
     c_archive_list: "Archivar iste lista de controlo?",
     c_archive_item: "Archivar iste puncto?",
@@ -2009,6 +2085,10 @@ const DICTS = {
     tab_lists: "lipu",
     tab_items: "nimi",
     archive_empty: "len ala",
+    demo_start: "nasin demo",
+    demo_start_msg: "li pana e lipu demo. lipu sina li sama.",
+    demo_exit: "weka e demo",
+    demo_exit_msg: "lipu demo li weka.",
     bulk: "luka mute",
     c_archive_list: "o len e ni lipu?",
     c_archive_item: "o len e ni nimi?",
@@ -2039,12 +2119,41 @@ const DICTS = {
 /* ---------- store & persistence ---------- */
 
 const DB_NAME = "varlog.tbd";
-const CHANNEL = "varlog.tbd";
+const DEMO_DB = "varlog.tbd.stand";
+const DEMO_KEY = "varlog.tbd.stand";
 const UI_KEY = "ui";
 const STORES = ["checklists", "items", "doc"];
 
 /* Order lives in one doc per list plus one for the lists themselves; a row carries no ordinal. */
 const orderKey = (listId) => `order:${listId}`;
+
+/* Decided before anything touches storage: a demo session never opens the real database. */
+function demoFlag() {
+  try {
+    return localStorage.getItem(DEMO_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/* False when the origin cannot keep the flag, which would drop the stand on the next reload. */
+function demoSet(on) {
+  try {
+    if (on) {
+      localStorage.setItem(DEMO_KEY, "1");
+    } else {
+      localStorage.removeItem(DEMO_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const demo = demoFlag();
+
+// Demo tabs hear only each other, so a stand write never reloads a real tab.
+const CHANNEL = demo ? DEMO_DB : DB_NAME;
 
 let db = null;
 let storageBroken = false;
@@ -2156,9 +2265,9 @@ function normalize(data) {
   return out;
 }
 
-function openDb() {
+function openDb(name) {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME);
+    const req = indexedDB.open(name);
     req.onupgradeneeded = () => {
       const idb = req.result;
       idb.createObjectStore("checklists", { keyPath: "id" });
@@ -2167,6 +2276,18 @@ function openDb() {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  });
+}
+
+function clearStores(connection) {
+  return new Promise((resolve, reject) => {
+    const tx = connection.transaction(STORES, "readwrite");
+    for (const name of STORES) {
+      tx.objectStore(name).clear();
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -2183,8 +2304,14 @@ function readAll() {
 /* The whole store, read once at boot; from then on the app works on `state` in memory. */
 async function load() {
   try {
-    db = await openDb();
-    const [checklists, items, docRows] = await readAll();
+    db = await openDb(demo ? DEMO_DB : DB_NAME);
+    let [checklists, items, docRows] = await readAll();
+    if (demo && !checklists.length) {
+      // Eviction can leave the flag standing and the stores empty: a stand never starts empty, and
+      // whatever settings survived are still its own.
+      await seedRows(db, docRows.find((doc) => doc.key === UI_KEY)?.value);
+      [checklists, items, docRows] = await readAll();
+    }
     const docs = Object.fromEntries(docRows.map((doc) => [doc.key, doc.value]));
     return applyOrder(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
   } catch {
@@ -2808,6 +2935,7 @@ function renderChrome() {
   document.documentElement.dataset.theme = state.ui.theme === "system" ? system : state.ui.theme;
   labelNode(byId("btn-add"), "add_list");
   labelNode(byId("btn-settings"), "settings");
+  labelNode(byId("btn-demo"), "demo_exit");
   labelNode(byId("btn-help"), "help");
   labelNode(byId("page-prev"), "prev_page");
   labelNode(byId("page-next"), "next_page");
@@ -3485,12 +3613,20 @@ function openSettings() {
       commit();
     })),
   );
-  const archive = el("button", "btn btn--wide");
+  const archive = el("button", "btn btn--wide btn--hold");
   archive.type = "button";
-  archive.append(el("span", "ic ic--archive"), el("span", null, t("archive_title")));
-  archive.addEventListener("click", () => {
+  const holdBar = el("span", "hold");
+  archive.append(el("span", "ic ic--archive"), el("span", null, t("archive_title")), holdBar);
+  const openArchiveSheet = () => {
     closeModal();
     openArchive();
+  };
+  const holdFired = demoHold(archive, holdBar, openArchiveSheet,
+    () => confirmModal(t("demo_start_msg"), t("demo_start"), enterDemo, archive));
+  archive.addEventListener("click", () => {
+    if (!holdFired()) {
+      openArchiveSheet();
+    }
   });
   body.append(archive);
   openModal({
@@ -3677,6 +3813,195 @@ function openArchive() {
     }
   };
   paint();
+}
+
+/* ---------- demo stand ---------- */
+
+const DEMO_HOLD = { wait: 1000, total: 3000 };
+
+const DEMO_LISTS = [
+  "Weekend cleanup", "Groceries", "Apartment to fix", "Reading list", "Work inbox",
+  "Trip to Lisbon", "Birthday party", "Garden beds", "Car service", "Taxes 2026",
+  "Side project", "Kitchen remodel", "Fitness plan", "Podcast backlog", "Movies to watch",
+  "Photos to sort", "Baby shower", "Desk tidy", "Interview loop", "Blog drafts",
+  "Board game night", "Insurance renewal", "Camping gear", "Neighbourhood forum", "Clothes donation",
+];
+
+const DEMO_SIZES = [0, 1, 5, 20, 40];
+
+const DEMO_TASKS = [
+  "Call the plumber", "Buy batteries", "Sort the receipts", "Reply to the email", "Book the dentist",
+  "Water the plants", "Back up the laptop", "Renew the passport", "Fold the laundry", "Take out the bins",
+  "Pay the internet bill", "Replace the filter", "Mow the lawn", "Clean the gutters", "Return the library books",
+  "Defrost the freezer", "Order more coffee", "Fix the squeaky door", "Update the resume", "Check the smoke alarm",
+  "Shred the old papers", "Charge the drill", "Rake the leaves", "Descale the machine", "Wipe the shelves",
+  "Hang the picture", "Replace the bulb", "Organize the toolbox", "Wash the car", "Vacuum the hallway",
+  "Trim the hedge", "Patch the fence", "Label the boxes", "Archive the invoices", "Cancel the free trial",
+  "Set the reminder", "Export the spreadsheet", "Paint the skirting", "Seal the grout", "Deep-clean the fridge",
+];
+
+function demoList(id, title, archived = false) {
+  return { id, title, expanded: true, createdAt: Date.now(), archived };
+}
+
+function demoItem(id, checklistId, text, done = false, archivedBy = null) {
+  return {
+    id,
+    checklistId,
+    text,
+    done,
+    createdAt: Date.now(),
+    archived: archivedBy !== null,
+    archivedBy: archivedBy ?? "user",
+  };
+}
+
+/* Padded ids carry the order: a fresh stand database holds no order docs, so getAll hands the rows
+   back sorted by key. */
+function demoData() {
+  const checklists = [];
+  const items = [];
+  DEMO_LISTS.forEach((title, index) => {
+    const id = `l${String(index + 1).padStart(2, "0")}`;
+    const size = DEMO_SIZES[index % DEMO_SIZES.length];
+    checklists.push(demoList(id, title));
+    for (let n = 0; n < size; n += 1) {
+      const done = size > 1 && n % 3 === 0;
+      items.push(demoItem(`${id}i${String(n + 1).padStart(3, "0")}`, id, DEMO_TASKS[n], done));
+    }
+  });
+  checklists.push(demoList("l26", "Garage sale", true));
+  for (let n = 0; n < 3; n += 1) {
+    items.push(demoItem(`l26i00${n + 1}`, "l26", DEMO_TASKS[n], false, "list"));
+  }
+  // Out of live lists, and on top of their declared size, so every list still shows its own.
+  items.push(demoItem("l03i901", "l03", DEMO_TASKS[10], false, "user"));
+  items.push(demoItem("l04i901", "l04", DEMO_TASKS[11], false, "user"));
+  items.push(demoItem("l04i902", "l04", DEMO_TASKS[12], true, "user"));
+  return { checklists, items };
+}
+
+/* One transaction over a wiped stand, so a half-seeded or previously edited stand is never
+   readable. The stand takes the given settings but never a selection: the selected ids live in
+   whichever database the settings came from. */
+function seedRows(conn, ui) {
+  return new Promise((resolve, reject) => {
+    const data = demoData();
+    const tx = conn.transaction(STORES, "readwrite");
+    const lists = tx.objectStore("checklists");
+    const items = tx.objectStore("items");
+    for (const name of STORES) {
+      tx.objectStore(name).clear();
+    }
+    for (const row of data.checklists) lists.put(row);
+    for (const row of data.items) items.put(row);
+    if (ui) {
+      tx.objectStore("doc").put({ key: UI_KEY, value: { ...ui, bulk: { kind: null, ids: [] } } });
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function seedStand(ui) {
+  const conn = await openDb(DEMO_DB);
+  try {
+    await seedRows(conn, ui);
+  } finally {
+    conn.close();
+  }
+}
+
+async function enterDemo() {
+  // The real tab writes what it still holds before the stand takes over.
+  await flushSave();
+  stopSaving = true;
+  let ready = false;
+  try {
+    await seedStand(state.ui);
+    ready = demoSet(true);
+  } catch {
+    storageBroken = true;
+  }
+  if (!ready) {
+    stopSaving = false;
+    showToast(t("storage_error"));
+    return;
+  }
+  location.reload();
+}
+
+async function exitDemo() {
+  stopSaving = true;
+  try {
+    await clearStores(db);
+  } catch {
+    // the rows die with the flag anyway
+  }
+  demoSet(false);
+  location.reload();
+}
+
+function askExitDemo() {
+  confirmModal(t("demo_exit_msg"), t("demo_exit"), exitDemo, byId("btn-demo"));
+}
+
+/* Hold-to-enter wiring for a button: silent for the first second, then `bar` fills to the 3s mark.
+   Returns whether the last activation was a finished hold, so the caller can swallow the click
+   trailing it; a short press runs `onTap` from the click, or from keyup for keyboard activation. */
+function demoHold(button, bar, onTap, onDone) {
+  let wait = 0;
+  let run = 0;
+  let fired = false;
+  const stop = () => {
+    clearTimeout(wait);
+    clearTimeout(run);
+    wait = 0;
+    run = 0;
+    bar.style.transition = "none";
+    bar.classList.remove("is-run");
+  };
+  const start = () => {
+    stop();
+    fired = false;
+    wait = setTimeout(() => {
+      bar.style.transition = `width ${DEMO_HOLD.total - DEMO_HOLD.wait}ms linear`;
+      bar.classList.add("is-run");
+      run = setTimeout(() => {
+        stop();
+        fired = true;
+        onDone();
+      }, DEMO_HOLD.total - DEMO_HOLD.wait);
+    }, DEMO_HOLD.wait);
+  };
+  const key = (event) => event.key === "Enter" || event.key === " ";
+  button.addEventListener("pointerdown", start);
+  for (const type of ["pointerup", "pointercancel", "pointerleave", "lostpointercapture"]) {
+    button.addEventListener(type, stop);
+  }
+  // The browser activates a button on keydown (Enter) or keyup (Space); both are taken over here.
+  button.addEventListener("keydown", (event) => {
+    if (key(event) && !event.repeat) {
+      event.preventDefault();
+      start();
+    }
+  });
+  button.addEventListener("keyup", (event) => {
+    if (!key(event)) {
+      return;
+    }
+    event.preventDefault();
+    if (wait) {
+      stop();
+      onTap();
+    }
+  });
+  return () => {
+    const was = fired;
+    fired = false;
+    return was;
+  };
 }
 
 /* ---------- help ---------- */
@@ -4646,6 +4971,8 @@ function onResize() {
 function bind() {
   byId("btn-add").addEventListener("click", addChecklist);
   byId("btn-settings").addEventListener("click", toggleSettings);
+  byId("btn-demo").hidden = !demo;
+  byId("btn-demo").addEventListener("click", askExitDemo);
   byId("btn-help").addEventListener("click", openHelp);
   byId("banner-close").addEventListener("click", hideToast);
   byId("page-prev").addEventListener("click", () => {
@@ -4716,13 +5043,7 @@ window.__tbd = {
     stopSaving = true;
     try {
       if (db) {
-        await new Promise((resolve, reject) => {
-          const tx = db.transaction(STORES, "readwrite");
-          for (const name of STORES) tx.objectStore(name).clear();
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject(tx.error);
-          tx.onabort = () => reject(tx.error);
-        });
+        await clearStores(db);
       }
     } catch {
       // storage unavailable: nothing to clear
