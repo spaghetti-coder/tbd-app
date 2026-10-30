@@ -918,10 +918,15 @@
     width: 100%;
   }
 
-  /* Hold-to-enter: nothing for the first second, then a fill that lands with the 3s hold. */
+  /* Hold-to-enter: the fill clips to the button; no selection or callout on a long press. */
   .btn--hold {
     overflow: hidden;
     position: relative;
+    user-select: none;
+    /* stylelint-disable property-no-vendor-prefix */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    /* stylelint-enable property-no-vendor-prefix */
   }
 
   .hold {
@@ -3621,10 +3626,10 @@ function openSettings() {
     closeModal();
     openArchive();
   };
-  const holdFired = demoHold(archive, holdBar, openArchiveSheet,
+  const holdConsumed = demoHold(archive, holdBar, openArchiveSheet,
     () => confirmModal(t("demo_start_msg"), t("demo_start"), enterDemo, archive));
   archive.addEventListener("click", () => {
-    if (!holdFired()) {
+    if (!holdConsumed()) {
       openArchiveSheet();
     }
   });
@@ -3817,7 +3822,7 @@ function openArchive() {
 
 /* ---------- demo stand ---------- */
 
-const DEMO_HOLD = { wait: 1000, total: 3000 };
+const DEMO_HOLD = { wait: 600, total: 1800 };
 
 const DEMO_LISTS = [
   "Weekend cleanup", "Groceries", "Apartment to fix", "Reading list", "Work inbox",
@@ -3947,39 +3952,51 @@ function askExitDemo() {
   confirmModal(t("demo_exit_msg"), t("demo_exit"), exitDemo, byId("btn-demo"));
 }
 
-/* Hold-to-enter wiring for a button: silent for the first second, then `bar` fills to the 3s mark.
-   Returns whether the last activation was a finished hold, so the caller can swallow the click
-   trailing it; a short press runs `onTap` from the click, or from keyup for keyboard activation. */
+/* Hold-to-enter wiring for a button. Returns whether the last activation was a hold - run to the
+   end, or let go once the fill had started - so the caller swallows the trailing click. A short
+   press runs `onTap` from the click, or from keyup for keyboard activation. */
 function demoHold(button, bar, onTap, onDone) {
   let wait = 0;
   let run = 0;
-  let fired = false;
+  let filling = false;
+  let consumed = false;
   const stop = () => {
     clearTimeout(wait);
     clearTimeout(run);
     wait = 0;
     run = 0;
+    filling = false;
     bar.style.transition = "none";
     bar.classList.remove("is-run");
   };
   const start = () => {
     stop();
-    fired = false;
+    consumed = false;
     wait = setTimeout(() => {
+      filling = true;
       bar.style.transition = `width ${DEMO_HOLD.total - DEMO_HOLD.wait}ms linear`;
       bar.classList.add("is-run");
       run = setTimeout(() => {
         stop();
-        fired = true;
+        consumed = true;
         onDone();
       }, DEMO_HOLD.total - DEMO_HOLD.wait);
     }, DEMO_HOLD.wait);
   };
+  // Letting go mid-fill is a broken hold, not a tap.
+  const cancel = () => {
+    if (filling) {
+      consumed = true;
+    }
+    stop();
+  };
   const key = (event) => event.key === "Enter" || event.key === " ";
   button.addEventListener("pointerdown", start);
   for (const type of ["pointerup", "pointercancel", "pointerleave", "lostpointercapture"]) {
-    button.addEventListener(type, stop);
+    button.addEventListener(type, cancel);
   }
+  // A long press is the hold, never the browser menu.
+  button.addEventListener("contextmenu", (event) => event.preventDefault());
   // The browser activates a button on keydown (Enter) or keyup (Space); both are taken over here.
   button.addEventListener("keydown", (event) => {
     if (key(event) && !event.repeat) {
@@ -3992,14 +4009,17 @@ function demoHold(button, bar, onTap, onDone) {
       return;
     }
     event.preventDefault();
-    if (wait) {
+    if (filling) {
+      consumed = true;
+      stop();
+    } else if (wait) {
       stop();
       onTap();
     }
   });
   return () => {
-    const was = fired;
-    fired = false;
+    const was = consumed;
+    consumed = false;
     return was;
   };
 }

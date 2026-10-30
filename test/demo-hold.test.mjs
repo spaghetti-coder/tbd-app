@@ -1,5 +1,5 @@
-// Hold-to-enter on the Archive row: a short press taps, a full hold lands once,
-// and the click trailing a finished hold is swallowed.
+// Hold-to-enter on the Archive row: a short press taps, a full hold lands once, and the click
+// trailing any hold - finished or broken mid-fill - is swallowed.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -66,8 +66,8 @@ function rig() {
   const bar = fakeNode({ classes: ["hold"] });
   const taps = [];
   const holds = [];
-  const holdFired = demoHold(button, bar, () => taps.push(1), () => holds.push(1));
-  return { timers, button, bar, taps, holds, holdFired };
+  const holdConsumed = demoHold(button, bar, () => taps.push(1), () => holds.push(1));
+  return { timers, button, bar, taps, holds, holdConsumed };
 }
 
 const filling = (r) => r.bar.classList.contains("is-run");
@@ -75,53 +75,70 @@ const filling = (r) => r.bar.classList.contains("is-run");
 test("a short press never arms the hold, so the click taps", () => {
   const r = rig();
   r.button.fire("pointerdown");
-  r.timers.advance(999);
-  assert.equal(filling(r), false, "the first second stays silent");
+  r.timers.advance(599);
+  assert.equal(filling(r), false, "the silent window stays silent");
   r.button.fire("pointerup");
-  assert.equal(r.holdFired(), false, "the trailing click runs the tap");
+  assert.equal(r.holdConsumed(), false, "the trailing click runs the tap");
   r.timers.advance(10000);
   assert.equal(r.holds.length, 0);
 });
 
-test("the fill starts with the second second", () => {
+test("the fill starts when the silent window ends", () => {
   const r = rig();
   r.button.fire("pointerdown");
-  r.timers.advance(1000);
+  r.timers.advance(600);
   assert.equal(filling(r), true);
 });
 
-test("releasing mid-fill cancels: no hold, the bar resets", () => {
+test("releasing mid-fill is a cancelled hold: the bar resets, the click is swallowed", () => {
   const r = rig();
   r.button.fire("pointerdown");
-  r.timers.advance(1500);
+  r.timers.advance(900);
   assert.equal(filling(r), true);
   r.button.fire("pointerup");
   assert.equal(filling(r), false);
   r.timers.advance(10000);
   assert.equal(r.holds.length, 0);
-  assert.equal(r.holdFired(), false, "a cancelled hold is not a hold");
+  assert.equal(r.holdConsumed(), true, "a broken hold is a hold, not a tap");
+  assert.equal(r.taps.length, 0);
 });
 
-test("the full 3s lands the hold once, and the trailing click is swallowed", () => {
+test("leaving the button mid-fill cancels the same way", () => {
   const r = rig();
   r.button.fire("pointerdown");
-  r.timers.advance(2999);
+  r.timers.advance(900);
+  r.button.fire("pointerleave");
+  assert.equal(filling(r), false);
+  r.timers.advance(10000);
+  assert.equal(r.holds.length, 0);
+  assert.equal(r.holdConsumed(), true);
+});
+
+test("the full hold lands once, and the trailing click is swallowed", () => {
+  const r = rig();
+  r.button.fire("pointerdown");
+  r.timers.advance(1799);
   assert.equal(r.holds.length, 0, "not yet");
   r.timers.advance(1);
   assert.equal(r.holds.length, 1);
   assert.equal(r.taps.length, 0);
-  assert.equal(r.holdFired(), true, "the click after a finished hold is swallowed");
-  assert.equal(r.holdFired(), false, "and only once");
+  assert.equal(r.holdConsumed(), true, "the click after a finished hold is swallowed");
+  assert.equal(r.holdConsumed(), false, "and only once");
 });
 
 test("after a finished hold the next short press taps again", () => {
   const r = rig();
   r.button.fire("pointerdown");
-  r.timers.advance(3000);
+  r.timers.advance(1800);
   r.button.fire("pointerup");
   r.button.fire("pointerdown");
   r.button.fire("pointerup");
-  assert.equal(r.holdFired(), false);
+  assert.equal(r.holdConsumed(), false);
+});
+
+test("the long-press menu is suppressed", () => {
+  const r = rig();
+  assert.equal(r.button.fire("contextmenu"), true);
 });
 
 test("key repeat while held does not restart the hold", () => {
@@ -129,8 +146,8 @@ test("key repeat while held does not restart the hold", () => {
   r.button.fire("keydown", { key: " " });
   r.timers.advance(500);
   r.button.fire("keydown", { key: " ", repeat: true });
-  r.timers.advance(2500);
-  assert.equal(r.holds.length, 1, "the hold lands 3s after the first press");
+  r.timers.advance(1300);
+  assert.equal(r.holds.length, 1, "the hold lands at the mark of the first press");
 });
 
 test("a quick Enter tap fires the tap from keyup, not the hold", () => {
@@ -143,11 +160,23 @@ test("a quick Enter tap fires the tap from keyup, not the hold", () => {
   assert.equal(r.holds.length, 0);
 });
 
-test("Enter held for the full 3s lands the hold, and its keyup stays silent", () => {
+test("Enter held for the full hold lands it, and its keyup stays silent", () => {
   const r = rig();
   r.button.fire("keydown", { key: "Enter" });
-  r.timers.advance(3000);
+  r.timers.advance(1800);
   assert.equal(r.holds.length, 1);
   r.button.fire("keyup", { key: "Enter" });
+  assert.equal(r.taps.length, 0);
+});
+
+test("Enter released mid-fill cancels: no hold, no tap", () => {
+  const r = rig();
+  r.button.fire("keydown", { key: "Enter" });
+  r.timers.advance(900);
+  assert.equal(filling(r), true);
+  r.button.fire("keyup", { key: "Enter" });
+  assert.equal(filling(r), false);
+  r.timers.advance(10000);
+  assert.equal(r.holds.length, 0);
   assert.equal(r.taps.length, 0);
 });
