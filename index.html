@@ -90,10 +90,8 @@
     overflow: hidden;
   }
 
-  /* The lock stops the root scrollport, so stickiness dies with it: the header holds the viewport
-     edge itself and the body keeps the height the header leaves in the flow, so nothing jumps. */
+  /* No overflow on body: a frozen scroll container there would steal the sticky card heads. */
   html.is-locked body {
-    overflow: hidden;
     padding-top: var(--topbar-h);
   }
 
