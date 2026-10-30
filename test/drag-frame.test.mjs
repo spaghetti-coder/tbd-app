@@ -15,7 +15,7 @@ const { drop } = vm([
   "let cancelled = 0;",
   // The card that was held as a collapsed drop target; endDrag has to take its progress bar off.
   "const held = [];",
-  "function dropCard(id) { return id ? { classList: { remove: (name) => held.push(name) } } : null; }",
+  "function rowById(kind, id) { return id ? { classList: { remove: (name) => held.push(name) } } : null; }",
   "function cancelAnimationFrame() { cancelled++; }",
   "function clearTimeout() {}",
   "function stopAutoScroll() {}",

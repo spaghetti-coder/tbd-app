@@ -14,6 +14,7 @@ const { demoData, seedRows, UI_KEY } = vm([
   slice("demoList"),
   slice("demoItem"),
   slice("demoData"),
+  slice("withTx"),
   slice("seedRows"),
   "({ demoData, seedRows, UI_KEY })",
 ]);

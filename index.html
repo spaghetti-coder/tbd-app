@@ -1189,28 +1189,26 @@ const ICON_HOSTS = [
   `https://cdn.statically.io/npm/lucide-static@${LUCIDE_VERSION}/icons`,
 ];
 
+// The icons the style sheet masks with --ic-<name>.
+const ICON_NAMES = [
+  "archive", "bottom", "bulk", "check", "chevron-down", "chevron-left", "chevron-right", "close",
+  "collapse", "expand", "grip-horizontal", "grip-vertical", "help", "logout", "menu", "pencil",
+  "plus", "restore", "settings", "top", "trash",
+];
+
+// Lucide file names that differ from the icon name.
 const ICON_FILES = {
-  plus: "plus",
-  settings: "settings",
-  logout: "log-out",
-  help: "circle-help",
-  "chevron-right": "chevron-right",
-  "chevron-down": "chevron-down",
-  "chevron-left": "chevron-left",
-  pencil: "pencil",
-  menu: "ellipsis-vertical",
-  archive: "archive",
-  restore: "archive-restore",
-  trash: "trash-2",
-  top: "arrow-up-to-line",
   bottom: "arrow-down-to-line",
-  expand: "chevrons-up-down",
-  collapse: "chevrons-down-up",
-  check: "check",
-  close: "x",
   bulk: "list-checks",
-  "grip-vertical": "grip-vertical",
-  "grip-horizontal": "grip-horizontal",
+  close: "x",
+  collapse: "chevrons-down-up",
+  expand: "chevrons-up-down",
+  help: "circle-help",
+  logout: "log-out",
+  menu: "ellipsis-vertical",
+  restore: "archive-restore",
+  top: "arrow-up-to-line",
+  trash: "trash-2",
 };
 
 /* ---------- icons ---------- */
@@ -1218,8 +1216,8 @@ const ICON_FILES = {
 function loadIcons() {
   const root = document.documentElement;
   const apply = (base) => {
-    for (const [name, file] of Object.entries(ICON_FILES)) {
-      root.style.setProperty(`--ic-${name}`, `url("${base}/${file}.svg")`);
+    for (const name of ICON_NAMES) {
+      root.style.setProperty(`--ic-${name}`, `url("${base}/${ICON_FILES[name] ?? name}.svg")`);
     }
     root.classList.remove("icons-off");
     root.classList.add("icons-on");
@@ -2284,26 +2282,30 @@ function openDb(name) {
   });
 }
 
-function clearStores(connection) {
+/* One transaction over all stores, resolved when it commits. */
+function withTx(connection, mode, work) {
   return new Promise((resolve, reject) => {
-    const tx = connection.transaction(STORES, "readwrite");
-    for (const name of STORES) {
-      tx.objectStore(name).clear();
-    }
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    const tx = connection.transaction(STORES, mode);
+    work(tx);
+    tx.oncomplete = resolve;
+    const fail = () => reject(tx.error);
+    tx.onerror = fail;
+    tx.onabort = fail;
   });
 }
 
-function readAll() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORES);
-    const reqs = STORES.map((name) => tx.objectStore(name).getAll());
-    tx.oncomplete = () => resolve(reqs.map((req) => req.result));
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+function clearStores(connection) {
+  return withTx(connection, "readwrite", (tx) => {
+    for (const name of STORES) {
+      tx.objectStore(name).clear();
+    }
   });
+}
+
+async function readAll() {
+  let reqs;
+  await withTx(db, "readonly", (tx) => { reqs = STORES.map((name) => tx.objectStore(name).getAll()); });
+  return reqs.map((req) => req.result);
 }
 
 /* The whole store, read once at boot; from then on the app works on `state` in memory. */
@@ -2439,8 +2441,7 @@ function save() {
 /* One transaction: rows, order docs, the ui doc and the deletes together, so a half-written batch
    is never readable. A deleted list takes its items and its order doc with it. */
 function writeBatch(batch) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORES, "readwrite");
+  return withTx(db, "readwrite", (tx) => {
     const lists = tx.objectStore("checklists");
     const items = tx.objectStore("items");
     const docs = tx.objectStore("doc");
@@ -2455,9 +2456,6 @@ function writeBatch(batch) {
       const keys = items.index("checklistId").getAllKeys(id);
       keys.onsuccess = () => keys.result.forEach((key) => items.delete(key));
     }
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -3143,8 +3141,7 @@ function panelButton(icon, labelKey, act, disabled) {
   const button = el("button", "btn");
   button.type = "button";
   button.dataset.act = act;
-  button.setAttribute("aria-label", t(labelKey));
-  button.title = t(labelKey);
+  labelNode(button, labelKey);
   button.disabled = disabled;
   button.append(...iconPair(icon));
   return button;
@@ -3385,6 +3382,25 @@ function actionRow(actions) {
     row.append(button);
   }
   return row;
+}
+
+/* Tab bars are kept, not rebuilt on click: rebuilding would drop focus back to the dialog. */
+function tabBar(pairs, onSelect) {
+  const bar = el("div", "tabs");
+  const buttons = pairs.map(([key, labelKey]) => {
+    const button = el("button", "tabs__tab", t(labelKey));
+    button.type = "button";
+    button.dataset.key = key;
+    button.addEventListener("click", () => onSelect(key));
+    bar.append(button);
+    return button;
+  });
+  const paint = (key) => buttons.forEach((button, i) => {
+    const on = pairs[i][0] === key;
+    button.classList.toggle("is-active", on);
+    button.setAttribute("aria-pressed", String(on));
+  });
+  return { bar, paint };
 }
 
 function confirmModal(message, yesLabel, onYes, anchor) {
@@ -3744,15 +3760,10 @@ function openArchive() {
   const selected = () => [...view.sel];
   const empty = el("p", "empty", t("archive_empty"));
   const list = el("div", "rows");
-  const tabs = [];
-  const focusTab = () => tabs.find((tab) => tab.dataset.key === view.tab)?.focus({ preventScroll: true });
+  const focusTab = () => bar.querySelector(`[data-key="${view.tab}"]`)?.focus({ preventScroll: true });
   const paint = () => {
     const rows = view.tab === "lists" ? archivedLists() : archivedItems();
-    for (const tab of tabs) {
-      const on = tab.dataset.key === view.tab;
-      tab.classList.toggle("is-active", on);
-      tab.setAttribute("aria-pressed", String(on));
-    }
+    paintTabs(view.tab);
     empty.hidden = rows.length > 0;
     list.replaceChildren(...rows.map((row) => {
       const text = view.tab === "lists" ? row.title || t("new_list_ph") : row.text || t("new_item_ph");
@@ -3764,20 +3775,11 @@ function openArchive() {
     }));
     paintActions();
   };
-  const bar = el("div", "tabs");
-  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
-  for (const [key, labelKey] of [["lists", "tab_lists"], ["items", "tab_items"]]) {
-    const tab = el("button", "tabs__tab", t(labelKey));
-    tab.type = "button";
-    tab.dataset.key = key;
-    tab.addEventListener("click", () => {
-      view.tab = key;
-      view.sel.clear();
-      paint();
-    });
-    tabs.push(tab);
-    bar.append(tab);
-  }
+  const { bar, paint: paintTabs } = tabBar([["lists", "tab_lists"], ["items", "tab_items"]], (key) => {
+    view.tab = key;
+    view.sel.clear();
+    paint();
+  });
   host.append(bar, empty, list, actionRow([
     { icon: "close", label: t("a_cancel"), onClick: () => handle.close() },
     {
@@ -3890,9 +3892,8 @@ function demoData() {
    readable. The stand takes the given settings but never a selection: the selected ids live in
    whichever database the settings came from. */
 function seedRows(conn, ui) {
-  return new Promise((resolve, reject) => {
+  return withTx(conn, "readwrite", (tx) => {
     const data = demoData();
-    const tx = conn.transaction(STORES, "readwrite");
     const lists = tx.objectStore("checklists");
     const items = tx.objectStore("items");
     for (const name of STORES) {
@@ -3903,9 +3904,6 @@ function seedRows(conn, ui) {
     if (ui) {
       tx.objectStore("doc").put({ key: UI_KEY, value: { ...ui, bulk: { kind: null, ids: [] } } });
     }
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
   });
 }
 
@@ -4032,24 +4030,12 @@ const HELP_TABS = [
 ];
 
 function openHelp() {
-  const bar = el("div", "tabs");
   const list = el("ul", "help");
-  const buttons = [];
   const show = (index) => {
-    buttons.forEach((button, i) => {
-      button.classList.toggle("is-active", i === index);
-      button.setAttribute("aria-pressed", String(i === index));
-    });
+    paint(index);
     list.replaceChildren(...HELP_TABS[index].lines.map((key) => el("li", null, t(key))));
   };
-  // Tabs are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
-  HELP_TABS.forEach((tab, index) => {
-    const button = el("button", "tabs__tab", t(tab.label));
-    button.type = "button";
-    button.addEventListener("click", () => show(index));
-    buttons.push(button);
-    bar.append(button);
-  });
+  const { bar, paint } = tabBar(HELP_TABS.map((tab, index) => [index, tab.label]), show);
   const body = el("div", "sheet-body");
   body.append(el("p", "help-intro", t("help_intro")), bar, list);
   show(matchMedia("(hover: none)").matches ? 0 : 1);
@@ -4269,20 +4255,6 @@ function applyDragState() {
   placeGap();
 }
 
-function nearestBody(bodies, y) {
-  let best = bodies[0];
-  let bestDistance = Infinity;
-  for (const body of bodies) {
-    const rect = body.getBoundingClientRect();
-    const distance = Math.abs(y - (rect.top + rect.height / 2));
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = body;
-    }
-  }
-  return best;
-}
-
 function targetContainer(kind, y) {
   if (kind === "list") {
     return byId("lists");
@@ -4294,13 +4266,23 @@ function targetContainer(kind, y) {
     }
     return card.classList.contains("is-open") ? card.querySelector(".items") : null;
   }
-  const bodies = [...document.querySelectorAll("#lists .card.is-open .items")];
-  return bodies.length ? nearestBody(bodies, y) : null;
+  // Off every card: the open body whose middle is nearest.
+  let best = null;
+  let bestDistance = Infinity;
+  for (const body of document.querySelectorAll("#lists .card.is-open .items")) {
+    const rect = body.getBoundingClientRect();
+    const distance = Math.abs(y - (rect.top + rect.height / 2));
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = body;
+    }
+  }
+  return best;
 }
 
 /* The aim leaves the held target only past hoverPad, so hand jitter cannot reset the hold. */
 function collapsedHeadAt(y) {
-  const held = drag.hoverId && dropCard(drag.hoverId);
+  const held = drag.hoverId && rowById("list", drag.hoverId);
   const head = held && held.querySelector(":scope > .card__head");
   if (head) {
     const rect = head.getBoundingClientRect();
@@ -4338,13 +4320,9 @@ function retarget() {
   placeGap();
 }
 
-function dropCard(id) {
-  return document.querySelector(`#lists [data-kind="list"][data-id="${CSS.escape(id)}"]`);
-}
-
 function clearCollapsedTarget() {
   if (!drag.collapsedId) return;
-  const old = dropCard(drag.collapsedId);
+  const old = rowById("list", drag.collapsedId);
   if (old) old.classList.remove("is-drop-hover");
   drag.collapsedId = null;
   drag.gap.classList.remove("is-standby");
@@ -4520,7 +4498,7 @@ function endDrag(apply) {
   document.documentElement.classList.remove("is-dragging");
   clearTimeout(current.hoverTimer);
   // Dropped before the hold filled: nothing else takes the progress bar off the target head.
-  dropCard(current.collapsedId)?.classList.remove("is-drop-hover");
+  rowById("list", current.collapsedId)?.classList.remove("is-drop-hover");
   const kind = current.kind;
   const ids = current.ids;
   const refId = siblingId(current.gap, "next");
@@ -4806,15 +4784,6 @@ function startEdit(kind, id) {
   commit();
 }
 
-function commitEditNode(row) {
-  const editing = state.ui.editing;
-  const input = row ? row.querySelector(".row-edit input") : null;
-  if (!editing || !input) {
-    return;
-  }
-  commitText(editing.kind, editing.id, input.value);
-}
-
 function onRowAct(act, kind, id, row, trigger) {
   if (act === "toggle") {
     const cl = findList(id);
@@ -4853,7 +4822,11 @@ function onRowAct(act, kind, id, row, trigger) {
     return;
   }
   if (act === "save") {
-    commitEditNode(row);
+    const editing = state.ui.editing;
+    const input = row.querySelector(".row-edit input");
+    if (editing && input) {
+      commitText(editing.kind, editing.id, input.value);
+    }
   }
 }
 
