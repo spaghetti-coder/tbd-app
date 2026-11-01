@@ -776,6 +776,25 @@
     padding: 8px 6px;
   }
 
+  .rows__meta {
+    color: var(--muted);
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rows__sep {
+    color: var(--muted);
+    flex: none;
+  }
+
+  /* The item text is what matters, so it never loses more than half the row to the checklist name. */
+  .rows__row .rows__label {
+    min-width: 50%;
+  }
+
   .modal--dropdown {
     border: 1px solid var(--line);
     padding: 12px 14px 14px;
@@ -3678,14 +3697,16 @@ function archivedLists() {
   return state.checklists.filter((c) => c.archived);
 }
 
+/* One block per checklist, in the order the lists show in the panel; items of a lost checklist last. */
 function archivedItems() {
+  const rank = new Map(state.checklists.map((c, i) => [c.id, i]));
   return state.items.filter((i) => {
     if (!i.archived || i.archivedBy !== "user") {
       return false;
     }
     const cl = findList(i.checklistId);
     return !cl || !cl.archived;
-  });
+  }).sort((a, b) => (rank.get(a.checklistId) ?? Infinity) - (rank.get(b.checklistId) ?? Infinity));
 }
 
 function restoreLists(ids) {
@@ -3730,13 +3751,17 @@ function restoreItems(ids) {
   }
 }
 
-function archiveRow(text, on, onChange) {
+function archiveRow(text, meta, on, onChange) {
   const row = el("label", "rows__row");
   const box = el("input");
   box.type = "checkbox";
   box.checked = on;
   box.addEventListener("change", () => onChange(box.checked));
-  row.append(box, el("span", "rows__label", text));
+  row.append(box);
+  if (meta) {
+    row.append(el("span", "rows__meta", meta), el("span", "rows__sep", ">"));
+  }
+  row.append(el("span", "rows__label", text));
   return row;
 }
 
@@ -3764,8 +3789,10 @@ function openArchive() {
     paintTabs(view.tab);
     empty.hidden = rows.length > 0;
     list.replaceChildren(...rows.map((row) => {
+      const cl = view.tab === "lists" ? null : findList(row.checklistId);
+      const meta = cl ? cl.title || t("new_list_ph") : null;
       const text = view.tab === "lists" ? row.title || t("new_list_ph") : row.text || t("new_item_ph");
-      return archiveRow(text, false, (on) => {
+      return archiveRow(text, meta, false, (on) => {
         if (on) view.sel.add(row.id);
         else view.sel.delete(row.id);
         paintActions();
