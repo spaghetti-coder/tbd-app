@@ -228,6 +228,7 @@
     padding: env(safe-area-inset-top) var(--gutter) 0;
     position: sticky;
     top: 0;
+    transform: translateY(var(--pan, 0));
     z-index: 30;
   }
 
@@ -282,7 +283,8 @@
   .card__head {
     border-radius: var(--r);
     position: sticky;
-    top: var(--topbar-h);
+    /* Follows the header down by the keyboard pan, so a stuck title stays under it. */
+    top: calc(var(--topbar-h) + var(--pan, 0px));
     touch-action: pan-y;
     z-index: 2;
   }
@@ -2347,6 +2349,7 @@ async function load() {
 let state = defaults();
 const dark = matchMedia("(prefers-color-scheme: dark)");
 const wide = matchMedia("(width > 560px)");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 let saveTimer = 0;
 
 /* Set once this tab is on its way out with storage already decided (reset, or reloading for another
@@ -2962,6 +2965,26 @@ function renderChrome() {
   labelNode(byId("banner-close"), "a_dismiss");
 }
 
+/* Puts `nodes` into `host` in order, touching only the rows that are gone or out of place. A row
+   rebuilt under the pointer is lost to the gesture: styles and rect go with the old node, and a
+   touch pointer with a detached target is cancelled. */
+function reconcile(host, nodes) {
+  const kept = new Set(nodes);
+  for (const node of [...host.children]) {
+    if (!kept.has(node)) {
+      node.remove();
+    }
+  }
+  let ref = host.firstChild;
+  for (const node of nodes) {
+    if (node === ref) {
+      ref = ref.nextSibling;
+      continue;
+    }
+    host.insertBefore(node, ref);
+  }
+}
+
 function renderLists() {
   // Reused nodes survive the render, so the drag styling has to be dropped here and re-applied by applyDragState.
   for (const row of byId("lists").querySelectorAll(".is-drag-src")) {
@@ -2973,7 +2996,7 @@ function renderLists() {
     paintChecklist(node, cl);
     return node;
   });
-  byId("lists").replaceChildren(...rows);
+  reconcile(byId("lists"), rows);
   const emptyNode = byId("empty");
   emptyNode.textContent = t("empty");
   emptyNode.hidden = visibleChecklists().length > 0;
@@ -2981,12 +3004,6 @@ function renderLists() {
 
 function isMuted(items) {
   return items.length > 0 && items.every((i) => i.done);
-}
-
-/* True when the host already mirrors items 1:1; anything else needs a real rebuild. */
-function sameRows(host, items) {
-  return host.children.length === items.length
-    && [...host.children].every((child, index) => child.dataset.id === items[index].id);
 }
 
 function paintChecklist(node, cl) {
@@ -3004,13 +3021,15 @@ function paintChecklist(node, cl) {
   hint.hidden = items.length > 0;
   hint.textContent = t("empty_items");
   const host = body.querySelector(".items");
-  if (!sameRows(host, items)) {
-    host.replaceChildren(...items.map(buildItem));
-    return;
-  }
-  for (const [index, item] of items.entries()) {
-    paintItem(host.children[index], item);
-  }
+  const existing = new Map([...host.children].map((row) => [row.dataset.id, row]));
+  reconcile(host, items.map((item) => {
+    const row = existing.get(item.id);
+    if (row) {
+      paintItem(row, item);
+      return row;
+    }
+    return buildItem(item);
+  }));
 }
 
 function paintHead(node, cl, open) {
@@ -3258,9 +3277,42 @@ function focusEditor(id) {
   const row = document.querySelector(`#lists [data-id="${CSS.escape(id)}"]`);
   const input = row && row.querySelector(":scope > .card__head .input, :scope > .item__row .input");
   if (!input) return;
-  input.focus();
+  input.focus({ preventScroll: true });
   const end = input.value.length;
   input.setSelectionRange(end, end);
+}
+
+/* What the user can actually see: under the header (its rect carries the keyboard shift already),
+   over the pager, above the keyboard. The layout viewport is none of that once a keyboard is up. */
+function visibleBand() {
+  const header = document.querySelector(".topbar").getBoundingClientRect().bottom;
+  const pager = byId("pager");
+  const vv = visualViewport;
+  return {
+    bottom: (vv ? vv.height + vv.offsetTop : innerHeight) - (pager.hidden ? 0 : pager.offsetHeight + 8) - 8,
+    top: header + 8,
+  };
+}
+
+// Least document scroll that puts the rect inside `band`; 0 when it already fits.
+function revealDelta(rect, band) {
+  if (rect.top < band.top) {
+    return rect.top - band.top;
+  }
+  if (rect.bottom > band.bottom) {
+    return rect.bottom - band.bottom;
+  }
+  return 0;
+}
+
+/* Scrolling has to stay on the document: when the row cannot be centred there, Chrome pans the
+   visual viewport instead, and the sticky header rides out of sight with it. */
+function revealRow(row) {
+  // A card rect covers every item in it, while the editor sits in its head, which may already be stuck at the top.
+  const delta = revealDelta(rowZone(row).getBoundingClientRect(), visibleBand());
+  if (delta) {
+    scrollBy({ top: delta, behavior: reduce.matches ? "auto" : "smooth" });
+  }
 }
 
 function applyScrollTarget() {
@@ -3268,7 +3320,7 @@ function applyScrollTarget() {
   scrollTarget = null;
   const row = document.querySelector(`#lists [data-id="${CSS.escape(target.id)}"]`);
   if (!row) return;
-  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  revealRow(row);
   row.classList.add("is-flash");
   setTimeout(() => row.classList.remove("is-flash"), 900);
 }
@@ -3773,12 +3825,6 @@ function openArchive() {
     sheet: true,
     body: host,
     anchor: byId("btn-settings"),
-    // Archive takes the settings menu's place, so on desktop closing it gives the menu back.
-    onClosed: () => {
-      if (handle.box.classList.contains("modal--anchored") && wide.matches) {
-        openSettings();
-      }
-    },
   });
   const selected = () => [...view.sel];
   const empty = el("p", "empty", t("archive_empty"));
@@ -4381,7 +4427,6 @@ function expandForDrop(id) {
   clearCollapsedTarget();
   cl.expanded = true;
   markDirty("list", id);
-  // A rebuild would destroy the row under the finger, and Chrome answers that with pointercancel.
   queueSave();
   repaintRow("list", id);
   const body = document.querySelector(`#lists [data-id="${CSS.escape(id)}"] .items`);
@@ -4986,6 +5031,24 @@ function onResize() {
   }, 120);
 }
 
+/* The keyboard opens after focus, so the band the editor has to fit in is only known by then. And
+   when the keyboard pushes the visible area below the layout top, the header pinned there follows
+   it down by the same amount — otherwise it leaves the screen. */
+function onViewportChange() {
+  const vv = visualViewport;
+  if (vv) {
+    document.documentElement.style.setProperty("--pan", `${innerHeight - vv.height > 80 ? vv.offsetTop : 0}px`);
+  }
+  const editing = state.ui.editing;
+  if (!editing || modalOpen()) {
+    return;
+  }
+  const row = document.querySelector(`#lists [data-id="${CSS.escape(editing.id)}"]`);
+  if (row) {
+    revealRow(row);
+  }
+}
+
 function bind() {
   byId("btn-add").addEventListener("click", addChecklist);
   byId("btn-settings").addEventListener("click", toggleSettings);
@@ -5027,6 +5090,9 @@ function bind() {
   });
   document.addEventListener("keydown", onKey);
   addEventListener("resize", onResize);
+  // A keyboard resizes and pushes only the visual viewport: `resize` on window never sees it.
+  visualViewport?.addEventListener("resize", onViewportChange);
+  visualViewport?.addEventListener("scroll", onViewportChange);
   dark.addEventListener("change", render);
   wide.addEventListener("change", closePopovers);
   document.addEventListener("visibilitychange", () => {

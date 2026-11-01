@@ -7,11 +7,36 @@ export function fakeNode({ classes = [], id, kind, rect, children = [] } = {}) {
       add: (name) => set.add(name),
       remove: (name) => set.delete(name),
       contains: (name) => set.has(name),
+      toggle: (name, on) => {
+        const next = on ?? !set.has(name);
+        set[next ? "add" : "delete"](name);
+      },
     },
     dataset: { ...(kind ? { kind } : {}), ...(id ? { id } : {}) },
     style: {},
     children,
     parentElement: null,
+    get firstChild() {
+      return this.children[0] ?? null;
+    },
+    get nextSibling() {
+      const at = this.parentElement?.children.indexOf(this) ?? -1;
+      return at < 0 ? null : this.parentElement.children[at + 1] ?? null;
+    },
+    remove() {
+      const at = this.parentElement?.children.indexOf(this) ?? -1;
+      if (at >= 0) {
+        this.parentElement.children.splice(at, 1);
+      }
+      this.parentElement = null;
+    },
+    insertBefore(node, ref) {
+      node.remove();
+      const at = ref ? this.children.indexOf(ref) : -1;
+      this.children.splice(at < 0 ? this.children.length : at, 0, node);
+      node.parentElement = this;
+      return node;
+    },
     matches(selectors) {
       return selectors.replace(/:scope\s*>\s*/g, "").split(",").some((selector) => {
         const wanted = selector.trim().split(".").slice(1);
