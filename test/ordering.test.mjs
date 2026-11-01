@@ -41,6 +41,7 @@ const NAMES = [
   "entityText",
   "commitText",
   "cancelEdit",
+  "flushPendingEdit",
 ];
 
 // The sliced functions reach for these at runtime; the harness keeps them out of the way.
@@ -52,6 +53,7 @@ function commit() { calls.push("commit"); }
 function queueSave() { calls.push("queueSave"); }
 function flushSave() { calls.push("flushSave"); }
 function repaintRow(kind, id) { calls.push("repaintRow:" + kind + ":" + id); }
+function rowById() { return null; }
 function markDirty() {}
 function markGone() {}
 function markOrder() {}

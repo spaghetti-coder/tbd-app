@@ -2649,6 +2649,7 @@ function entityText(kind, id) {
 let scrollTarget = null;
 
 function addChecklist() {
+  flushPendingEdit();
   const cl = { id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false };
   if (state.ui.newChecklist === "top") {
     state.checklists.unshift(cl);
@@ -2663,6 +2664,7 @@ function addChecklist() {
 }
 
 function addItem(checklistId) {
+  flushPendingEdit();
   const cl = findList(checklistId);
   if (!cl) return;
   cl.expanded = true;
@@ -2735,6 +2737,18 @@ function cancelEdit() {
   }
   state.ui.editing = null;
   commit();
+}
+
+/* Typed text belongs to the row it was typed in. Commit it before another row takes the editor:
+   the focus move fires a trailing blur, and by then `editing` already points at the new row. */
+function flushPendingEdit() {
+  const editing = state.ui.editing;
+  if (!editing) return;
+  const row = rowById(editing.kind, editing.id);
+  const input = row && row.querySelector(".row-edit input");
+  if (input) {
+    commitText(editing.kind, editing.id, input.value);
+  }
 }
 
 function archiveItemQuiet(id) {
@@ -2828,6 +2842,7 @@ function setBulk(kind, ids) {
 }
 
 function startBulk(kind, id) {
+  flushPendingEdit();
   setBulk(kind, [id]);
   state.ui.editing = null;
   state.ui.panel.collapsed = false;
@@ -4850,6 +4865,11 @@ function endPanelDrag() {
 /* ---------- actions ---------- */
 
 function startEdit(kind, id) {
+  flushPendingEdit();
+  // The flush drops a nameless row, and an editor cannot open on an entity that is gone.
+  if (!(kind === "list" ? findList(id) : findItem(id))) {
+    return;
+  }
   state.ui.editing = { kind, id };
   commit();
 }
@@ -4998,9 +5018,14 @@ function onListBlur(event) {
   const input = event.target;
   // A detached node's blur is a rebuild artifact, not a user commit.
   if (!input.isConnected) return;
-  if (input.classList && input.classList.contains("input") && state.ui.editing) {
-    commitText(state.ui.editing.kind, state.ui.editing.id, input.value);
+  if (!input.classList || !input.classList.contains("input")) return;
+  const editing = state.ui.editing;
+  const owner = input.closest && input.closest(".card, .item");
+  // Focus may already be another row's editor by now: commit only the row that owns this input.
+  if (!editing || !owner || owner.dataset.kind !== editing.kind || owner.dataset.id !== editing.id) {
+    return;
   }
+  commitText(editing.kind, editing.id, input.value);
 }
 
 function onPanelClick(event) {

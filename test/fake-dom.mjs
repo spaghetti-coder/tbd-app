@@ -1,8 +1,9 @@
 // A stand-in for Element: only the DOM contract the sliced functions touch.
-export function fakeNode({ classes = [], id, kind, rect, children = [] } = {}) {
+export function fakeNode({ classes = [], id, kind, tag, rect, children = [] } = {}) {
   const set = new Set(classes);
   const node = {
     classes: set,
+    tag: tag ?? "",
     classList: {
       add: (name) => set.add(name),
       remove: (name) => set.delete(name),
@@ -37,11 +38,22 @@ export function fakeNode({ classes = [], id, kind, rect, children = [] } = {}) {
       node.parentElement = this;
       return node;
     },
+    // shortcut: descendant parts are matched by "any ancestor", no child/sibling combinators; add them when a test needs one.
     matches(selectors) {
       return selectors.replace(/:scope\s*>\s*/g, "").split(",").some((selector) => {
-        const wanted = selector.trim().split(".").slice(1);
-        return wanted.length > 0 && wanted.every((cls) => this.classes.has(cls));
+        const parts = selector.trim().split(/\s+/).reverse();
+        if (!this.matchesPart(parts[0])) return false;
+        return parts.slice(1).every((part) => {
+          for (let up = this.parentElement; up; up = up.parentElement) {
+            if (up.matchesPart(part)) return true;
+          }
+          return false;
+        });
       });
+    },
+    matchesPart(part) {
+      const classes = part.split(".").slice(1);
+      return classes.length > 0 ? classes.every((cls) => this.classes.has(cls)) : this.tag === part;
     },
     closest(selectors) {
       for (let current = this; current; current = current.parentElement) {
