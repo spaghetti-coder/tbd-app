@@ -90,7 +90,8 @@
     overflow: hidden;
   }
 
-  /* No overflow on body: a frozen scroll container there would steal the sticky card heads. */
+  /* Locked: scroll stays on the document (overflow on body here would steal the sticky card
+     heads) and the body makes room for the fixed topbar. */
   html.is-locked body {
     padding-top: var(--topbar-h);
   }
@@ -916,7 +917,7 @@
     width: 32px;
   }
 
-  /* The live region stays in the a11y tree for good: the fade and the button come and go, the region does not. */
+  /* Hidden with opacity, never removed: the live region has to stay in the a11y tree. */
   .banner:not(.is-shown) {
     opacity: 0;
     pointer-events: none;
@@ -1037,6 +1038,7 @@
   }
 
   @media (width <= 560px) {
+    /* Sheets below the breakpoint; pickers and dropdowns stay menus at every width. */
     .modal:not(.modal--sheet, .modal--dropdown, .modal--picker) {
       border-radius: var(--r);
       left: 0;
@@ -1107,7 +1109,7 @@
       transition-duration: 0.01ms !important;
     }
 
-    /* Keep the hold-to-expand indicator readable. */
+    /* The fill is the only feedback that a hold is running, so it keeps its duration. */
     .card.is-drop-hover > .card__head::after {
       animation-duration: var(--hover-ms) !important;
     }
@@ -2146,7 +2148,7 @@ const DEMO_KEY = "varlog.tbd.stand";
 const UI_KEY = "ui";
 const STORES = ["checklists", "items", "doc"];
 
-/* Order lives in one doc per list plus one for the lists themselves; a row carries no ordinal. */
+/* One order doc per list, plus one for the lists themselves. */
 const orderKey = (listId) => `order:${listId}`;
 
 /* Decided before anything touches storage: a demo session never opens the real database. */
@@ -2235,7 +2237,7 @@ function defaults() {
   };
 }
 
-/* A restored selection is only usable when its kind is known and its ids are a list. */
+/* The selection comes back from storage and may be any shape. */
 function validBulk(bulk) {
   return Boolean(bulk)
     && (bulk.kind === "list" || bulk.kind === "item")
@@ -2494,9 +2496,10 @@ function flushSave() {
   return save();
 }
 
-/* Every commit echoes this tab's own id, so a tab never reloads over its own write. On file:// the
-   origin is opaque and a channel can be missing or deaf: those tabs simply leave each other alone. */
+/* Every commit echoes this tab's own id, so a tab never reloads over its own write. */
 const tabId = uid();
+/* On file:// the origin is opaque and a channel can be missing or deaf: those tabs simply leave
+   each other alone. */
 let channel = null;
 try {
   channel = new BroadcastChannel(CHANNEL);
@@ -2559,15 +2562,15 @@ function applyOrder(data, docs) {
   return data;
 }
 
-/* The ids a list holds now: state is the only authority on order, a doc merely mirrors it. */
+/* A doc mirrors state, the only authority on order; a row carries no ordinal. */
 function orderValue(listId) {
   return listId === "lists"
     ? state.checklists.map((c) => c.id)
     : state.items.filter((i) => i.checklistId === listId).map((i) => i.id);
 }
 
-/* Where a group taken out of `list` lands: before refId; after prevId when the gap sits at the end
-   of the page (so a drop at the bottom of a page stays on it); at the end when neither is there. */
+/* Where the group lands among the rows that stay: at the marker, or after the row before it when
+   the marker sits at the end of a page — so a drop at the bottom of a page stays on that page. */
 function refIndex(list, ids, refId, prevId) {
   const picked = new Set(ids);
   const rest = list.filter((x) => !picked.has(x.id));
@@ -2587,7 +2590,6 @@ function moveGroup(list, ids, index) {
   return rest;
 }
 
-/* With last: after the last peer; otherwise before the first; at the end when there are none. */
 function joinIndex(rest, peers, last) {
   if (!peers.length) {
     return rest.length;
@@ -2980,9 +2982,9 @@ function renderChrome() {
   labelNode(byId("banner-close"), "a_dismiss");
 }
 
-/* Puts `nodes` into `host` in order, touching only the rows that are gone or out of place. A row
-   rebuilt under the pointer is lost to the gesture: styles and rect go with the old node, and a
-   touch pointer with a detached target is cancelled. */
+/* Rows are moved, never rebuilt, and only when gone or out of place. A row rebuilt under the
+   pointer is lost to the gesture: styles and rect go with the old node, and a touch pointer with a
+   detached target is cancelled. */
 function reconcile(host, nodes) {
   const kept = new Set(nodes);
   for (const node of [...host.children]) {
@@ -3165,7 +3167,7 @@ function renderPager() {
   byId("page-next").disabled = page >= pages;
 }
 
-/* Fallback glyphs, keyed by icon name: shown when the icon hosts are unreachable. */
+/* Fallback glyphs, keyed by icon name: shown when the icon CDN is unreachable. */
 const GLYPHS = {
   archive: "▣",
   bottom: "↓",
@@ -3309,7 +3311,7 @@ function visibleBand() {
   };
 }
 
-// Least document scroll that puts the rect inside `band`; 0 when it already fits.
+// Least document scroll that puts the rect inside the band.
 function revealDelta(rect, band) {
   if (rect.top < band.top) {
     return rect.top - band.top;
@@ -3408,8 +3410,7 @@ function openModal(opts) {
   byId("layer").append(box);
   document.documentElement.classList.add("is-locked");
   box.showModal();
-  /* Positioning runs after showModal: the scroll lock can move the viewport edge.
-     Pickers and dropdowns are menus at every width; the rest stay sheets below the breakpoint. */
+  /* Positioning runs after showModal: the scroll lock can move the viewport edge. */
   if (opts.anchor && (opts.picker || opts.dropdown || wide.matches)) {
     box.classList.add("modal--anchored");
     box.anchor = opts.anchor;
@@ -3580,7 +3581,7 @@ function optionKeyIndex(index, key, count) {
   return index;
 }
 
-// Next label after `from` starting with `char`, wrapping past the end; `from` when none.
+// Type-ahead: next label matching the key, wrapping past the end; unchanged when none match.
 function prefixMatchIndex(labels, char, from) {
   const needle = char.normalize("NFC").toLowerCase();
   for (let step = 1; step <= labels.length; step += 1) {
@@ -4037,8 +4038,7 @@ function askExitDemo() {
 }
 
 /* Hold-to-enter wiring for a button. Returns whether the last activation was a hold - run to the
-   end, or let go once the fill had started - so the caller swallows the trailing click. A short
-   press runs `onTap` from the click, or from keyup for keyboard activation. */
+   end, or let go once the fill had started - so the caller swallows the trailing click. */
 function demoHold(button, bar, onTap, onDone) {
   let wait = 0;
   let run = 0;
@@ -4366,7 +4366,7 @@ function targetContainer(kind, y) {
   return best;
 }
 
-/* The aim leaves the held target only past hoverPad, so hand jitter cannot reset the hold. */
+/* The aim leaves the held target only past GESTURE.hoverPad, so hand jitter cannot reset the hold. */
 function collapsedHeadAt(y) {
   const held = drag.hoverId && rowById("list", drag.hoverId);
   const head = held && held.querySelector(":scope > .card__head");
@@ -4414,6 +4414,8 @@ function clearCollapsedTarget() {
   drag.gap.classList.remove("is-standby");
 }
 
+/* Aiming at a collapsed head arms a hold that expands it; one hold per aimed head, and a null
+   head (leaving every card) clears it. */
 function handleHover(head) {
   if (drag.kind !== "item") {
     return;
@@ -4445,6 +4447,7 @@ function expandForDrop(id) {
   queueSave();
   repaintRow("list", id);
   const body = document.querySelector(`#lists [data-id="${CSS.escape(id)}"] .items`);
+  // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
   if (!body) {
     retarget();
     return;
@@ -4699,7 +4702,7 @@ function collapsedHeight() {
     + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
 }
 
-/* `pct` is a fraction of the collapsed band; a taller panel is clamped into its own band,
+/* The fraction is of the collapsed band; a taller panel is clamped into its own,
    so the grip only moves when there is genuinely no room left for it. */
 function panelTop(pct, height, base) {
   const [min, baseMax] = panelTopRange(base);
@@ -4714,8 +4717,8 @@ function panelFraction(top, base) {
   return clamp((top - min) / (max - min), 0, 1);
 }
 
-/* The docks [left, right] a panel of `width` rests on: beside the content column when it fits,
-   the safe-area edges otherwise. Ordered, and never past the safe area. */
+/* The docks, left then right: beside the content column when the panel fits there,
+   the safe-area edges otherwise, and never past the safe area. */
 function panelDocks(width) {
   const safeLeft = Math.round(cssVarPx("--safe-left"));
   const safeRight = Math.round(innerWidth - width - cssVarPx("--safe-right"));
