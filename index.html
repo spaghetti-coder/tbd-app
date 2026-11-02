@@ -325,10 +325,6 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  .card.is-muted > .card__head .card__title {
-    color: var(--muted);
-  }
-
   .card__body {
     border-top: 1px solid var(--line);
     padding: 4px;
@@ -364,7 +360,8 @@
     white-space: nowrap;
   }
 
-  .item.is-done .item__text {
+  .item.is-done .item__text,
+  .card.is-muted > .card__head .card__title {
     color: var(--muted);
   }
 
@@ -608,10 +605,7 @@
   }
 
   /* The pill lies down only when the vertical band cannot hold it. */
-  .panel.is-row {
-    flex-direction: row;
-  }
-
+  .panel.is-row,
   .panel.is-row .panel__group {
     flex-direction: row;
   }
@@ -1210,26 +1204,29 @@ const ICON_HOSTS = [
   `https://cdn.statically.io/npm/lucide-static@${LUCIDE_VERSION}/icons`,
 ];
 
-// The icons the style sheet masks with --ic-<name>.
-const ICON_NAMES = [
-  "archive", "bottom", "bulk", "check", "chevron-down", "chevron-left", "chevron-right", "close",
-  "collapse", "expand", "grip-horizontal", "grip-vertical", "help", "logout", "menu", "pencil",
-  "plus", "restore", "settings", "top", "trash",
-];
-
-// Lucide file names that differ from the icon name.
-const ICON_FILES = {
-  bottom: "arrow-down-to-line",
-  bulk: "list-checks",
-  close: "x",
-  collapse: "chevrons-down-up",
-  expand: "chevrons-up-down",
-  help: "circle-help",
-  logout: "log-out",
-  menu: "ellipsis-vertical",
-  restore: "archive-restore",
-  top: "arrow-up-to-line",
-  trash: "trash-2",
+// Every icon the style sheet masks with --ic-<name>: the Lucide file and the glyph shown while the CDN is unreachable.
+const ICONS = {
+  archive: ["archive", "▣"],
+  bottom: ["arrow-down-to-line", "↓"],
+  bulk: ["list-checks", "☰"],
+  check: ["check", "✓"],
+  "chevron-down": ["chevron-down", "⌄"],
+  "chevron-left": ["chevron-left", "‹"],
+  "chevron-right": ["chevron-right", "›"],
+  close: ["x", "←"],
+  collapse: ["chevrons-down-up", "−"],
+  expand: ["chevrons-up-down", "+"],
+  "grip-horizontal": ["grip-horizontal", "⋯"],
+  "grip-vertical": ["grip-vertical", "⋮"],
+  help: ["circle-help", "?"],
+  logout: ["log-out", "⏏"],
+  menu: ["ellipsis-vertical", "⋮"],
+  pencil: ["pencil", "/"],
+  plus: ["plus", "+"],
+  restore: ["archive-restore", "↺"],
+  settings: ["settings", "⚙"],
+  top: ["arrow-up-to-line", "↑"],
+  trash: ["trash-2", "✕"],
 };
 
 /* ---------- icons ---------- */
@@ -1237,8 +1234,8 @@ const ICON_FILES = {
 function loadIcons() {
   const root = document.documentElement;
   const apply = (base) => {
-    for (const name of ICON_NAMES) {
-      root.style.setProperty(`--ic-${name}`, `url("${base}/${ICON_FILES[name] ?? name}.svg")`);
+    for (const [name, [file]] of Object.entries(ICONS)) {
+      root.style.setProperty(`--ic-${name}`, `url("${base}/${file}.svg")`);
     }
     root.classList.remove("icons-off");
     root.classList.add("icons-on");
@@ -2212,8 +2209,7 @@ function langCode() {
 }
 
 function t(key, params) {
-  const dict = DICTS[langCode()] ?? EN;
-  const raw = dict[key] ?? EN[key] ?? key;
+  const raw = DICTS[langCode()][key] ?? key;
   if (!params) return raw;
   return raw.replace(/\{(\w+)\}/g, (_m, name) => String(params[name] ?? ""));
 }
@@ -2273,7 +2269,7 @@ function normalize(data) {
   Object.assign(out.ui, data.ui && typeof data.ui === "object" ? data.ui : {});
   out.ui.editing = null;
   if (!out.ui.panel || typeof out.ui.panel !== "object") {
-    out.ui.panel = { side: "right", topPct: 0.35, collapsed: false };
+    out.ui.panel = defaults().ui.panel;
   }
   out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
   out.ui.panel.collapsed = out.ui.panel.collapsed === true;
@@ -2332,7 +2328,7 @@ async function readAll() {
 /* The whole store, read once at boot; from then on the app works on `state` in memory. */
 async function load() {
   try {
-    db = await openDb(demo ? DEMO_DB : DB_NAME);
+    db = await openDb(CHANNEL);
     let [checklists, items, docRows] = await readAll();
     if (demo && !checklists.length) {
       // Eviction can leave the flag standing and the stores empty: a stand never starts empty, and
@@ -2939,12 +2935,12 @@ function rowZone(row) {
 }
 
 function listRowFocus(want) {
-  const row = document.querySelector(`#lists [data-kind="${want.kind}"][data-id="${CSS.escape(want.id)}"]`);
+  const row = rowById(want.kind, want.id);
   if (row) {
     return rowZone(row).querySelector(`[data-act="${want.act}"]`);
   }
   const host = want.listId
-    ? document.querySelector(`#lists [data-kind="list"][data-id="${CSS.escape(want.listId)}"] .items`)
+    ? rowById("list", want.listId)?.querySelector(".items")
     : byId("lists");
   const successor = host ? host.children[want.index] : null;
   return successor ? rowZone(successor).querySelector(`[data-act="${want.act}"]`) : null;
@@ -3070,16 +3066,8 @@ function paintHead(node, cl, open) {
 
 function paintHeadBulk(node, cl) {
   const bulk = state.ui.bulk;
-  const pick = node.querySelector(".mark--bulk");
-  const toggle = node.querySelector(".mark--toggle");
-  if (bulk.kind !== "list") {
-    toggle.hidden = false;
-    pick.hidden = true;
-    return;
-  }
-  toggle.hidden = true;
-  pick.hidden = false;
-  checkBox(pick, bulk.ids.includes(cl.id), cl.title || t("new_list_ph"));
+  showPick(node.querySelector(".mark--toggle"), node.querySelector(".mark--bulk"),
+    bulk.kind === "list" ? bulk.ids.includes(cl.id) : null, cl.title || t("new_list_ph"));
 }
 
 function checkBox(node, on, label) {
@@ -3107,9 +3095,6 @@ function paintEditor(row, text, phKey) {
   const editor = row.querySelector(".row-edit");
   const label = row.querySelector(".card__title, .item__text");
   const editAct = row.querySelector(".act--edit");
-  if (!editor || !label) {
-    return;
-  }
   if (phKey === null) {
     editor.hidden = true;
     label.hidden = false;
@@ -3132,6 +3117,14 @@ function buildItem(item) {
   return node;
 }
 
+/* A bulk row swaps its own control for the pick; null means the selection is about the other kind. */
+function showPick(main, pick, selected, label) {
+  const on = selected !== null;
+  main.hidden = on;
+  pick.hidden = !on;
+  if (on) checkBox(pick, selected, label);
+}
+
 function paintItem(node, item) {
   node.dataset.kind = "item";
   node.dataset.id = item.id;
@@ -3141,15 +3134,8 @@ function paintItem(node, item) {
   checkBox(check, item.done, item.text || t("new_item_ph"));
   labelNode(node.querySelector(".act--menu"), "a_menu");
   const bulk = state.ui.bulk;
-  const pick = node.querySelector(".mark--bulk");
-  if (bulk.kind === "item") {
-    check.hidden = true;
-    pick.hidden = false;
-    checkBox(pick, bulk.ids.includes(item.id), item.text || t("new_item_ph"));
-  } else {
-    check.hidden = false;
-    pick.hidden = true;
-  }
+  showPick(check, node.querySelector(".mark--bulk"),
+    bulk.kind === "item" ? bulk.ids.includes(item.id) : null, item.text || t("new_item_ph"));
   paintRowEditor(node, "item", item.id, item.text);
 }
 
@@ -3167,25 +3153,8 @@ function renderPager() {
   byId("page-next").disabled = page >= pages;
 }
 
-/* Fallback glyphs, keyed by icon name: shown when the icon CDN is unreachable. */
-const GLYPHS = {
-  archive: "▣",
-  bottom: "↓",
-  bulk: "☰",
-  "chevron-down": "⌄",
-  check: "✓",
-  collapse: "−",
-  close: "←",
-  expand: "+",
-  "grip-horizontal": "⋯",
-  "grip-vertical": "⋮",
-  restore: "↺",
-  top: "↑",
-  trash: "✕",
-};
-
 function iconPair(icon) {
-  const alt = el("span", "ic-alt", GLYPHS[icon]);
+  const alt = el("span", "ic-alt", ICONS[icon]?.[1]);
   alt.setAttribute("aria-hidden", "true");
   return [el("span", `ic ic--${icon}`), alt];
 }
@@ -3283,15 +3252,15 @@ function paintRow(row, kind, id) {
 function afterRender() {
   restoreFocus();
   if (needFocus && state.ui.editing) {
-    focusEditor(state.ui.editing.id);
+    focusEditor(state.ui.editing.kind, state.ui.editing.id);
   }
   needFocus = false;
   if (scrollTarget) applyScrollTarget();
   applyDragState();
 }
 
-function focusEditor(id) {
-  const row = document.querySelector(`#lists [data-id="${CSS.escape(id)}"]`);
+function focusEditor(kind, id) {
+  const row = rowById(kind, id);
   const input = row && row.querySelector(":scope > .card__head .input, :scope > .item__row .input");
   if (!input) return;
   input.focus({ preventScroll: true });
@@ -3335,7 +3304,7 @@ function revealRow(row) {
 function applyScrollTarget() {
   const target = scrollTarget;
   scrollTarget = null;
-  const row = document.querySelector(`#lists [data-id="${CSS.escape(target.id)}"]`);
+  const row = rowById(target.kind, target.id);
   if (!row) return;
   revealRow(row);
   row.classList.add("is-flash");
@@ -3344,17 +3313,17 @@ function applyScrollTarget() {
 
 /* ---------- modal layer ---------- */
 
+/* Every dialog is appended to #layer; mods narrows to a variant class, e.g. ".modal--dropdown". */
+const layerDialogs = (mods = "") => document.querySelectorAll(`#layer dialog${mods}[open]`);
+
 function modalOpen() {
-  return Boolean(document.querySelector("#layer dialog[open]"));
+  return layerDialogs().length > 0;
 }
 
 /* Dialog order in the DOM is open order, so the last one is the one the top layer shows. */
 function closeModal() {
-  const open = document.querySelectorAll("#layer dialog[open]");
-  const top = open[open.length - 1];
-  if (top) {
-    top.close();
-  }
+  const open = layerDialogs();
+  open[open.length - 1]?.close();
 }
 
 function fillModal(box, opts) {
@@ -3376,15 +3345,8 @@ function fillModal(box, opts) {
 }
 
 function openModal(opts) {
-  let cls = "modal";
-  if (opts.sheet) {
-    cls = "modal modal--sheet";
-  } else if (opts.picker) {
-    cls = "modal modal--picker";
-  } else if (opts.dropdown) {
-    cls = "modal modal--dropdown";
-  }
-  const box = el("dialog", cls);
+  const kind = ["sheet", "picker", "dropdown"].find((k) => opts[k]);
+  const box = el("dialog", kind ? `modal modal--${kind}` : "modal");
   const body = fillModal(box, opts);
   if (opts.actions && opts.actions.length) {
     box.append(actionRow(opts.actions));
@@ -3442,14 +3404,14 @@ function positionPopup(node, anchor) {
 }
 
 function positionAnchored() {
-  for (const box of document.querySelectorAll("#layer dialog.modal--anchored[open]")) {
+  for (const box of layerDialogs(".modal--anchored")) {
     positionPopup(box, box.anchor);
   }
 }
 
 // A sheet opened under the other breakpoint would be misplaced; closing beats re-anchoring it.
 function closePopovers() {
-  for (const box of document.querySelectorAll("#layer dialog[open]")) {
+  for (const box of layerDialogs()) {
     box.close();
   }
 }
@@ -3696,7 +3658,7 @@ function openSettings() {
         state.ui.lang = value;
         commit();
         // Relabel in the new language: the dialog is rebuilt, not patched in place.
-        document.querySelector("#layer .modal--dropdown[open]")?.close();
+        layerDialogs(".modal--dropdown")[0]?.close();
         openSettings();
       },
     )),
@@ -3710,19 +3672,18 @@ function openSettings() {
         commit();
       },
     )),
-    field("set_new_list", segmentControl("posList", ui.newChecklist, [["top", t("pos_top")], ["bottom", t("pos_bottom")]], (value) => {
-      state.ui.newChecklist = value;
-      commit();
-    })),
-    field("set_new_item", segmentControl("posItem", ui.newItem, [["top", t("pos_top")], ["bottom", t("pos_bottom")]], (value) => {
-      state.ui.newItem = value;
-      commit();
-    })),
   );
+  const POS = [["top", t("pos_top")], ["bottom", t("pos_bottom")]];
+  for (const [fieldKey, name, key] of [["set_new_list", "posList", "newChecklist"], ["set_new_item", "posItem", "newItem"]]) {
+    body.append(field(fieldKey, segmentControl(name, ui[key], POS, (value) => {
+      ui[key] = value;
+      commit();
+    })));
+  }
   const archive = el("button", "btn btn--wide btn--hold");
   archive.type = "button";
   const holdBar = el("span", "hold");
-  archive.append(el("span", "ic ic--archive"), el("span", null, t("archive_title")), holdBar);
+  archive.append(...iconPair("archive"), el("span", null, t("archive_title")), holdBar);
   const openArchiveSheet = () => {
     closeModal();
     openArchive();
@@ -3742,7 +3703,7 @@ function openSettings() {
     anchor: byId("btn-settings"),
     // A language change closes this dialog and immediately opens its replacement in the new language.
     onClosed: () => {
-      if (!document.querySelector("#layer .modal--dropdown[open]")) {
+      if (!layerDialogs(".modal--dropdown").length) {
         byId("btn-settings").setAttribute("aria-expanded", "false");
       }
     },
@@ -3751,7 +3712,7 @@ function openSettings() {
 }
 
 function toggleSettings() {
-  const open = document.querySelector("#layer .modal--dropdown[open]");
+  const open = layerDialogs(".modal--dropdown")[0];
   if (open) {
     open.close();
     return;
@@ -3779,18 +3740,13 @@ function archivedItems() {
 
 function restoreLists(ids) {
   const picked = new Set(ids);
-  const moved = [];
-  const rest = [];
   for (const cl of state.checklists) {
     if (picked.has(cl.id)) {
       cl.archived = false;
       markDirty("list", cl.id);
-      moved.push(cl);
-    } else {
-      rest.push(cl);
     }
   }
-  state.checklists = [...moved, ...rest];
+  state.checklists = moveGroup(state.checklists, ids, 0);
   markOrder("lists");
   for (const item of state.items) {
     if (picked.has(item.checklistId) && item.archived && item.archivedBy === "list") {
@@ -3802,19 +3758,16 @@ function restoreLists(ids) {
 
 function restoreItems(ids) {
   const picked = new Set(ids);
-  const moved = [];
-  state.items = state.items.filter((item) => {
-    if (!picked.has(item.id)) return true;
-    item.archived = false;
-    markDirty("item", item.id);
-    moved.push(item);
-    return false;
-  });
-  for (const item of [...moved].reverse()) {
-    const peers = state.items.filter((i) => i.checklistId === item.checklistId);
-    state.items.splice(joinIndex(state.items, peers, false), 0, item);
+  const touched = new Set();
+  for (const item of state.items) {
+    if (picked.has(item.id)) {
+      item.archived = false;
+      markDirty("item", item.id);
+      touched.add(item.checklistId);
+    }
   }
-  for (const checklistId of new Set(moved.map((i) => i.checklistId))) {
+  state.items = moveGroup(state.items, ids, 0);
+  for (const checklistId of touched) {
     markOrder(checklistId);
   }
 }
@@ -3867,37 +3820,39 @@ function openArchive() {
     view.sel.clear();
     paint();
   });
+  const withSelection = (fn) => (event) => {
+    const ids = selected();
+    if (ids.length) {
+      fn(ids, event);
+    }
+  };
   host.append(bar, empty, list, actionRow([
     { icon: "close", label: t("a_cancel"), onClick: () => handle.close() },
     {
       icon: "restore",
       label: t("a_restore"),
       count: true,
-      onClick: () => {
-        const ids = selected();
-        if (!ids.length) return;
+      onClick: withSelection((ids) => {
         if (view.tab === "lists") restoreLists(ids);
         else restoreItems(ids);
         view.sel.clear();
         commit();
         paint();
-      },
+      }),
     },
     {
       icon: "trash",
       label: t("a_delete"),
       cls: "btn--danger",
       count: true,
-      onClick: (event) => {
-        const ids = selected();
-        if (!ids.length) return;
+      onClick: withSelection((ids, event) => {
         const kind = view.tab === "lists" ? "list" : "item";
         ask(kind, ids, "delete", event.currentTarget, () => {
           view.sel.clear();
           paint();
           focusTab();
         });
-      },
+      }),
     },
   ]));
   const paintActions = () => {
@@ -4094,8 +4049,7 @@ function demoHold(button, bar, onTap, onDone) {
     }
     event.preventDefault();
     if (filling) {
-      consumed = true;
-      stop();
+      cancel();
     } else if (wait) {
       stop();
       onTap();
@@ -4243,7 +4197,6 @@ function onRowMove(event) {
 }
 
 function onRowUp() {
-  endRowListeners();
   if (!gesture) return;
   if (gesture.mode === "drag") {
     suppressNextClick();
@@ -4446,7 +4399,7 @@ function expandForDrop(id) {
   markDirty("list", id);
   queueSave();
   repaintRow("list", id);
-  const body = document.querySelector(`#lists [data-id="${CSS.escape(id)}"] .items`);
+  const body = rowById("list", id)?.querySelector(".items");
   // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
   if (!body) {
     retarget();
@@ -4773,9 +4726,8 @@ function sideFor(center, left, right, side) {
 }
 
 function showGhost(left, top, width, height) {
-  const ghost = panelGhost ?? el("div", "panel-ghost");
+  const ghost = panelGhost ?? document.body.appendChild(el("div", "panel-ghost"));
   panelGhost = ghost;
-  if (!ghost.isConnected) document.body.append(ghost);
   ghost.hidden = false;
   ghost.style.width = `${width}px`;
   ghost.style.height = `${height}px`;
@@ -4877,89 +4829,59 @@ function startEdit(kind, id) {
   commit();
 }
 
-function onRowAct(act, kind, id, row, trigger) {
-  if (act === "toggle") {
-    const cl = findList(id);
-    if (cl) {
-      cl.expanded = !cl.expanded;
-      markDirty("list", id);
-      queueSave();
-      repaintRow("list", id);
-    }
+/* Expanded and done are the same rule on different rows. */
+function flipFlag(kind, id, prop) {
+  const entity = kind === "list" ? findList(id) : findItem(id);
+  if (!entity) {
     return;
   }
-  if (act === "pick") {
-    togglePick(kind, id);
-    return;
-  }
-  if (act === "toggle-done") {
-    const item = findItem(id);
-    if (item) {
-      item.done = !item.done;
-      markDirty("item", id);
-      queueSave();
-      repaintRow("item", id);
-    }
-    return;
-  }
-  if (act === "edit") {
-    startEdit(kind, id);
-    return;
-  }
-  if (act === "add-item") {
-    addItem(id);
-    return;
-  }
-  if (act === "menu") {
-    openEntityMenu(kind, id, trigger);
-    return;
-  }
-  if (act === "save") {
+  entity[prop] = !entity[prop];
+  markDirty(kind, id);
+  queueSave();
+  repaintRow(kind, id);
+}
+
+const ROW_ACTS = {
+  toggle: (kind, id) => flipFlag("list", id, "expanded"),
+  "toggle-done": (kind, id) => flipFlag("item", id, "done"),
+  pick: togglePick,
+  edit: startEdit,
+  "add-item": (kind, id) => addItem(id),
+  menu: (kind, id, row, trigger) => openEntityMenu(kind, id, trigger),
+  save: (kind, id, row) => {
     const editing = state.ui.editing;
     const input = row.querySelector(".row-edit input");
     if (editing && input) {
       commitText(editing.kind, editing.id, input.value);
     }
-  }
+  },
+};
+
+function onRowAct(act, kind, id, row, trigger) {
+  ROW_ACTS[act]?.(kind, id, row, trigger);
 }
 
-function onPanelAct(act, button) {
-  const bulk = state.ui.bulk;
-  if (act === "panel-toggle") {
+const PANEL_ACTS = {
+  "panel-toggle": () => {
     state.ui.panel.collapsed = !state.ui.panel.collapsed;
     commit();
-    return;
-  }
-  if (act === "expand-all") {
-    setExpandedAll(true);
-    return;
-  }
-  if (act === "collapse-all") {
-    setExpandedAll(false);
-    return;
-  }
-  if (act === "bulk-cancel") {
-    cancelBulk();
-    return;
-  }
-  if (!bulk.ids.length) {
-    return;
-  }
-  if (act === "bulk-top") {
-    moveTo(bulk.kind, bulk.ids, "top");
-    return;
-  }
-  if (act === "bulk-bottom") {
-    moveTo(bulk.kind, bulk.ids, "bottom");
-    return;
-  }
-  if (act === "bulk-archive") {
-    ask(bulk.kind, [...bulk.ids], "archive", button);
-    return;
-  }
-  if (act === "bulk-delete") {
-    ask(bulk.kind, [...bulk.ids], "delete", button);
-  }
+  },
+  "expand-all": () => setExpandedAll(true),
+  "collapse-all": () => setExpandedAll(false),
+  "bulk-cancel": () => cancelBulk(),
+};
+
+const BULK_ACTS = {
+  "bulk-top": (bulk) => moveTo(bulk.kind, bulk.ids, "top"),
+  "bulk-bottom": (bulk) => moveTo(bulk.kind, bulk.ids, "bottom"),
+  "bulk-archive": (bulk, button) => ask(bulk.kind, [...bulk.ids], "archive", button),
+  "bulk-delete": (bulk, button) => ask(bulk.kind, [...bulk.ids], "delete", button),
+};
+
+// Bulk actions need a selection; without one they are dead buttons.
+function onPanelAct(act, button) {
+  const bulk = state.ui.bulk;
+  (PANEL_ACTS[act] ?? (bulk.ids.length > 0 ? BULK_ACTS[act] : undefined))?.(bulk, button);
 }
 
 /* ---------- wiring ---------- */
@@ -5071,7 +4993,7 @@ function onViewportChange() {
   if (!editing || modalOpen()) {
     return;
   }
-  const row = document.querySelector(`#lists [data-id="${CSS.escape(editing.id)}"]`);
+  const row = rowById(editing.kind, editing.id);
   if (row) {
     revealRow(row);
   }

@@ -379,10 +379,21 @@ test("restoreItems keeps the restored group in its original order", () => {
   assert.deepEqual(ids(api.withoutArchived(state.items, "c1")), ["x", "y", "a", "b"]);
 });
 
-test("restoreItems appends to a checklist that has no live items left", () => {
+test("restoreItems tops a checklist that has no live items left", () => {
   const state = store([list("c1"), list("c2")], [item("keep", "c2"), item("x", "c1", { archived: true })]);
   api.restoreItems(["x"]);
-  assert.deepEqual(ids(state.items), ["keep", "x"]);
+  assert.deepEqual(ids(api.withoutArchived(state.items, "c1")), ["x"]);
+  assert.deepEqual(ids(api.withoutArchived(state.items, "c2")), ["keep"]);
+});
+
+test("restoreItems puts every restored item on top of its own checklist", () => {
+  const state = store([list("c1"), list("c2")], [
+    item("a", "c1"), item("b", "c2"),
+    item("x", "c1", { archived: true }), item("y", "c2", { archived: true }),
+  ]);
+  api.restoreItems(["y", "x"]);
+  assert.deepEqual(ids(api.withoutArchived(state.items, "c1")), ["x", "a"]);
+  assert.deepEqual(ids(api.withoutArchived(state.items, "c2")), ["y", "b"]);
 });
 
 test("restoreLists un-archives only the items the list archived", () => {
@@ -534,19 +545,37 @@ test("every dictionary defines exactly the keys EN defines", () => {
   }
 });
 
-// The builders take the icon name only, so a missing map entry means a button with no fallback glyph.
-test("every icon the button builders are called with has a fallback glyph", () => {
-  const glyphs = vm([slice("GLYPHS"), "GLYPHS"]);
+// The builders take the icon name only, so a name missing from the table means a button with no icon at all.
+test("every icon the button builders are called with is in ICONS", () => {
+  const icons = vm([slice("ICONS"), "ICONS"]);
   const used = new Set();
-  for (const call of html.matchAll(/(?:^|[^.\w])(?:panelButton|menuItem|act)\(\s*([^,)]*)/g)) {
+  for (const call of html.matchAll(/(?:panelButton|menuItem|iconPair)\(\s*([^,)]*)/g)) {
     for (const icon of call[1].matchAll(/"([a-z-]+)"/g)) {
       used.add(icon[1]);
     }
   }
-  assert.ok(used.size >= 10, `the call scan found only ${used.size} icons; the regex is out of date`);
-  for (const icon of used) {
-    assert.equal(typeof glyphs[icon], "string", `"${icon}" has no fallback glyph`);
+  // actionRow gets action objects, not an icon name.
+  for (const prop of html.matchAll(/icon:\s*"([a-z-]+)"/g)) {
+    used.add(prop[1]);
   }
+  assert.ok(used.size >= 13, `the call scan found only ${used.size} icons; the regex is out of date`);
+  for (const icon of used) {
+    assert.ok(icon in icons, `"${icon}" has no ICONS entry`);
+  }
+});
+
+test("every icon has a fallback glyph", () => {
+  const icons = vm([slice("ICONS"), "ICONS"]);
+  for (const [name, entry] of Object.entries(icons)) {
+    assert.equal(typeof entry[1], "string", `"${name}" has no fallback glyph`);
+    assert.ok(entry[1].length > 0, `"${name}" has an empty fallback glyph`);
+  }
+});
+
+test("the style sheet masks exactly the icons in ICONS", () => {
+  const icons = Object.keys(vm([slice("ICONS"), "ICONS"])).sort();
+  const masked = [...html.matchAll(/--ic-([a-z-]+), none\)/g)].map((m) => m[1]).sort();
+  assert.deepEqual(masked, icons);
 });
 
 test("every dictionary interpolates the same placeholders as EN", () => {
