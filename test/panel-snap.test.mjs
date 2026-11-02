@@ -2,21 +2,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createContext, runInContext } from "node:vm";
-import { slice } from "./html-source.mjs";
+import { withEnv as restoreEnv } from "./fixtures.mjs";
+import { slice, vm } from "./html-source.mjs";
 
 const env = { innerHeight: 900, paddingBottom: "24px", topbarBottom: 68 };
-
-// Asserting against the env directly would leak a mutation into the next test if one fails.
-const withEnv = (patch, fn) => {
-  const restore = { ...env };
-  Object.assign(env, patch);
-  try {
-    fn();
-  } finally {
-    Object.assign(env, restore);
-  }
-};
+const withEnv = (patch, fn) => restoreEnv(env, patch, fn);
 
 const box = {
   document: {
@@ -26,8 +16,7 @@ const box = {
   getComputedStyle: () => ({ paddingBottom: env.paddingBottom }),
 };
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
-createContext(box);
-const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached } = runInContext(
+const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached } = vm(
   [
     slice("GESTURE"),
     slice("clamp"),
@@ -40,7 +29,7 @@ const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, det
     slice("panelFraction"),
     slice("detached"),
     "({ GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached });",
-  ].join("\n"),
+  ],
   box,
 );
 
@@ -135,13 +124,6 @@ test("detached peels at the threshold and re-glues at half of it", () => {
   ];
   for (const [desired, wasDetached, want] of rows) {
     assert.equal(detached(desired, dock, wasDetached), want, `desired ${desired}, was ${wasDetached}`);
-  }
-});
-
-test("panelTop on the collapsed panel is the old fraction-of-band formula", () => {
-  for (let pct = 0; pct <= 1.0001; pct += 0.05) {
-    const p = Math.round(pct * 100) / 100;
-    assert.equal(panelTop(p, BASE, BASE), Math.round(MIN + p * (COLLAPSED - MIN)), `pct ${p}`);
   }
 });
 

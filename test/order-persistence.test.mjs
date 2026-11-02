@@ -3,8 +3,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createContext, runInContext } from "node:vm";
-import { slice } from "./html-source.mjs";
+import { ids, item, list } from "./fixtures.mjs";
+import { slice, vm } from "./html-source.mjs";
 
 const NAMES = [
   "clamp",
@@ -41,20 +41,11 @@ const NAMES = [
   "visibleChecklists",
 ];
 
-const api = runInContext(
+const api = vm(
   ["let state = null;", ...NAMES.map(slice), `({ ${NAMES.join(", ")},`,
-    "  get state() { return state; }, set state(value) { state = value; } });"].join("\n"),
-  createContext({}),
+    "  get state() { return state; }, set state(value) { state = value; } });"],
+  {},
 );
-
-const list = (id, extra) => ({
-  id, title: `list ${id}`, expanded: true, createdAt: 1, archived: false, ...extra,
-});
-
-const item = (id, checklistId, extra) => ({
-  id, checklistId, text: `item ${id}`, done: false, createdAt: 1, archived: false, archivedBy: "user",
-  ...extra,
-});
 
 const stateOf = (groups) => ({
   version: 1,
@@ -63,8 +54,7 @@ const stateOf = (groups) => ({
   ui: { pageSize: 20, bulk: { kind: null, ids: [] } },
 });
 
-// The ids of rows, and of the items of one list, in the order state holds them.
-const ids = (rows) => Array.from(rows, (row) => row.id);
+// The ids of the items of one list, in the order state holds them.
 const inList = (data, checklistId) => ids(data.items.filter((i) => i.checklistId === checklistId));
 
 const open = () => ({ lists: new Map(), items: new Map(), docs: new Map() });

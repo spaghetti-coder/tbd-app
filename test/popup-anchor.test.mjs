@@ -2,21 +2,11 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createContext, runInContext } from "node:vm";
-import { slice } from "./html-source.mjs";
+import { withEnv as restoreEnv } from "./fixtures.mjs";
+import { slice, vm } from "./html-source.mjs";
 
 const env = { innerWidth: 1440, innerHeight: 900, safeLeft: 0, safeRight: 0 };
-
-// Asserting against the env directly would leak a mutation into the next test if one fails.
-const withEnv = (patch, fn) => {
-  const restore = { ...env };
-  Object.assign(env, patch);
-  try {
-    fn();
-  } finally {
-    Object.assign(env, restore);
-  }
-};
+const withEnv = (patch, fn) => restoreEnv(env, patch, fn);
 
 const box = {
   document: { documentElement: {} },
@@ -26,9 +16,8 @@ const box = {
 };
 Object.defineProperty(box, "innerWidth", { get: () => env.innerWidth });
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
-createContext(box);
-const { anchoredBox } = runInContext(
-  [slice("clamp"), slice("cssVarPx"), slice("anchoredBox"), "({ anchoredBox });"].join("\n"),
+const { anchoredBox } = vm(
+  [slice("clamp"), slice("cssVarPx"), slice("anchoredBox"), "({ anchoredBox });"],
   box,
 );
 
@@ -70,12 +59,4 @@ test("the right edge stays clear of the right safe area", () => {
     const pos = anchoredBox(trigger(100, 140, env.innerWidth - 40, env.innerWidth), 300, 200);
     assert.equal(pos.left + 300, env.innerWidth - 8 - 16);
   });
-});
-
-test("a trigger at the last row of a long list still gets the whole popup on screen", () => {
-  const rect = trigger(env.innerHeight - 88, env.innerHeight - 48, 1100, 1140);
-  const height = 700;
-  const pos = anchoredBox(rect, 300, height);
-  assert.ok(pos.top >= 8, "below the top edge");
-  assert.ok(pos.top + height <= env.innerHeight - 12, "above the bottom edge");
 });

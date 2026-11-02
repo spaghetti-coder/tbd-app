@@ -2,7 +2,6 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createContext, runInContext } from "node:vm";
 import { slice, vm } from "./html-source.mjs";
 import { fakeNode } from "./fake-dom.mjs";
 
@@ -146,8 +145,7 @@ const frameBox = {
 };
 Object.defineProperty(frameBox, "innerHeight", { get: () => page.viewport });
 Object.defineProperty(frameBox, "scrollY", { get: () => page.y });
-createContext(frameBox);
-const { start, run, stop, scrolling } = runInContext(
+const { start, run, stop, scrolling } = vm(
   [
     slice("GESTURE"),
     slice("clamp"),
@@ -174,7 +172,7 @@ const { start, run, stop, scrolling } = runInContext(
     "  stop: stopAutoScroll,",
     "  scrolling: () => autoScrolling,",
     "});",
-  ].join("\n"),
+  ],
   frameBox,
 );
 

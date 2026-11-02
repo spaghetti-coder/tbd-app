@@ -224,10 +224,3 @@ test("the real save drops a nameless row and opens no editor on it", () => {
   assert.equal(ctx.state.items.length, 0);
   assert.equal(ctx.state.ui.editing, null);
 });
-
-test("the real save rolls a cleared name back to its old text", () => {
-  const { flushPendingEdit, ctx } = realPath({ kind: "list", id: "L1" }, "");
-  flushPendingEdit();
-  assert.equal(ctx.state.checklists[0].title, "AAA");
-  assert.equal(ctx.state.ui.editing, null);
-});

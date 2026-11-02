@@ -6,6 +6,7 @@ import { slice, vm } from "./html-source.mjs";
 
 function harness(ids, kind = "item") {
   const calls = [];
+  const asked = [];
   const state = { ui: { panel: { collapsed: false }, bulk: { kind, ids } } };
   const { onPanelAct } = vm(
     [slice("PANEL_ACTS"), slice("BULK_ACTS"), slice("onPanelAct"), "({ onPanelAct })"],
@@ -15,10 +16,13 @@ function harness(ids, kind = "item") {
       setExpandedAll: (open) => calls.push(`setExpandedAll:${open}`),
       cancelBulk: () => calls.push("cancelBulk"),
       moveTo: (k, picked, where) => calls.push(`moveTo:${k}:${picked.join(",")}:${where}`),
-      ask: (k, picked, action) => calls.push(`ask:${k}:${picked.join(",")}:${action}`),
+      ask: (k, picked, action, button) => {
+        calls.push(`ask:${k}:${picked.join(",")}:${action}`);
+        asked.push({ kind: k, picked, action, button });
+      },
     },
   );
-  return { calls, state, onPanelAct };
+  return { calls, state, asked, onPanelAct };
 }
 
 const BULK = ["i1", "i2"];
@@ -70,18 +74,7 @@ test("archive and delete ask about the whole selection", () => {
 
 test("ask receives the selection as a copy, not the live array", () => {
   const ids = [...BULK];
-  const asked = [];
-  const { onPanelAct } = vm(
-    [slice("PANEL_ACTS"), slice("BULK_ACTS"), slice("onPanelAct"), "({ onPanelAct })"],
-    {
-      state: { ui: { panel: { collapsed: false }, bulk: { kind: "list", ids } } },
-      commit() {},
-      setExpandedAll() {},
-      cancelBulk() {},
-      moveTo() {},
-      ask: (kind, picked, action, button) => asked.push({ kind, picked, action, button }),
-    },
-  );
+  const { asked, onPanelAct } = harness(ids, "list");
   onPanelAct("bulk-delete", BUTTON);
   assert.equal(asked.length, 1);
   // Cross-realm arrays: compare by value, identity only for the "is it the live array" check.

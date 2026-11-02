@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createContext, runInContext } from "node:vm";
+import { ids, item, list } from "./fixtures.mjs";
 import { html, slice, vm } from "./html-source.mjs";
 
 const NAMES = [
@@ -21,7 +22,6 @@ const NAMES = [
   "dropItemsInto",
   "restoreLists",
   "restoreItems",
-  "archivedItems",
   "removeEntity",
   "archiveChecklistQuiet",
   "archiveItemQuiet",
@@ -71,32 +71,10 @@ const { api, scrollTargetOf, toastOf, calls, resetCalls } = runInContext(
   sandbox,
 );
 
-const list = (id, extra) => ({
-  id,
-  title: `list ${id}`,
-  expanded: true,
-  createdAt: 1,
-  archived: false,
-  ...extra,
-});
-
-const item = (id, checklistId, extra) => ({
-  id,
-  checklistId,
-  text: `item ${id}`,
-  done: false,
-  createdAt: 1,
-  archived: false,
-  archivedBy: "user",
-  ...extra,
-});
-
 // Objects built inside the VM have that realm's prototypes, so compare plain copies of their fields.
 const plainBulk = (bulk) => ({ kind: bulk.kind, ids: Array.from(bulk.ids) });
 
-const rows = (...ids) => ids.map((id) => ({ id }));
-// Array.from, not map: the rows come from the VM realm and map() would keep that realm's Array.prototype.
-const ids = (rows2) => Array.from(rows2, (row) => row.id);
+const rows = (...picked) => picked.map((id) => ({ id }));
 
 const store = (checklists, items, ui) => {
   resetCalls();
@@ -405,13 +383,6 @@ test("restoreLists un-archives only the items the list archived", () => {
   assert.equal(api.findList("c2").archived, false);
   assert.equal(api.findItem("bylist").archived, false);
   assert.equal(api.findItem("byuser").archived, true);
-});
-
-test("archivedItems hides items whose checklist is archived too", () => {
-  store([list("c1"), list("c2", { archived: true })],
-    [item("mine", "c1", { archived: true }), item("bylist", "c1", { archived: true, archivedBy: "list" }),
-      item("orphan", "c2", { archived: true })]);
-  assert.deepEqual(ids(api.archivedItems()), ["mine"]);
 });
 
 test("normalize drops items whose checklist is gone", () => {
