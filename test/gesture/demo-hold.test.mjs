@@ -3,8 +3,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "./html-source.mjs";
-import { fakeNode } from "./fake-dom.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 // Virtual clock: timers fire only when the test advances it, in due order.
 function clock() {

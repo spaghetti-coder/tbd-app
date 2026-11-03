@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withEnv as restoreEnv } from "./fixtures.mjs";
-import { slice, vm } from "./html-source.mjs";
+import { withEnv as restoreEnv } from "../../testkit/fixtures.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
 
 const env = { innerHeight: 900, paddingBottom: "24px", topbarBottom: 68 };
 const withEnv = (patch, fn) => restoreEnv(env, patch, fn);

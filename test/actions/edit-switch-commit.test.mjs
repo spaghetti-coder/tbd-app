@@ -1,9 +1,11 @@
-// Text typed without Enter belongs to the row it was typed in, wherever the editor went next.
+// Editing a name: which row a typed draft belongs to, and what the save does with it.
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "./html-source.mjs";
-import { fakeNode } from "./fake-dom.mjs";
+import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
+import { stateHarness } from "../../testkit/state.mjs";
 
 const SRC = [
   slice("flushPendingEdit"),
@@ -223,4 +225,63 @@ test("the real save drops a nameless row and opens no editor on it", () => {
   startEdit("item", "i1");
   assert.equal(ctx.state.items.length, 0);
   assert.equal(ctx.state.ui.editing, null);
+});
+
+/* ---------- what a save writes, rolls back or drops ---------- */
+
+const { api, store, calls, resetCalls } = stateHarness([
+  "commitText",
+  "cancelEdit",
+  "entityText",
+  "removeEntity",
+  "pruneSelection",
+  "setBulk",
+  "findList",
+  "findItem",
+]);
+
+test("a renamed entity is saved and only its row is repainted", () => {
+  const state = store([list("c1", { title: "old" })], [item("i1", "c1", { text: "old" })]);
+  api.commitText("list", "c1", "  Groceries  ");
+  assert.equal(state.checklists[0].title, "Groceries");
+  assert.equal(state.ui.editing, null);
+  assert.equal(calls(), "flushSave,repaintRow:list:c1");
+
+  resetCalls();
+  api.commitText("item", "i1", "Milk");
+  assert.equal(state.items[0].text, "Milk");
+  assert.equal(state.ui.editing, null);
+  assert.equal(calls(), "flushSave,repaintRow:item:i1");
+});
+
+test("committing an empty name rolls a named entity back", () => {
+  const state = store([list("c1", { title: "old" })], [item("i1", "c1", { text: "old" })], { editing: { kind: "item", id: "i1" } });
+  api.commitText("item", "i1", "   ");
+  assert.equal(state.items.length, 1);
+  assert.equal(state.items[0].text, "old");
+  assert.equal(state.ui.editing, null);
+  assert.equal(calls(), "commit");
+});
+
+test("committing an empty name discards a new checklist with its items", () => {
+  const state = store([list("c1", { title: "" }), list("c2")], [item("i1", "c1"), item("i2", "c2")], { editing: { kind: "list", id: "c1" } });
+  api.commitText("list", "c1", "");
+  assert.deepEqual(ids(state.checklists), ["c2"]);
+  assert.deepEqual(ids(state.items), ["i2"]);
+  assert.equal(state.ui.editing, null);
+  assert.equal(calls(), "commit");
+});
+
+test("cancelling discards a new entity and keeps a named one", () => {
+  const fresh = store([list("c1", { title: "" })], [item("i1", "c1", { text: "" })], { editing: { kind: "item", id: "i1" } });
+  api.cancelEdit();
+  assert.deepEqual(ids(fresh.items), []);
+  assert.equal(fresh.ui.editing, null);
+  assert.equal(calls(), "commit");
+
+  const named = store([list("c1", { title: "keep" })], [], { editing: { kind: "list", id: "c1" } });
+  api.cancelEdit();
+  assert.deepEqual(ids(named.checklists), ["c1"]);
+  assert.equal(named.checklists[0].title, "keep");
+  assert.equal(named.ui.editing, null);
 });

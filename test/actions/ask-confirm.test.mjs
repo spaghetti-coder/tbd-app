@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "./html-source.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
 
 const harness = () => {
   const asked = [];

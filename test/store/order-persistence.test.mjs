@@ -3,8 +3,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "./fixtures.mjs";
-import { slice, vm } from "./html-source.mjs";
+import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
 
 const NAMES = [
   "clamp",

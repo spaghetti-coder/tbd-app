@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "./html-source.mjs";
-import { fakeNode } from "./fake-dom.mjs";
+import { slice, vm } from "../../testkit/html-source.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const { rowHandle } = vm([slice("rowHandle"), "({ rowHandle })"]);
 
