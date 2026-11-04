@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { slice, vm } from "../../testkit/html-source.mjs";
 
-function harness({ checklists = [], items = [], editing, input } = {}) {
+function harness({ checklists = [], items = [], editing, input, found = null } = {}) {
   const calls = [];
   const find = (rows) => (id) => rows.find((row) => row.id === id);
   const onRowAct = vm(
     [slice("flipFlag"), slice("ROW_ACTS"), slice("onRowAct"), "onRowAct"],
     {
       state: { ui: { editing } },
+      found,
       findList: find(checklists),
       findItem: find(items),
       markDirty: (kind, id) => calls.push(`markDirty:${kind}:${id}`),
@@ -37,6 +38,14 @@ test("toggle flips a checklist and repaints its row", () => {
   assert.deepEqual(calls, ["markDirty:list:c1", "queueSave", "repaintRow:list:c1"]);
   onRowAct("toggle", "list", "c1", row, TRIGGER);
   assert.equal(cl.expanded, false);
+});
+
+test("a list the search holds open is not toggled", () => {
+  const cl = { id: "c1", expanded: false };
+  const { calls, onRowAct, row } = harness({ checklists: [cl], found: { expand: new Set(["c1"]) } });
+  onRowAct("toggle", "list", "c1", row, TRIGGER);
+  assert.equal(cl.expanded, false, "the saved state stays as the user left it");
+  assert.deepEqual(calls, []);
 });
 
 test("toggle-done flips an item and repaints its row", () => {

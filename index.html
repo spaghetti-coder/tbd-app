@@ -183,6 +183,8 @@
   .ic--bulk { mask-image: var(--ic-bulk, none); }
   .ic--grip-vertical { mask-image: var(--ic-grip-vertical, none); }
   .ic--grip-horizontal { mask-image: var(--ic-grip-horizontal, none); }
+  .ic--search { mask-image: var(--ic-search, none); }
+  .ic--goto { mask-image: var(--ic-goto, none); }
 
   /* Fallback glyphs. The document starts at .icons-off, so these show until a CDN answers. */
   .ic-alt {
@@ -212,6 +214,7 @@
   }
 
   .btn:disabled,
+  .mark:disabled,
   .menu-list__item:disabled {
     color: var(--muted);
     opacity: 0.4;
@@ -222,10 +225,11 @@
     color: var(--danger);
   }
 
+  /* The hairline is an inset shadow: a border would add a pixel to every sticky offset below the
+     header. Its height is the content, and JS mirrors it into --topbar-h. */
   .topbar {
     background: var(--bg);
-    border-bottom: 1px solid var(--line);
-    height: var(--topbar-h);
+    box-shadow: inset 0 -1px 0 var(--line);
     padding: env(safe-area-inset-top) var(--gutter) 0;
     position: sticky;
     top: 0;
@@ -235,20 +239,80 @@
 
   .topbar__inner {
     align-items: center;
-    display: flex;
-    gap: 6px;
-    height: 56px;
+    display: grid;
+    grid-template:
+      "title acts" 56px
+      "search search" auto
+      "filters filters" auto / 1fr auto;
     margin-inline: auto;
     /* Same box as the card content inside .wrap, so header and cards share edges. */
     max-width: calc(var(--wrap) - var(--gutter) * 2);
   }
 
   .topbar__title {
-    flex: 1;
     font-size: 20px;
     font-weight: 650;
+    grid-area: title;
     letter-spacing: 0.04em;
     min-width: 0;
+  }
+
+  .topbar__acts {
+    align-items: center;
+    display: flex;
+    gap: 6px;
+    grid-area: acts;
+    justify-self: end;
+  }
+
+  /* Row spacing lives inside the rows: a hidden row is a zero track, and gaps around zero tracks
+     would still count. */
+  .search {
+    align-items: center;
+    display: flex;
+    gap: 2px;
+    grid-area: search;
+    min-width: 0;
+    padding-block-end: 6px;
+  }
+
+  /* The row owns the clear button, so the browser must not add its own. */
+  .search .input {
+    appearance: none;
+  }
+
+  .search .input::-webkit-search-cancel-button {
+    appearance: none;
+    display: none;
+  }
+
+  .filters {
+    display: flex;
+    gap: 6px;
+    grid-area: filters;
+    padding-block: 0 6px;
+  }
+
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    padding: 5px 11px;
+  }
+
+  .chip.is-on {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  mark {
+    background: var(--accent-soft);
+    border-radius: 3px;
+    color: inherit;
   }
 
   .wrap {
@@ -271,8 +335,17 @@
   }
 
   .empty {
+    align-items: center;
     border-radius: var(--r);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     padding: 22px 18px;
+  }
+
+  .empty .btn {
+    background: var(--surface-2);
+    width: auto;
   }
 
   .card {
@@ -502,8 +575,11 @@
     margin: 0;
   }
 
-  .is-flash {
-    animation: flash 900ms ease-out;
+  /* JS sets --flash per jump; a search jump holds it longer. */
+  .is-flash,
+  .is-flash > .card__head > .card__row,
+  .is-flash > .item__row {
+    animation: flash var(--flash, 900ms) ease-out;
   }
 
   @keyframes fill {
@@ -1065,6 +1141,28 @@
   }
 
   @media (width > 560px) {
+    /* The field belongs in the title row; only the scope switches stay on their own line. */
+    /* The field belongs in the title row; the scope switches go under it, in its own column. */
+    .topbar__inner {
+      grid-template:
+        "title search acts" 56px
+        ". filters ." auto / auto minmax(0, 1fr) auto;
+    }
+
+    .search {
+      justify-self: end;
+      max-width: 360px;
+      padding-block: 0;
+      width: 100%;
+    }
+
+    /* Same box as the field, so the chips start under its left edge. */
+    .filters {
+      justify-self: end;
+      max-width: 360px;
+      width: 100%;
+    }
+
     .modal--sheet {
       border-radius: var(--r);
       height: auto;
@@ -1133,10 +1231,21 @@
 <header class="topbar">
   <div class="topbar__inner">
     <h1 class="topbar__title">TBD</h1>
-    <button class="btn" id="btn-add" type="button"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
-    <button class="btn" id="btn-settings" type="button" aria-haspopup="true" aria-expanded="false"><span class="ic ic--settings"></span><span class="ic-alt" aria-hidden="true">&#9881;</span></button>
-    <button class="btn" id="btn-demo" type="button" hidden><span class="ic ic--logout"></span><span class="ic-alt" aria-hidden="true">&#9167;</span></button>
-    <button class="btn" id="btn-help" type="button"><span class="ic ic--help"></span><span class="ic-alt" aria-hidden="true">?</span></button>
+    <div class="search" id="search" hidden>
+      <input class="input" id="search-input" type="search" autocomplete="off">
+      <button class="act" id="search-clear" type="button" hidden><span class="ic ic--close"></span><span class="ic-alt" aria-hidden="true">&#10005;</span></button>
+    </div>
+    <div class="topbar__acts">
+      <button class="btn" id="btn-search" type="button" hidden><span class="ic ic--search"></span><span class="ic-alt" aria-hidden="true">&#8981;</span></button>
+      <button class="btn" id="btn-add" type="button"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
+      <button class="btn" id="btn-settings" type="button" aria-haspopup="true" aria-expanded="false"><span class="ic ic--settings"></span><span class="ic-alt" aria-hidden="true">&#9881;</span></button>
+      <button class="btn" id="btn-demo" type="button" hidden><span class="ic ic--logout"></span><span class="ic-alt" aria-hidden="true">&#9167;</span></button>
+      <button class="btn" id="btn-help" type="button"><span class="ic ic--help"></span><span class="ic-alt" aria-hidden="true">?</span></button>
+    </div>
+    <div class="filters" id="search-filters" hidden>
+      <button class="chip" id="scope-lists" type="button"></button>
+      <button class="chip" id="scope-items" type="button"></button>
+    </div>
   </div>
 </header>
 
@@ -1169,6 +1278,7 @@
         <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
         <span class="card__title" data-act="toggle"></span>
         <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
+        <button class="act act--goto" type="button" data-act="goto" hidden><span class="ic ic--goto"></span><span class="ic-alt" aria-hidden="true">&#8627;</span></button>
         <button class="act act--edit" type="button" data-act="edit"><span class="ic ic--pencil"></span><span class="ic-alt" aria-hidden="true">/</span></button>
         <button class="act act--add" type="button" data-act="add-item"><span class="ic ic--plus"></span><span class="ic-alt" aria-hidden="true">+</span></button>
         <button class="act act--menu" type="button" data-act="menu"><span class="ic ic--menu"></span><span class="ic-alt" aria-hidden="true">&#8942;</span></button>
@@ -1190,6 +1300,7 @@
       <button class="mark mark--bulk" type="button" hidden data-act="pick"><span class="mark__box"></span></button>
       <span class="item__text"></span>
       <span class="row-edit" hidden><input class="input" type="text"><button class="act act--save" type="button" data-act="save"><span class="ic ic--check"></span><span class="ic-alt" aria-hidden="true">&#10003;</span></button></span>
+      <button class="act act--goto" type="button" data-act="goto" hidden><span class="ic ic--goto"></span><span class="ic-alt" aria-hidden="true">&#8627;</span></button>
       <button class="act act--menu" type="button" data-act="menu"><span class="ic ic--menu"></span><span class="ic-alt" aria-hidden="true">&#8942;</span></button>
     </div>
   </li>
@@ -1216,6 +1327,7 @@ const ICONS = {
   close: ["x", "←"],
   collapse: ["chevrons-down-up", "−"],
   expand: ["chevrons-up-down", "+"],
+  goto: ["corner-down-right", "↳"],
   "grip-horizontal": ["grip-horizontal", "⋯"],
   "grip-vertical": ["grip-vertical", "⋮"],
   help: ["circle-help", "?"],
@@ -1224,6 +1336,7 @@ const ICONS = {
   pencil: ["pencil", "/"],
   plus: ["plus", "+"],
   restore: ["archive-restore", "↺"],
+  search: ["search", "⌕"],
   settings: ["settings", "⚙"],
   top: ["arrow-up-to-line", "↑"],
   trash: ["trash-2", "✕"],
@@ -1322,8 +1435,16 @@ const EN = {
   page_of: "Page {n} of {m}",
   prev_page: "Previous page",
   next_page: "Next page",
+  search: "Search",
+  search_clear: "Clear",
+  search_lists: "Lists",
+  search_items: "Items",
+  search_everywhere: "Search everywhere",
+  a_goto: "Go to",
+  empty_search: "Nothing found.",
   empty: "Nothing here yet. Tap + to create a checklist.",
   empty_items: "No items yet — press + to add one.",
+  empty_items_match: "No item here matches the search.",
   add_item: "Add item",
   new_item_ph: "New item",
   new_list_ph: "New checklist",
@@ -1402,8 +1523,16 @@ const DICTS = {
     page_of: "Страница {n} из {m}",
     prev_page: "Предыдущая страница",
     next_page: "Следующая страница",
+    search: "Поиск",
+    search_clear: "Очистить",
+    search_lists: "Списки",
+    search_items: "Пункты",
+    search_everywhere: "Искать везде",
+    a_goto: "Перейти",
+    empty_search: "Ничего не найдено.",
     empty: "Пока пусто. Нажмите +, чтобы создать чек-лист.",
     empty_items: "Пунктов пока нет — нажмите +",
+    empty_items_match: "В этом списке нет совпадений.",
     add_item: "Добавить пункт",
     new_item_ph: "Новый пункт",
     new_list_ph: "Новый чек-лист",
@@ -1479,8 +1608,16 @@ const DICTS = {
     page_of: "Страница {n} от {m}",
     prev_page: "Предишна страница",
     next_page: "Следваща страница",
+    search: "Търсене",
+    search_clear: "Изчисти",
+    search_lists: "Списъци",
+    search_items: "Точки",
+    search_everywhere: "Търси навсякъде",
+    a_goto: "Към реда",
+    empty_search: "Няма резултати.",
     empty: "Все още няма нищо. Натисни + за нов списък.",
     empty_items: "Все още няма точки. Натисни +.",
+    empty_items_match: "Няма съвпадение в този списък.",
     add_item: "Добави точка",
     new_item_ph: "Нова точка",
     new_list_ph: "Нов списък",
@@ -1556,8 +1693,16 @@ const DICTS = {
     page_of: "Página {n} de {m}",
     prev_page: "Página anterior",
     next_page: "Página siguiente",
+    search: "Buscar",
+    search_clear: "Limpiar",
+    search_lists: "Listas",
+    search_items: "Elementos",
+    search_everywhere: "Buscar en todo",
+    a_goto: "Ir",
+    empty_search: "Sin resultados.",
     empty: "Nada todavía. Toca + para crear una lista.",
     empty_items: "Aún no hay elementos. Toca +.",
+    empty_items_match: "Ningún elemento coincide aquí.",
     add_item: "Añadir elemento",
     new_item_ph: "Nuevo elemento",
     new_list_ph: "Nueva lista",
@@ -1633,8 +1778,16 @@ const DICTS = {
     page_of: "Page {n} sur {m}",
     prev_page: "Page précédente",
     next_page: "Page suivante",
+    search: "Rechercher",
+    search_clear: "Effacer",
+    search_lists: "Listes",
+    search_items: "Éléments",
+    search_everywhere: "Chercher partout",
+    a_goto: "Aller",
+    empty_search: "Aucun résultat.",
     empty: "Rien pour l’instant. Touchez + pour créer une liste.",
     empty_items: "Aucun élément pour l’instant. Touchez +.",
+    empty_items_match: "Aucun élément ne correspond ici.",
     add_item: "Ajouter un élément",
     new_item_ph: "Nouvel élément",
     new_list_ph: "Nouvelle liste",
@@ -1710,8 +1863,16 @@ const DICTS = {
     page_of: "Pagina {n} din {m}",
     prev_page: "Pagina anterioară",
     next_page: "Pagina următoare",
+    search: "Caută",
+    search_clear: "Șterge",
+    search_lists: "Liste",
+    search_items: "Elemente",
+    search_everywhere: "Caută peste tot",
+    a_goto: "Mergi",
+    empty_search: "Niciun rezultat.",
     empty: "Încă nimic. Atinge + pentru o listă nouă.",
     empty_items: "Niciun element încă. Apasă +.",
+    empty_items_match: "Niciun element nu se potrivește aici.",
     add_item: "Adaugă element",
     new_item_ph: "Element nou",
     new_list_ph: "Listă nouă",
@@ -1787,8 +1948,16 @@ const DICTS = {
     page_of: "第 {n} / {m} 页",
     prev_page: "上一页",
     next_page: "下一页",
+    search: "搜索",
+    search_clear: "清除",
+    search_lists: "列表",
+    search_items: "条目",
+    search_everywhere: "全部搜索",
+    a_goto: "前往",
+    empty_search: "未找到。",
     empty: "还没有内容，点 + 新建清单。",
     empty_items: "暂无条目，点 + 添加。",
+    empty_items_match: "此列表没有匹配条目。",
     add_item: "添加条目",
     new_item_ph: "新条目",
     new_list_ph: "新清单",
@@ -1864,8 +2033,16 @@ const DICTS = {
     page_of: "{m} ページ中 {n} ページ",
     prev_page: "前のページ",
     next_page: "次のページ",
+    search: "検索",
+    search_clear: "解除",
+    search_lists: "リスト",
+    search_items: "項目",
+    search_everywhere: "すべて検索",
+    a_goto: "移動",
+    empty_search: "見つかりません。",
     empty: "まだ何もありません。+ をタップしてリストを作成。",
     empty_items: "項目がありません。+ で追加。",
+    empty_items_match: "このリストに一致はありません。",
     add_item: "項目を追加",
     new_item_ph: "新しい項目",
     new_list_ph: "新しいリスト",
@@ -1941,8 +2118,16 @@ const DICTS = {
     page_of: "Paĝo {n} el {m}",
     prev_page: "Antaŭa paĝo",
     next_page: "Sekva paĝo",
+    search: "Serĉo",
+    search_clear: "Viŝu",
+    search_lists: "Listoj",
+    search_items: "Eroj",
+    search_everywhere: "Serĉu ĉie",
+    a_goto: "Iru",
+    empty_search: "Nenio trovita.",
     empty: "Ankoraŭ nenio. Tuŝu + por krei kontrolliston.",
     empty_items: "Ankoraŭ neniu punkto. Tuŝu +.",
+    empty_items_match: "Nenio kongruas en ĉi tiu listo.",
     add_item: "Aldoni punkton",
     new_item_ph: "Nova punkto",
     new_list_ph: "Nova kontrollisto",
@@ -2018,8 +2203,16 @@ const DICTS = {
     page_of: "Pagina {n} de {m}",
     prev_page: "Pagina previe",
     next_page: "Pagina sequente",
+    search: "Cerca",
+    search_clear: "Rader",
+    search_lists: "Listas",
+    search_items: "Elementos",
+    search_everywhere: "Cercar ubique",
+    a_goto: "Ir",
+    empty_search: "Nihil trovate.",
     empty: "Dhamanco ancora. Tocca + pro crear un lista.",
     empty_items: "Nulle puncto ancora. Tocca +.",
+    empty_items_match: "Nulle elemento concorda hic.",
     add_item: "Adder puncto",
     new_item_ph: "Nove puncto",
     new_list_ph: "Nove lista de controlo",
@@ -2095,8 +2288,16 @@ const DICTS = {
     page_of: "lipu {n} tan {m}",
     prev_page: "lipu pini",
     next_page: "lipu kama",
+    search: "o alasa",
+    search_clear: "o weka",
+    search_lists: "lipu",
+    search_items: "nimi",
+    search_everywhere: "o alasa e ale",
+    a_goto: "o tawa",
+    empty_search: "alasa li kama ala.",
     empty: "ante li lon ala. o luka e + la lipu sin li kama.",
     empty_items: "nimi ala li lon. o luka e +.",
+    empty_items_match: "lipu ni la nimi ala li sama.",
     add_item: "o pana e nimi",
     new_item_ph: "nimi sin",
     new_list_ph: "lipu sin",
@@ -2229,7 +2430,20 @@ function defaults() {
       panel: { side: "right", topPct: 0.35, collapsed: false },
       editing: null,
       bulk: { kind: null, ids: [] },
+      search: { text: "", lists: true, items: true },
     },
+  };
+}
+
+/* The search comes back from storage and may be any shape. */
+function normalizeSearch(search) {
+  if (!search || typeof search !== "object") {
+    return defaults().ui.search;
+  }
+  return {
+    text: typeof search.text === "string" ? search.text : "",
+    lists: search.lists !== false,
+    items: search.items !== false,
   };
 }
 
@@ -2276,6 +2490,7 @@ function normalize(data) {
   if (!validBulk(out.ui.bulk)) {
     out.ui.bulk = { kind: null, ids: [] };
   }
+  out.ui.search = normalizeSearch(out.ui.search);
   if (!["system", "dark", "light"].includes(out.ui.theme)) {
     out.ui.theme = "system";
   }
@@ -2466,7 +2681,8 @@ function writeBatch(batch) {
     for (const row of batch.lists) lists.put(row);
     for (const row of batch.items) items.put(row);
     for (const id of batch.order) docs.put({ key: orderKey(id), value: orderValue(id) });
-    if (batch.ui) docs.put({ key: UI_KEY, value: state.ui });
+    // The scope picks are a live choice, not a setting: only the query outlives the tab.
+    if (batch.ui) docs.put({ key: UI_KEY, value: { ...state.ui, search: { text: state.ui.search.text } } });
     for (const id of batch.goneItems) items.delete(id);
     for (const id of batch.goneLists) {
       lists.delete(id);
@@ -2606,8 +2822,208 @@ function withoutArchived(items, checklistId) {
   return items.filter((i) => i.checklistId === checklistId && !i.archived);
 }
 
+/* ---------- search ---------- */
+
+/* Chars before a match that stays visible when the line is shifted to it. */
+const HIT_LEAD = 8;
+
+/* Result of the current query, rebuilt once per render: null when the search applies nothing. */
+let found = null;
+/* Phone: the field lives in a row of its own, opened by the search button. */
+let searchPanel = false;
+let focusSearch = false;
+
+/* Case- and accent-insensitive fold. Match offsets are reported against the original text, so it
+   keeps a map back: NFD and dropping marks change the length. */
+const folded = new Map();
+
+function fold(text) {
+  const cached = folded.get(text);
+  if (cached) return cached;
+  let s = "";
+  const map = [];
+  for (let i = 0; i < text.length; i++) {
+    for (const c of text[i].normalize("NFD").toLowerCase()) {
+      if (/\p{M}/u.test(c)) continue;
+      s += c;
+      map.push(i);
+    }
+  }
+  const out = { s, map };
+  // shortcut: a full clear past 50k texts; upgrade to eviction by age if clears ever show up.
+  if (folded.size > 50000) folded.clear();
+  folded.set(text, out);
+  return out;
+}
+
+/* A token of only combining marks folds away to nothing: it must not stay in the query. */
+function searchTokens(query) {
+  return query.trim().toLowerCase().split(/\s+/).map((word) => fold(word).s).filter(Boolean);
+}
+
+/* Every token has to land inside this one text, in any order, at any offset; null = out. */
+function matchRanges(text, tokens) {
+  if (!tokens.length) return null;
+  const { s, map } = fold(text);
+  const hits = [];
+  for (const token of tokens) {
+    let at = s.indexOf(token);
+    if (at < 0) return null;
+    for (; at >= 0; at = s.indexOf(token, at + 1)) {
+      hits.push([map[at], map[at + token.length - 1] + 1]);
+    }
+  }
+  const merged = [];
+  for (const range of hits.sort((a, b) => a[0] - b[0])) {
+    const last = merged[merged.length - 1];
+    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+    else merged.push(range);
+  }
+  return merged;
+}
+
+/* id → match ranges, for every live row whose text holds all the tokens. */
+function matchedRows(rows, textOf, tokens) {
+  const out = new Map();
+  for (const row of rows) {
+    if (row.archived) continue;
+    const ranges = matchRanges(textOf(row), tokens);
+    if (ranges) out.set(row.id, ranges);
+  }
+  return out;
+}
+
+function buildSearch() {
+  const s = state.ui.search;
+  const tokens = searchTokens(s.text);
+  if (!tokens.length || !(s.lists || s.items)) return null;
+  const titles = matchedRows(state.checklists, (cl) => cl.title, tokens);
+  const items = matchedRows(state.items, (item) => item.text, tokens);
+  const listsByItem = new Set(state.items.filter((i) => items.has(i.id)).map((i) => i.checklistId));
+  return {
+    byItems: s.items,
+    // Scopes decide what counts, and only what counts gets highlighted.
+    visible: new Set([...(s.lists ? titles.keys() : []), ...(s.items ? listsByItem : [])]),
+    expand: s.items ? listsByItem : new Set(),
+    titles: s.lists ? titles : new Map(),
+    items: s.items ? items : new Map(),
+    any: titles.size > 0 || listsByItem.size > 0,
+  };
+}
+
+function refreshSearch() {
+  found = buildSearch();
+}
+
+function hitRanges(id) {
+  if (!found) return null;
+  return found.items.get(id) ?? found.titles.get(id) ?? null;
+}
+
+/* Matches become <mark>; from > 0 shifts the line to a match that fell past the ellipsis. */
+function paintText(node, text, ranges, from = 0) {
+  if (!ranges) {
+    node.textContent = text;
+    return;
+  }
+  const parts = [];
+  if (from > 0) parts.push(document.createTextNode("\u2026"));
+  let at = from;
+  for (const [start, end] of ranges) {
+    if (end <= from) continue;
+    if (start > at) parts.push(document.createTextNode(text.slice(at, start)));
+    parts.push(el("mark", "", text.slice(Math.max(start, from), end)));
+    at = end;
+  }
+  if (at < text.length) parts.push(document.createTextNode(text.slice(at)));
+  node.replaceChildren(...parts);
+}
+
+/* Rows are laid out by now, so a match past the visible edge is measurable: re-paint the line from
+   just before the match and let the ellipsis cut the tail. */
+function fitMatches() {
+  if (!found) return;
+  for (const mark of document.querySelectorAll("#lists .card__title mark, #lists .item__text mark")) {
+    const label = mark.parentElement;
+    if (mark.getBoundingClientRect().right <= label.getBoundingClientRect().right) continue;
+    const ranges = hitRanges(label.closest("[data-id]").dataset.id);
+    paintText(label, label.textContent, ranges, Math.max(1, ranges[0][0] - HIT_LEAD));
+  }
+}
+
+/* Leaving the search: the query goes, and the scope picks with it — they are never remembered. */
+function clearSearch() {
+  state.ui.search = { text: "", lists: true, items: true };
+  searchPanel = false;
+  refreshSearch();
+}
+
+function setSearchScope(key) {
+  state.ui.search[key] = !state.ui.search[key];
+  state.ui.page = 1;
+  commit();
+}
+
+/* Leave the search, then reveal the row for real: an item behind a collapsed list would be lost. */
+function gotoHit(kind, id) {
+  const item = kind === "item" ? findItem(id) : null;
+  const cl = item ? findList(item.checklistId) : findList(id);
+  clearSearch();
+  if (!cl || cl.archived) {
+    commit();
+    return;
+  }
+  if (kind === "item") {
+    cl.expanded = true;
+    markDirty("list", cl.id);
+  }
+  jumpTo(cl.id);
+  scrollTarget = { kind, id, flash: JUMP_FLASH };
+  commit();
+}
+
+function renderSearch() {
+  const s = state.ui.search;
+  // Text pins the phone panel open until an explicit exit (the cross, Esc); erasing alone does not.
+  const open = searchPanel || s.text !== "";
+  searchPanel = open;
+  const narrow = !wide.matches;
+  byId("btn-search").hidden = !(narrow && !open);
+  byId("search").hidden = narrow && !open;
+  // The cross is the phone's way out: open and empty is exactly when there is no other.
+  byId("search-clear").hidden = !(open && (s.text !== "" || narrow));
+  byId("search-filters").hidden = s.text === "";
+  const input = byId("search-input");
+  if (input.value !== s.text) input.value = s.text;
+  input.placeholder = t("search");
+  input.setAttribute("aria-label", t("search"));
+  labelNode(byId("btn-search"), "search");
+  labelNode(byId("search-clear"), "search_clear");
+  scopeChip("scope-lists", "search_lists", s.lists);
+  scopeChip("scope-items", "search_items", s.items);
+  measureTopbar();
+  if (focusSearch) {
+    focusSearch = false;
+    input.focus();
+    input.select();
+  }
+}
+
+function scopeChip(id, key, on) {
+  const chip = byId(id);
+  chip.textContent = t(key);
+  chip.setAttribute("aria-pressed", String(on));
+  chip.classList.toggle("is-on", on);
+}
+
+/* The header grows with the search row; everything parked under it reads the measured height. */
+function measureTopbar() {
+  const bar = document.querySelector(".topbar");
+  document.documentElement.style.setProperty("--topbar-h", `${bar.offsetHeight}px`);
+}
+
 function visibleChecklists() {
-  return state.checklists.filter((c) => !c.archived);
+  return state.checklists.filter((c) => !c.archived && (!found || found.visible.has(c.id)));
 }
 
 function pageCount(total) {
@@ -2648,6 +3064,8 @@ let scrollTarget = null;
 
 function addChecklist() {
   flushPendingEdit();
+  // A fresh empty row never matches the query on screen, so the query goes first.
+  clearSearch();
   const cl = { id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false };
   if (state.ui.newChecklist === "top") {
     state.checklists.unshift(cl);
@@ -2663,6 +3081,7 @@ function addChecklist() {
 
 function addItem(checklistId) {
   flushPendingEdit();
+  clearSearch();
   const cl = findList(checklistId);
   if (!cl) return;
   cl.expanded = true;
@@ -2958,6 +3377,7 @@ function restoreFocus() {
 
 function render() {
   captureFocus();
+  refreshSearch();
   renderChrome();
   renderLists();
   renderPager();
@@ -2976,6 +3396,7 @@ function renderChrome() {
   labelNode(byId("page-prev"), "prev_page");
   labelNode(byId("page-next"), "next_page");
   labelNode(byId("banner-close"), "a_dismiss");
+  renderSearch();
 }
 
 /* Rows are moved, never rebuilt, and only when gone or out of place. A row rebuilt under the
@@ -3010,9 +3431,29 @@ function renderLists() {
     return node;
   });
   reconcile(byId("lists"), rows);
-  const emptyNode = byId("empty");
-  emptyNode.textContent = t("empty");
-  emptyNode.hidden = visibleChecklists().length > 0;
+  renderEmpty(visibleChecklists().length);
+}
+
+function renderEmpty(shown) {
+  const empty = byId("empty");
+  empty.hidden = shown > 0;
+  empty.replaceChildren();
+  if (shown > 0) return;
+  // "Nothing found" only makes sense over lists that exist; without any, the screen is just empty.
+  const searched = Boolean(found) && state.checklists.some((cl) => !cl.archived);
+  empty.append(el("span", "", searched ? t("empty_search") : t("empty")));
+  // Nothing in the chosen scope, something in the wider one: say so instead of looking broken.
+  if (searched && found.any) {
+    const button = el("button", "btn btn--pill", t("search_everywhere"));
+    button.type = "button";
+    button.addEventListener("click", () => {
+      state.ui.search.lists = true;
+      state.ui.search.items = true;
+      state.ui.page = 1;
+      commit();
+    });
+    empty.append(button);
+  }
 }
 
 function isMuted(items) {
@@ -3020,19 +3461,20 @@ function isMuted(items) {
 }
 
 function paintChecklist(node, cl) {
-  const items = withoutArchived(state.items, cl.id);
-  const open = Boolean(cl.expanded);
+  const all = withoutArchived(state.items, cl.id);
+  const open = Boolean(cl.expanded) || Boolean(found && found.expand.has(cl.id));
   node.dataset.kind = "list";
   node.dataset.id = cl.id;
   node.classList.toggle("is-open", open);
-  node.classList.toggle("is-muted", isMuted(items));
+  node.classList.toggle("is-muted", isMuted(all));
   paintHead(node, cl, open);
   const body = node.querySelector(".card__body");
   body.hidden = !open;
   if (!open) return;
+  const items = found && found.byItems ? all.filter((item) => found.items.has(item.id)) : all;
   const hint = body.querySelector(".card__empty");
   hint.hidden = items.length > 0;
-  hint.textContent = t("empty_items");
+  hint.textContent = items.length === 0 && all.length > 0 ? t("empty_items_match") : t("empty_items");
   const host = body.querySelector(".items");
   const existing = new Map([...host.children].map((row) => [row.dataset.id, row]));
   reconcile(host, items.map((item) => {
@@ -3054,12 +3496,17 @@ function paintHead(node, cl, open) {
   alt.textContent = open ? "▾" : "▸";
   toggle.setAttribute("aria-expanded", open ? "true" : "false");
   toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
+  // Opened by the search rather than by the user: collapsing it would hide the match they looked for.
+  toggle.disabled = Boolean(found && found.expand.has(cl.id));
   const add = node.querySelector(".act--add");
   labelNode(add, "add_item");
   add.hidden = !open;
   labelNode(node.querySelector(".act--edit"), "a_edit");
   labelNode(node.querySelector(".act--menu"), "a_menu");
-  node.querySelector(".card__title").textContent = cl.title || t("new_list_ph");
+  paintText(node.querySelector(".card__title"), cl.title || t("new_list_ph"), hitRanges(cl.id));
+  const jump = node.querySelector(".act--goto");
+  jump.hidden = !(found && found.titles.has(cl.id));
+  labelNode(jump, "a_goto");
   paintHeadBulk(node, cl);
   paintRowEditor(node, "list", cl.id, cl.title);
 }
@@ -3129,10 +3576,13 @@ function paintItem(node, item) {
   node.dataset.kind = "item";
   node.dataset.id = item.id;
   node.classList.toggle("is-done", item.done);
-  node.querySelector(".item__text").textContent = item.text || t("new_item_ph");
+  paintText(node.querySelector(".item__text"), item.text || t("new_item_ph"), hitRanges(item.id));
   const check = node.querySelector(".mark--check");
   checkBox(check, item.done, item.text || t("new_item_ph"));
   labelNode(node.querySelector(".act--menu"), "a_menu");
+  const jump = node.querySelector(".act--goto");
+  jump.hidden = !(found && found.items.has(item.id));
+  labelNode(jump, "a_goto");
   const bulk = state.ui.bulk;
   showPick(check, node.querySelector(".mark--bulk"),
     bulk.kind === "item" ? bulk.ids.includes(item.id) : null, item.text || t("new_item_ph"));
@@ -3251,6 +3701,7 @@ function paintRow(row, kind, id) {
 
 function afterRender() {
   restoreFocus();
+  fitMatches();
   if (needFocus && state.ui.editing) {
     focusEditor(state.ui.editing.kind, state.ui.editing.id);
   }
@@ -3301,14 +3752,29 @@ function revealRow(row) {
   }
 }
 
+/* A jump from the search holds the flash twice as long: the eye has just travelled here. */
+const FLASH = 900;
+const JUMP_FLASH = FLASH * 2;
+const flashTimers = new WeakMap();
+
 function applyScrollTarget() {
   const target = scrollTarget;
   scrollTarget = null;
   const row = rowById(target.kind, target.id);
   if (!row) return;
   revealRow(row);
+  const ms = target.flash || FLASH;
+  clearTimeout(flashTimers.get(row));
+  row.style.setProperty("--flash", `${ms}ms`);
+  row.classList.remove("is-flash");
+  // Re-read the layout: re-adding the class of a still-flashing row would not restart the animation.
+  void row.offsetWidth;
   row.classList.add("is-flash");
-  setTimeout(() => row.classList.remove("is-flash"), 900);
+  flashTimers.set(row, setTimeout(() => {
+    row.classList.remove("is-flash");
+    row.style.removeProperty("--flash");
+    flashTimers.delete(row);
+  }, ms));
 }
 
 /* ---------- modal layer ---------- */
@@ -3944,7 +4410,7 @@ function seedRows(conn, ui) {
     for (const row of data.checklists) lists.put(row);
     for (const row of data.items) items.put(row);
     if (ui) {
-      tx.objectStore("doc").put({ key: UI_KEY, value: { ...ui, bulk: { kind: null, ids: [] } } });
+      tx.objectStore("doc").put({ key: UI_KEY, value: { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } } });
     }
   });
 }
@@ -4412,7 +4878,8 @@ function expandForDrop(id) {
 
 function startDrag() {
   const hit = gesture;
-  if (!hit) return;
+  // The order on screen is a search result, not the real order: nothing to drag there.
+  if (!hit || found) return;
   hit.mode = "drag";
   const bulk = state.ui.bulk;
   const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
@@ -4842,12 +5309,19 @@ function flipFlag(kind, id, prop) {
 }
 
 const ROW_ACTS = {
-  toggle: (kind, id) => flipFlag("list", id, "expanded"),
+  // While a search holds a list open, its toggle is off: the title must not disagree with the
+  // disabled chevron and change the saved state unseen.
+  toggle: (kind, id) => {
+    if (!(found && found.expand.has(id))) {
+      flipFlag("list", id, "expanded");
+    }
+  },
   "toggle-done": (kind, id) => flipFlag("item", id, "done"),
   pick: togglePick,
   edit: startEdit,
   "add-item": (kind, id) => addItem(id),
   menu: (kind, id, row, trigger) => openEntityMenu(kind, id, trigger),
+  goto: (kind, id) => gotoHit(kind, id),
   save: (kind, id, row) => {
     const editing = state.ui.editing;
     const input = row.querySelector(".row-edit input");
@@ -4931,6 +5405,9 @@ function onListKeyDown(event) {
   }
   if (event.key === "Escape") {
     event.preventDefault();
+    // Stop here: cancelEdit clears the editing flag, so the global Esc would read this same
+    // press as "leave the search".
+    event.stopPropagation();
     cancelEdit();
   }
 }
@@ -4967,7 +5444,16 @@ function onKey(event) {
     endDrag(false);
     return;
   }
-  closeModal();
+  if (modalOpen()) {
+    closeModal();
+    return;
+  }
+  if (state.ui.editing || (!searchPanel && !state.ui.search.text)) {
+    return;
+  }
+  byId("search-input").blur();
+  clearSearch();
+  commit();
 }
 
 let resizeTimer = 0;
@@ -4976,6 +5462,7 @@ function onResize() {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
     // No render(): a rebuild would destroy the focused editor, and mobile keyboards fire resize.
+    renderSearch();
     positionPanel();
     positionAnchored();
   }, 120);
@@ -5001,6 +5488,23 @@ function onViewportChange() {
 
 function bind() {
   byId("btn-add").addEventListener("click", addChecklist);
+  byId("btn-search").addEventListener("click", () => {
+    searchPanel = true;
+    focusSearch = true;
+    renderSearch();
+  });
+  byId("search-clear").addEventListener("click", () => {
+    byId("search-input").blur();
+    clearSearch();
+    commit();
+  });
+  byId("search-input").addEventListener("input", (event) => {
+    state.ui.search.text = event.target.value;
+    state.ui.page = 1;
+    commit();
+  });
+  byId("scope-lists").addEventListener("click", () => setSearchScope("lists"));
+  byId("scope-items").addEventListener("click", () => setSearchScope("items"));
   byId("btn-settings").addEventListener("click", toggleSettings);
   byId("btn-demo").hidden = !demo;
   byId("btn-demo").addEventListener("click", askExitDemo);

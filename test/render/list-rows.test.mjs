@@ -14,6 +14,7 @@ const { paintChecklist } = vm(
   [slice("reconcile"), slice("paintChecklist"), "({ paintChecklist })"],
   {
     state,
+    found: null,
     t: (key) => key,
     isMuted: () => false,
     paintHead: () => {},

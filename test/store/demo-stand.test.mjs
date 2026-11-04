@@ -137,6 +137,7 @@ test("a seeded stand carries the given settings, and only them", async () => {
     pageSize: 5,
     page: 3,
     panel: { side: "left", topPct: 0.5, collapsed: true },
+    search: { text: "ку", lists: false, items: true },
     bulk: { kind: "list", ids: ["somewhere-else"] },
   });
   assert.deepEqual(conn.docs.map((doc) => doc.key), [UI_KEY]);
@@ -150,6 +151,7 @@ test("a seeded stand carries the given settings, and only them", async () => {
     pageSize: 5,
     page: 3,
     panel: { side: "left", topPct: 0.5, collapsed: true },
+    search: { text: "ку" },
   });
   assert.deepEqual(bulk, { kind: null, ids: [] }, "a selection of other data is no selection here");
 });

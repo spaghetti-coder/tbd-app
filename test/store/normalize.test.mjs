@@ -5,7 +5,7 @@ import test from "node:test";
 import { ids, item, list } from "../../testkit/fixtures.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, plainBulk } = stateHarness(["normalize", "defaults", "validBulk", "clamp"]);
+const { api, plainBulk } = stateHarness(["normalize", "defaults", "validBulk", "normalizeSearch", "clamp"]);
 
 test("normalize drops items whose checklist is gone", () => {
   const out = api.normalize({

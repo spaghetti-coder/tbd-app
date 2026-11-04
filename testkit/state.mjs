@@ -5,6 +5,7 @@ import { slice } from "./html-source.mjs";
 
 // The sliced functions reach for these at runtime; the harness keeps them out of the way.
 const PRELUDE = `
+let found = null;
 let scrollTarget = null;
 let lastToast = null;
 const calls = [];
@@ -23,16 +24,17 @@ function t(key) { return key; }
 export function stateHarness(names) {
   const sandbox = { state: null };
   createContext(sandbox);
-  const { api, scrollTargetOf, toastOf, calls, resetCalls } = runInContext(
+  const { api, scrollTargetOf, resetScroll, toastOf, calls, resetCalls } = runInContext(
     [slice("PAGE_SIZES"), PRELUDE, ...names.map(slice),
       `({ api: { ${names.join(", ")} }, scrollTargetOf: () => scrollTarget,`,
+      "  resetScroll: () => { scrollTarget = null; },",
       "  toastOf: () => lastToast, calls: () => calls.join(\",\"), resetCalls: () => { calls.length = 0; } });",
     ].join("\n"),
     sandbox,
   );
 
   return {
-    api, scrollTargetOf, toastOf, calls, resetCalls,
+    api, scrollTargetOf, resetScroll, toastOf, calls, resetCalls,
     // Objects built inside the VM have that realm's prototypes, so compare plain copies of their fields.
     plainBulk: (bulk) => ({ kind: bulk.kind, ids: Array.from(bulk.ids) }),
     store: (checklists, items, ui) => {
@@ -45,6 +47,7 @@ export function stateHarness(names) {
           page: 1,
           panel: { side: "right", topPct: 0.35, collapsed: false },
           bulk: { kind: null, ids: [] },
+          search: { text: "", lists: true, items: true },
           ...ui,
         },
       };

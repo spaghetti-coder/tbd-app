@@ -57,6 +57,7 @@ function harness({ editing = null, ...shape } = {}) {
     markOrder: () => {},
     joinIndex: (all) => all.length,
     jumpTo: () => {},
+    clearSearch: () => {},
     commit: () => {
       ctx.renders += 1;
     },

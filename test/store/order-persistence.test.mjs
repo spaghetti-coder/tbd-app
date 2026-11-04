@@ -11,6 +11,7 @@ const NAMES = [
   "PAGE_SIZES",
   "defaults",
   "validBulk",
+  "normalizeSearch",
   "normalize",
   "UI_KEY",
   "orderKey",
@@ -51,7 +52,7 @@ const stateOf = (groups) => ({
   version: 1,
   checklists: groups.map(([id]) => list(id)),
   items: groups.flatMap(([id, ids]) => ids.map((itemId) => item(itemId, id))),
-  ui: { pageSize: 20, bulk: { kind: null, ids: [] } },
+  ui: { pageSize: 20, search: { text: "", lists: true, items: true }, bulk: { kind: null, ids: [] } },
 });
 
 // The ids of the items of one list, in the order state holds them.
@@ -68,7 +69,9 @@ function flush() {
   for (const row of batch.lists) db.lists.set(row.id, copy(row));
   for (const row of batch.items) db.items.set(row.id, copy(row));
   for (const id of batch.order) db.docs.set(api.orderKey(id), [...api.orderValue(id)]);
-  if (batch.ui) db.docs.set(api.UI_KEY, copy(api.state.ui));
+  if (batch.ui) {
+    db.docs.set(api.UI_KEY, copy({ ...api.state.ui, search: { text: api.state.ui.search.text } }));
+  }
   for (const id of batch.goneItems) db.items.delete(id);
   for (const id of batch.goneLists) {
     db.lists.delete(id);
