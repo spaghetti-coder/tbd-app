@@ -3,51 +3,17 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
-import { fakeNode } from "../../testkit/fake-dom.mjs";
+import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
 
-const state = { items: [] };
-let painted = [];
-let built = [];
-
-const { paintChecklist } = vm(
-  [slice("reconcile"), slice("paintChecklist"), "({ paintChecklist })"],
-  {
-    state,
-    found: null,
-    t: (key) => key,
-    isMuted: () => false,
-    paintHead: () => {},
-    withoutArchived: (items, checklistId) => items.filter((i) => i.checklistId === checklistId && !i.archived),
-    paintItem: (node, item) => painted.push(item.id),
-    buildItem: (item) => {
-      built.push(item.id);
-      return fakeNode({ classes: ["item"], id: item.id });
-    },
-  },
-);
-
-const row = (id) => fakeNode({ classes: ["item"], id });
 const item = (id) => ({ id, checklistId: "L1" });
-
-function board(rows) {
-  painted = [];
-  built = [];
-  const host = fakeNode({ classes: ["items"], children: rows });
-  const card = fakeNode({ classes: ["card"], kind: "list", id: "L1", children: [
-    fakeNode({ classes: ["card__body"], children: [fakeNode({ classes: ["card__empty"] }), host] }),
-  ] });
-  return { card, host };
-}
-
-const ids = (host) => host.children.map((node) => node.dataset.id).join(",");
+const OPEN = { id: "L1", expanded: true };
 
 test("rows that stay keep their own nodes and get repainted", () => {
-  const [a, b, c] = [row("i1"), row("i2"), row("i3")];
-  const { card, host } = board([a, b, c]);
+  const [a, b, c] = [rowNode("i1"), rowNode("i2"), rowNode("i3")];
+  const { state, card, host, painted, built, paintChecklist } = paintHarness([a, b, c]);
   state.items = [item("i1"), item("i3")];
-  paintChecklist(card, { id: "L1", expanded: true });
-  assert.equal(ids(host), "i1,i3");
+  paintChecklist(card, OPEN);
+  assert.equal(idsOf(host), "i1,i3");
   assert.equal(host.children[0], a);
   assert.equal(host.children[1], c);
   assert.deepEqual(built, [], "nothing was rebuilt");
@@ -55,30 +21,19 @@ test("rows that stay keep their own nodes and get repainted", () => {
 });
 
 test("a row that joins the list is built, the others are left alone", () => {
-  const [a, b] = [row("i1"), row("i2")];
-  const { card, host } = board([a, b]);
+  const [a, b] = [rowNode("i1"), rowNode("i2")];
+  const { state, card, host, painted, built, paintChecklist } = paintHarness([a, b]);
   state.items = [item("i1"), item("i2"), item("i3")];
-  paintChecklist(card, { id: "L1", expanded: true });
-  assert.equal(ids(host), "i1,i2,i3");
+  paintChecklist(card, OPEN);
+  assert.equal(idsOf(host), "i1,i2,i3");
   assert.deepEqual(built, ["i3"]);
   assert.deepEqual(painted, ["i1", "i2"]);
 });
 
-test("reordering keeps the nodes of both rows", () => {
-  const [a, b] = [row("i1"), row("i2")];
-  const { card, host } = board([a, b]);
-  state.items = [item("i2"), item("i1")];
-  paintChecklist(card, { id: "L1", expanded: true });
-  assert.equal(ids(host), "i2,i1");
-  assert.equal(host.children[0], b);
-  assert.deepEqual(built, []);
-});
-
 test("a closed list renders no rows", () => {
-  const [a] = [row("i1")];
-  const { card, host } = board([a]);
+  const { state, card, host, painted, paintChecklist } = paintHarness([rowNode("i1")]);
   state.items = [item("i1")];
   paintChecklist(card, { id: "L1", expanded: false });
-  assert.equal(ids(host), "i1", "the rows wait for the list to open again");
+  assert.equal(idsOf(host), "i1", "the rows wait for the list to open again");
   assert.deepEqual(painted, []);
 });

@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { item, list } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { item, list, plain } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
 const NAMES = [
@@ -28,9 +28,6 @@ const NAMES = [
 ];
 
 const { api, store, scrollTargetOf, resetScroll, calls, resetCalls } = stateHarness(NAMES);
-
-// Objects built inside the VM carry that realm's prototypes, so compare plain copies of them.
-const plain = (value) => value && JSON.parse(JSON.stringify(value));
 
 const rows = () => ([
   list("l1", { title: "Молоко" }),
@@ -118,6 +115,7 @@ test("both switches off stops filtering without erasing the query", () => {
 /* addChecklist runs over its own globals: the creation path needs a uid and no render loop. */
 const created = {
   found: null,
+  searchPanel: false,
   state: {
     checklists: rows(),
     items: items(),
@@ -131,10 +129,9 @@ const created = {
   commit: () => {},
 };
 
-const { addChecklist, buildSearch: buildCreated } = vm(
-  ["let searchPanel = false;", ...["folded", "fold", "searchTokens", "matchRanges", "matchedRows",
-    "buildSearch", "refreshSearch", "clearSearch", "addChecklist", "findList"].map(slice),
-    "({ addChecklist, buildSearch })"],
+const { addChecklist, buildSearch: buildCreated } = sliceVm(
+  ["folded", "fold", "searchTokens", "matchedRows", "matchRanges", "buildSearch", "refreshSearch", "clearSearch",
+    "addChecklist", "findList"],
   created,
 );
 
@@ -148,7 +145,7 @@ test("creating a list drops a search that would hide it", () => {
 
 test("a searched screen has nothing to drag: its order is the query's, not the user's", () => {
   const box = { found: { visible: new Set() }, drag: null, gesture: { kind: "list", id: "l1", mode: "pending" } };
-  const { startDrag } = vm([slice("startDrag"), "({ startDrag })"], box);
+  const { startDrag } = sliceVm(["startDrag"], box);
   startDrag();
   assert.equal(box.gesture.mode, "pending", "the hold never became a drag");
   assert.equal(box.drag, null);
@@ -156,66 +153,65 @@ test("a searched screen has nothing to drag: its order is the query's, not the u
 
 /* ---------- the empty state ---------- */
 
-const emptyNode = {
-  hidden: true,
-  children: [],
-  replaceChildren() {
-    this.children = [];
-  },
-  append(...nodes) {
-    this.children.push(...nodes);
-  },
-};
+const ONE = () => [list("l1", { title: "Работа" })];
 
-const env = {
-  byId: () => emptyNode,
-  el: (tag, className, text) => ({ tag, className, text, listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } }),
-  t: (key) => key,
-  state: {
-    checklists: [{ id: "l1", title: "Работа", archived: false }],
-    ui: { page: 9, search: { text: "нет", lists: true, items: false } },
-  },
-  commit: () => {
-    env.commits += 1;
-  },
-  found: null,
-  commits: 0,
-};
-
-const { renderEmpty } = vm([slice("renderEmpty"), "({ renderEmpty })"], env);
+// A fresh empty node and env per test, so a failing assert cannot leak into the next one.
+function emptyHarness(found, checklists) {
+  const empty = {
+    hidden: true,
+    children: [],
+    replaceChildren() {
+      this.children = [];
+    },
+    append(...nodes) {
+      this.children.push(...nodes);
+    },
+  };
+  const env = {
+    empty,
+    byId: () => env.empty,
+    el: (tag, className, text) => ({ tag, className, text, listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } }),
+    t: (key) => key,
+    state: { checklists, ui: { page: 9, search: { text: "нет", lists: true, items: false } } },
+    commit: () => {
+      env.commits += 1;
+    },
+    found,
+    commits: 0,
+  };
+  return { env, ...sliceVm(["renderEmpty"], env) };
+}
 
 test("the plain empty state says there are no lists", () => {
-  env.found = null;
-  renderEmpty(0);
-  assert.equal(emptyNode.hidden, false);
-  assert.deepEqual(emptyNode.children.map((node) => node.text), ["empty"]);
+  const none = emptyHarness(null, ONE());
+  none.renderEmpty(0);
+  assert.equal(none.env.empty.hidden, false);
+  assert.deepEqual(none.env.empty.children.map((node) => node.text), ["empty"]);
 
-  env.found = { any: true };
-  env.state.checklists = [];
-  renderEmpty(0);
-  assert.deepEqual(emptyNode.children.map((node) => node.text), ["empty"], "nothing to search in");
-  env.state.checklists = [{ id: "l1", title: "Работа", archived: false }];
+  // Nothing to search in: still the plain message, not "no results".
+  const empty = emptyHarness({ any: true }, []);
+  empty.renderEmpty(0);
+  assert.deepEqual(empty.env.empty.children.map((node) => node.text), ["empty"]);
 });
 
 test("no results says so, and offers the wider search only when it has something", () => {
-  env.found = { any: false };
-  renderEmpty(0);
-  assert.deepEqual(emptyNode.children.map((node) => node.text), ["empty_search"]);
+  const narrow = emptyHarness({ any: false }, ONE());
+  narrow.renderEmpty(0);
+  assert.deepEqual(narrow.env.empty.children.map((node) => node.text), ["empty_search"]);
 
-  env.found = { any: true };
-  renderEmpty(0);
-  assert.deepEqual(emptyNode.children.map((node) => node.text), ["empty_search", "search_everywhere"]);
+  const wide = emptyHarness({ any: true }, ONE());
+  wide.renderEmpty(0);
+  assert.deepEqual(wide.env.empty.children.map((node) => node.text), ["empty_search", "search_everywhere"]);
 
-  env.commits = 0;
-  emptyNode.children[1].listeners.click();
-  assert.deepEqual(env.state.ui.search, { text: "нет", lists: true, items: true });
-  assert.equal(env.state.ui.page, 1);
-  assert.equal(env.commits, 1);
+  wide.env.empty.children[1].listeners.click();
+  assert.deepEqual(wide.env.state.ui.search, { text: "нет", lists: true, items: true });
+  assert.equal(wide.env.state.ui.page, 1);
+  assert.equal(wide.env.commits, 1);
 });
 
 test("results hide the empty state without building anything", () => {
-  env.found = { any: true };
+  const { env, renderEmpty } = emptyHarness({ any: true }, ONE());
   renderEmpty(2);
-  assert.equal(emptyNode.hidden, true);
-  assert.deepEqual(emptyNode.children, []);
+  assert.equal(env.empty.hidden, true);
+  assert.deepEqual(env.empty.children, []);
 });

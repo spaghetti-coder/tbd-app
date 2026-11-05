@@ -2,26 +2,23 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
 function harness(ids, kind = "item") {
   const calls = [];
   const asked = [];
   const state = { ui: { panel: { collapsed: false }, bulk: { kind, ids } } };
-  const { onPanelAct } = vm(
-    [slice("PANEL_ACTS"), slice("BULK_ACTS"), slice("onPanelAct"), "({ onPanelAct })"],
-    {
-      state,
-      commit: () => calls.push("commit"),
-      setExpandedAll: (open) => calls.push(`setExpandedAll:${open}`),
-      cancelBulk: () => calls.push("cancelBulk"),
-      moveTo: (k, picked, where) => calls.push(`moveTo:${k}:${picked.join(",")}:${where}`),
-      ask: (k, picked, action, button) => {
-        calls.push(`ask:${k}:${picked.join(",")}:${action}`);
-        asked.push({ kind: k, picked, action, button });
-      },
+  const { onPanelAct } = sliceVm(["PANEL_ACTS", "BULK_ACTS", "onPanelAct"], {
+    state,
+    commit: () => calls.push("commit"),
+    setExpandedAll: (open) => calls.push(`setExpandedAll:${open}`),
+    cancelBulk: () => calls.push("cancelBulk"),
+    moveTo: (k, picked, where) => calls.push(`moveTo:${k}:${picked.join(",")}:${where}`),
+    ask: (k, picked, action, button) => {
+      calls.push(`ask:${k}:${picked.join(",")}:${action}`);
+      asked.push({ kind: k, picked, action, button });
     },
-  );
+  });
   return { calls, state, asked, onPanelAct };
 }
 

@@ -8,6 +8,10 @@ import { inlineScripts } from "../scripts/inline-scripts.mjs";
 
 export const vm = (lines, globals = {}) => runInContext(lines.join("\n"), createContext(globals));
 
+// One sandbox for `names`: each is sliced out of index.html and returned bound.
+export const sliceVm = (names, globals = {}) =>
+  vm([...names.map(slice), `({ ${names.join(", ")} })`], globals);
+
 export const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 // shortcut: top-level declarations only; walk nested scopes if a tested helper ever moves into a block.

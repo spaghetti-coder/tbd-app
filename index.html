@@ -13,7 +13,6 @@
     --bg: #f4f5f7;
     --surface: #fff;
     --surface-2: #eceef2;
-    --surface-3: #e0e3e9;
     --text: #12151a;
     --muted: #687080;
     --line: #e1e4ea;
@@ -40,8 +39,6 @@
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 16px;
     line-height: 1.4;
-
-    /* stylelint-disable-next-line property-no-vendor-prefix */
     -webkit-text-size-adjust: 100%;
   }
 
@@ -49,7 +46,6 @@
     --bg: #0e1116;
     --surface: #171b21;
     --surface-2: #22272f;
-    --surface-3: #2c323b;
     --text: #e8eaf0;
     --muted: #8b94a3;
     --line: #262c35;
@@ -106,10 +102,8 @@
   .lists,
   html.is-dragging,
   html.is-dragging * {
-    /* stylelint-disable property-no-vendor-prefix */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
-    /* stylelint-enable property-no-vendor-prefix */
     user-select: none;
   }
 
@@ -161,30 +155,6 @@
     mask-size: contain;
     width: var(--ic);
   }
-
-  .ic--plus { mask-image: var(--ic-plus, none); }
-  .ic--settings { mask-image: var(--ic-settings, none); }
-  .ic--logout { mask-image: var(--ic-logout, none); }
-  .ic--help { mask-image: var(--ic-help, none); }
-  .ic--chevron-right { mask-image: var(--ic-chevron-right, none); }
-  .ic--chevron-down { mask-image: var(--ic-chevron-down, none); }
-  .ic--chevron-left { mask-image: var(--ic-chevron-left, none); }
-  .ic--pencil { mask-image: var(--ic-pencil, none); }
-  .ic--menu { mask-image: var(--ic-menu, none); }
-  .ic--archive { mask-image: var(--ic-archive, none); }
-  .ic--restore { mask-image: var(--ic-restore, none); }
-  .ic--trash { mask-image: var(--ic-trash, none); }
-  .ic--top { mask-image: var(--ic-top, none); }
-  .ic--bottom { mask-image: var(--ic-bottom, none); }
-  .ic--expand { mask-image: var(--ic-expand, none); }
-  .ic--collapse { mask-image: var(--ic-collapse, none); }
-  .ic--check { mask-image: var(--ic-check, none); }
-  .ic--close { mask-image: var(--ic-close, none); }
-  .ic--bulk { mask-image: var(--ic-bulk, none); }
-  .ic--grip-vertical { mask-image: var(--ic-grip-vertical, none); }
-  .ic--grip-horizontal { mask-image: var(--ic-grip-horizontal, none); }
-  .ic--search { mask-image: var(--ic-search, none); }
-  .ic--goto { mask-image: var(--ic-goto, none); }
 
   /* Fallback glyphs. The document starts at .icons-off, so these show until a CDN answers. */
   .ic-alt {
@@ -388,11 +358,7 @@
     cursor: pointer;
     flex: 1;
     font-weight: 600;
-    min-width: 0;
-    overflow: hidden;
     padding-block: 6px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 
     /* The target spans the whole field, so WebKit's gray tap flash reads as a glitch. */
     -webkit-tap-highlight-color: transparent;
@@ -426,11 +392,7 @@
 
   .item__text {
     flex: 1;
-    min-width: 0;
-    overflow: hidden;
     padding-block: 4px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .item.is-done .item__text,
@@ -519,8 +481,6 @@
     flex: 1;
     min-width: 0;
     padding: 7px 10px;
-
-    /* stylelint-disable-next-line property-no-vendor-prefix */
     -webkit-user-select: auto;
     user-select: auto;
   }
@@ -637,10 +597,8 @@
     top: 0;
     touch-action: none;
     transition: transform var(--dur) ease;
-    /* stylelint-disable property-no-vendor-prefix */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
-    /* stylelint-enable property-no-vendor-prefix */
     user-select: none;
     z-index: 25;
   }
@@ -852,10 +810,6 @@
   .rows__meta {
     color: var(--muted);
     flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .rows__sep {
@@ -904,9 +858,13 @@
     padding: 6px 10px;
   }
 
+  .card__title,
+  .item__text,
+  .rows__meta,
   .picker > :first-child,
   .picker__option > :first-child,
-  .rows__label {
+  .rows__label,
+  .modal--sheet .btn--pill > :not(.ic, .ic-alt) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -959,6 +917,7 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--r);
+    /* Per breakpoint: above the pager on mobile, under the header on desktop. */
     bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--pager-h, 0px));
     box-shadow: var(--shadow);
     color: var(--muted);
@@ -966,7 +925,6 @@
     font-size: 14px;
     gap: 10px;
     left: 50%;
-    /* bottom is per breakpoint: above the pager on mobile, under the header on desktop. */
     max-width: min(460px, calc(100vw - 24px));
     padding: 12px 14px;
     position: fixed;
@@ -1013,10 +971,8 @@
     overflow: hidden;
     position: relative;
     user-select: none;
-    /* stylelint-disable property-no-vendor-prefix */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
-    /* stylelint-enable property-no-vendor-prefix */
   }
 
   .hold {
@@ -1029,7 +985,7 @@
     width: 0;
   }
 
-  /* The fill duration comes from DEMO_HOLD, so JS owns the one timing. */
+  /* No duration here: JS sets the fill timing inline, so there is one source of it. */
   .hold.is-run {
     width: 100%;
   }
@@ -1131,17 +1087,9 @@
       min-width: 0;
       padding-inline: 10px;
     }
-
-    .modal--sheet .btn--pill > :not(.ic, .ic-alt) {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
   }
 
   @media (width > 560px) {
-    /* The field belongs in the title row; only the scope switches stay on their own line. */
     /* The field belongs in the title row; the scope switches go under it, in its own column. */
     .topbar__inner {
       column-gap: 6px;
@@ -1347,6 +1295,7 @@ const ICONS = {
 
 function loadIcons() {
   const root = document.documentElement;
+  document.head.append(el("style", "", Object.keys(ICONS).map((n) => `.ic--${n}{mask-image:var(--ic-${n},none)}`).join("")));
   const apply = (base) => {
     for (const [name, [file]] of Object.entries(ICONS)) {
       root.style.setProperty(`--ic-${name}`, `url("${base}/${file}.svg")`);
@@ -1407,7 +1356,6 @@ const EN = {
   collapse_all: "Collapse all",
   panel_collapse: "Collapse panel",
   panel_expand: "Expand panel",
-  panel_group_lists: "Lists",
   panel_group_remove: "Remove",
   panel_group_move: "Move",
   a_archive: "Archive",
@@ -1495,7 +1443,6 @@ const DICTS = {
     collapse_all: "Свернуть все",
     panel_collapse: "Свернуть панель",
     panel_expand: "Развернуть панель",
-    panel_group_lists: "Списки",
     panel_group_remove: "Удалить",
     panel_group_move: "Переместить",
     a_archive: "В архив",
@@ -1580,7 +1527,6 @@ const DICTS = {
     collapse_all: "Сгъни всички",
     panel_collapse: "Сгъни панела",
     panel_expand: "Разгъни панела",
-    panel_group_lists: "Списъци",
     panel_group_remove: "Премахване",
     panel_group_move: "Преместване",
     a_archive: "Архивирай",
@@ -1665,7 +1611,6 @@ const DICTS = {
     collapse_all: "Plegar todo",
     panel_collapse: "Contraer panel",
     panel_expand: "Expandir panel",
-    panel_group_lists: "Listas",
     panel_group_remove: "Quitar",
     panel_group_move: "Mover",
     a_archive: "Archivar",
@@ -1750,7 +1695,6 @@ const DICTS = {
     collapse_all: "Tout replier",
     panel_collapse: "Replier le panneau",
     panel_expand: "Déplier le panneau",
-    panel_group_lists: "Listes",
     panel_group_remove: "Supprimer",
     panel_group_move: "Déplacer",
     a_archive: "Archiver",
@@ -1835,7 +1779,6 @@ const DICTS = {
     collapse_all: "Închide tot",
     panel_collapse: "Restrânge panoul",
     panel_expand: "Extinde panoul",
-    panel_group_lists: "Liste",
     panel_group_remove: "Eliminare",
     panel_group_move: "Mutare",
     a_archive: "Arhivează",
@@ -1920,7 +1863,6 @@ const DICTS = {
     collapse_all: "全部折叠",
     panel_collapse: "折叠面板",
     panel_expand: "展开面板",
-    panel_group_lists: "列表",
     panel_group_remove: "移除",
     panel_group_move: "移动",
     a_archive: "归档",
@@ -2005,7 +1947,6 @@ const DICTS = {
     collapse_all: "すべて閉じる",
     panel_collapse: "パネルを閉じる",
     panel_expand: "パネルを開く",
-    panel_group_lists: "リスト",
     panel_group_remove: "削除",
     panel_group_move: "移動",
     a_archive: "アーカイブ",
@@ -2090,7 +2031,6 @@ const DICTS = {
     collapse_all: "Fermi ĉiujn",
     panel_collapse: "Fermi la panelon",
     panel_expand: "Malfermi la panelon",
-    panel_group_lists: "Listoj",
     panel_group_remove: "Forigi",
     panel_group_move: "Movi",
     a_archive: "Arkivi",
@@ -2175,7 +2115,6 @@ const DICTS = {
     collapse_all: "Plegar toto",
     panel_collapse: "Plegar le panel",
     panel_expand: "Aperir le panel",
-    panel_group_lists: "Listas",
     panel_group_remove: "Remover",
     panel_group_move: "Mover",
     a_archive: "Archivar",
@@ -2260,7 +2199,6 @@ const DICTS = {
     collapse_all: "o pini e ale",
     panel_collapse: "o pini e ilo poka",
     panel_expand: "o open e ilo poka",
-    panel_group_lists: "lipu",
     panel_group_remove: "weka",
     panel_group_move: "tawa",
     a_archive: "o len",
@@ -2383,6 +2321,7 @@ let storageBroken = false;
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
+  if (tag === "button") node.type = "button";
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
@@ -2575,7 +2514,7 @@ const dirty = {
   lists: new Set(), items: new Set(), order: new Set(), goneLists: new Set(), goneItems: new Set(), ui: false,
 };
 
-/* The one small ui doc: queueSave marks it, so no ui path has to remember a mark of its own. */
+/* The one small ui doc: the save queue marks it, so no ui path has to remember a mark of its own. */
 function markUi() {
   dirty.ui = true;
 }
@@ -2732,7 +2671,7 @@ async function maybeReload() {
     return;
   }
   externalWrite = false;
-  // A pending save is newer than the other tab's write; flushing an old state would bury that write.
+  // The pending save is newer than the other tab's write: it goes out before this tab reloads.
   if (saveTimer) {
     await flushSave();
   }
@@ -3002,7 +2941,8 @@ function renderSearch() {
   labelNode(byId("search-clear"), "search_clear");
   scopeChip("scope-lists", "search_lists", s.lists);
   scopeChip("scope-items", "search_items", s.items);
-  measureTopbar();
+  // The header grows with the search row; everything parked under it reads the measured height.
+  document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar").offsetHeight}px`);
   if (focusSearch) {
     focusSearch = false;
     input.focus();
@@ -3015,12 +2955,6 @@ function scopeChip(id, key, on) {
   chip.textContent = t(key);
   chip.setAttribute("aria-pressed", String(on));
   chip.classList.toggle("is-on", on);
-}
-
-/* The header grows with the search row; everything parked under it reads the measured height. */
-function measureTopbar() {
-  const bar = document.querySelector(".topbar");
-  document.documentElement.style.setProperty("--topbar-h", `${bar.offsetHeight}px`);
 }
 
 function visibleChecklists() {
@@ -3183,8 +3117,6 @@ function archiveMany(kind, ids) {
     archive(id);
   }
   pruneSelection();
-  commit();
-  showToast(t("toast_archived"));
 }
 
 function archiveChecklistQuiet(id) {
@@ -3205,8 +3137,6 @@ function deleteMany(kind, ids) {
   for (const id of ids) {
     removeEntity(kind, id);
   }
-  commit();
-  showToast(t("toast_deleted"));
 }
 
 function moveTo(kind, ids, where) {
@@ -3446,7 +3376,6 @@ function renderEmpty(shown) {
   // Nothing in the chosen scope, something in the wider one: say so instead of looking broken.
   if (searched && found.any) {
     const button = el("button", "btn btn--pill", t("search_everywhere"));
-    button.type = "button";
     button.addEventListener("click", () => {
       state.ui.search.lists = true;
       state.ui.search.items = true;
@@ -3494,7 +3423,7 @@ function paintHead(node, cl, open) {
   const alt = toggle.querySelector(".ic-alt");
   icon.classList.toggle("ic--chevron-down", open);
   icon.classList.toggle("ic--chevron-right", !open);
-  alt.textContent = open ? "▾" : "▸";
+  alt.textContent = ICONS[open ? "chevron-down" : "chevron-right"][1];
   toggle.setAttribute("aria-expanded", open ? "true" : "false");
   toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
   // Opened by the search rather than by the user: collapsing it would hide the match they looked for.
@@ -3508,14 +3437,10 @@ function paintHead(node, cl, open) {
   const jump = node.querySelector(".act--goto");
   jump.hidden = !(found && found.titles.has(cl.id));
   labelNode(jump, "a_goto");
-  paintHeadBulk(node, cl);
-  paintRowEditor(node, "list", cl.id, cl.title);
-}
-
-function paintHeadBulk(node, cl) {
   const bulk = state.ui.bulk;
   showPick(node.querySelector(".mark--toggle"), node.querySelector(".mark--bulk"),
     bulk.kind === "list" ? bulk.ids.includes(cl.id) : null, cl.title || t("new_list_ph"));
+  paintRowEditor(node, "list", cl.id, cl.title);
 }
 
 function checkBox(node, on, label) {
@@ -3612,7 +3537,6 @@ function iconPair(icon) {
 
 function panelButton(icon, labelKey, act, disabled) {
   const button = el("button", "btn");
-  button.type = "button";
   button.dataset.act = act;
   labelNode(button, labelKey);
   button.disabled = disabled;
@@ -3643,7 +3567,7 @@ function renderPanel() {
   grip.setAttribute("aria-expanded", String(!collapsed));
   const nodes = [grip];
   if (!collapsed) {
-    nodes.push(panelSeparator(), panelGroup("panel_group_lists", [
+    nodes.push(panelSeparator(), panelGroup("search_lists", [
       panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)),
       panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)),
     ]));
@@ -3825,7 +3749,7 @@ function openModal(opts) {
       closeModal();
     }
   });
-  // Escape: Chrome cancels every open dialog at once; onKey closes one at a time.
+  // Escape: Chrome cancels every open dialog at once; the key handler closes one at a time.
   box.addEventListener("cancel", (event) => event.preventDefault());
   box.addEventListener("close", () => {
     box.remove();
@@ -3887,7 +3811,6 @@ function actionRow(actions) {
   const row = el("div", "modal__actions");
   for (const action of actions) {
     const button = el("button", `btn btn--pill ${action.cls ?? ""}`);
-    button.type = "button";
     if (action.icon) button.append(...iconPair(action.icon));
     button.append(el("span", null, action.label));
     // data-count: the archive sheet enables these itself once something is picked.
@@ -3903,7 +3826,6 @@ function tabBar(pairs, onSelect) {
   const bar = el("div", "tabs");
   const buttons = pairs.map(([key, labelKey]) => {
     const button = el("button", "tabs__tab", t(labelKey));
-    button.type = "button";
     button.dataset.key = key;
     button.addEventListener("click", () => onSelect(key));
     bar.append(button);
@@ -3937,7 +3859,6 @@ function confirmModal(message, yesLabel, onYes, anchor) {
 
 function menuItem(icon, label, onClick, danger, disabled = false) {
   const button = el("button", danger ? "menu-list__item btn--danger" : "menu-list__item");
-  button.type = "button";
   button.title = label;
   button.disabled = disabled;
   button.append(...iconPair(icon), el("span", null, label));
@@ -3957,6 +3878,8 @@ function ask(kind, ids, verb, anchor, after) {
   const run = verb === "delete" ? deleteMany : archiveMany;
   confirmModal(actionMessage(kind, ids.length, verb), t(`a_${verb}`), () => {
     run(kind, ids);
+    commit();
+    showToast(t(verb === "delete" ? "toast_deleted" : "toast_archived"));
     if (after) {
       after();
     }
@@ -4027,7 +3950,6 @@ function openPicker(labelKey, items, value, onPick, anchor) {
   const selected = items.findIndex(([item]) => String(item) === String(value));
   const rows = items.map(([item, text], index) => {
     const row = el("button", "menu-list__item picker__option");
-    row.type = "button";
     row.setAttribute("role", "option");
     row.setAttribute("aria-selected", String(index === selected));
     row.append(el("span", null, String(text)));
@@ -4074,7 +3996,6 @@ function pickerControl(labelKey, items, value, onChange) {
   const labelFor = (val) => String((items.find(([item]) => String(item) === String(val)) ?? items[0])[1]);
   let current = value;
   const trigger = el("button", "picker");
-  trigger.type = "button";
   trigger.setAttribute("aria-haspopup", "listbox");
   trigger.setAttribute("aria-expanded", "false");
   const paint = () => trigger.replaceChildren(el("span", null, labelFor(current)), ...iconPair("chevron-down"));
@@ -4148,7 +4069,6 @@ function openSettings() {
     })));
   }
   const archive = el("button", "btn btn--wide btn--hold");
-  archive.type = "button";
   const holdBar = el("span", "hold");
   archive.append(...iconPair("archive"), el("span", null, t("archive_title")), holdBar);
   const openArchiveSheet = () => {
@@ -4205,37 +4125,30 @@ function archivedItems() {
   }).sort((a, b) => (rank.get(a.checklistId) ?? Infinity) - (rank.get(b.checklistId) ?? Infinity));
 }
 
-function restoreLists(ids) {
+/* Back from the archive, on top of their own group, with the order docs the move changed.
+   A restored list also takes back the items that went into the archive with it. */
+function restore(kind, ids) {
+  const key = kind === "list" ? "checklists" : "items";
   const picked = new Set(ids);
-  for (const cl of state.checklists) {
-    if (picked.has(cl.id)) {
-      cl.archived = false;
-      markDirty("list", cl.id);
-    }
+  const touched = new Set();
+  for (const row of state[key]) {
+    if (!picked.has(row.id)) continue;
+    row.archived = false;
+    markDirty(kind, row.id);
+    touched.add(kind === "list" ? "lists" : row.checklistId);
   }
-  state.checklists = moveGroup(state.checklists, ids, 0);
-  markOrder("lists");
+  state[key] = moveGroup(state[key], ids, 0);
+  for (const id of touched) {
+    markOrder(id);
+  }
+  if (kind !== "list") {
+    return;
+  }
   for (const item of state.items) {
     if (picked.has(item.checklistId) && item.archived && item.archivedBy === "list") {
       item.archived = false;
       markDirty("item", item.id);
     }
-  }
-}
-
-function restoreItems(ids) {
-  const picked = new Set(ids);
-  const touched = new Set();
-  for (const item of state.items) {
-    if (picked.has(item.id)) {
-      item.archived = false;
-      markDirty("item", item.id);
-      touched.add(item.checklistId);
-    }
-  }
-  state.items = moveGroup(state.items, ids, 0);
-  for (const checklistId of touched) {
-    markOrder(checklistId);
   }
 }
 
@@ -4300,8 +4213,7 @@ function openArchive() {
       label: t("a_restore"),
       count: true,
       onClick: withSelection((ids) => {
-        if (view.tab === "lists") restoreLists(ids);
-        else restoreItems(ids);
+        restore(view.tab === "lists" ? "list" : "item", ids);
         view.sel.clear();
         commit();
         paint();
@@ -4453,10 +4365,6 @@ async function exitDemo() {
   }
   demoSet(false);
   location.reload();
-}
-
-function askExitDemo() {
-  confirmModal(t("demo_exit_msg"), t("demo_exit"), exitDemo, byId("btn-demo"));
 }
 
 /* Hold-to-enter wiring for a button. Returns whether the last activation was a hold - run to the
@@ -5082,8 +4990,6 @@ document.addEventListener("touchmove", (event) => {
 
 let panelDrag = null;
 let panelGhost = null;
-/* Set during a panel drag and briefly after: the click that ends it must not open the menu. */
-let panelSuppress = false;
 
 function cssVarPx(name) {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
@@ -5246,7 +5152,6 @@ function beginPanelDrag(event, origin) {
     height: panel.offsetHeight,
     detached: false,
   };
-  panelSuppress = true;
   panel.classList.add("is-dragging");
   document.documentElement.classList.add("is-dragging");
   document.getSelection()?.removeAllRanges();
@@ -5282,7 +5187,7 @@ function endPanelDrag() {
   markUi();
   flushSave();
   positionPanel();
-  setTimeout(() => { panelSuppress = false; }, 250);
+  suppressNextClick();
 }
 
 /* ---------- actions ---------- */
@@ -5436,7 +5341,7 @@ function onListBlur(event) {
 }
 
 function onPanelClick(event) {
-  if (panelSuppress) return;
+  if (suppressClick) return;
   const button = event.target.closest("[data-act]");
   if (button) onPanelAct(button.dataset.act, button);
 }
@@ -5512,7 +5417,7 @@ function bind() {
   byId("scope-items").addEventListener("click", () => setSearchScope("items"));
   byId("btn-settings").addEventListener("click", toggleSettings);
   byId("btn-demo").hidden = !demo;
-  byId("btn-demo").addEventListener("click", askExitDemo);
+  byId("btn-demo").addEventListener("click", () => confirmModal(t("demo_exit_msg"), t("demo_exit"), exitDemo, byId("btn-demo")));
   byId("btn-help").addEventListener("click", openHelp);
   byId("banner-close").addEventListener("click", hideToast);
   byId("page-prev").addEventListener("click", () => {

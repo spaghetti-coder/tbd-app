@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { slice, vm } from "../../testkit/html-source.mjs";
 
 const NAMES = [
@@ -37,8 +37,7 @@ const NAMES = [
   "moveItemsTo",
   "dropItemsInto",
   "archiveItemQuiet",
-  "restoreLists",
-  "restoreItems",
+  "restore",
   "visibleChecklists",
 ];
 
@@ -60,17 +59,16 @@ const inList = (data, checklistId) => ids(data.items.filter((i) => i.checklistId
 
 const open = () => ({ lists: new Map(), items: new Map(), docs: new Map() });
 let db = open();
-const copy = (value) => JSON.parse(JSON.stringify(value));
 
 /* What writeBatch would hand the transaction: rows, order docs read out of state, the ui doc, and a
    list's items deleted with it, the way the checklistId index does. */
 function flush() {
   const batch = api.takeBatch();
-  for (const row of batch.lists) db.lists.set(row.id, copy(row));
-  for (const row of batch.items) db.items.set(row.id, copy(row));
+  for (const row of batch.lists) db.lists.set(row.id, plain(row));
+  for (const row of batch.items) db.items.set(row.id, plain(row));
   for (const id of batch.order) db.docs.set(api.orderKey(id), [...api.orderValue(id)]);
   if (batch.ui) {
-    db.docs.set(api.UI_KEY, copy({ ...api.state.ui, search: { text: api.state.ui.search.text } }));
+    db.docs.set(api.UI_KEY, plain({ ...api.state.ui, search: { text: api.state.ui.search.text } }));
   }
   for (const id of batch.goneItems) db.items.delete(id);
   for (const id of batch.goneLists) {
@@ -84,7 +82,7 @@ function flush() {
 
 /* A fresh page: getAll answers in key order, so the rows come back in no useful order at all. */
 function reload() {
-  const docs = Object.fromEntries([...db.docs].map(([key, value]) => [key, copy(value)]));
+  const docs = Object.fromEntries([...db.docs].map(([key, value]) => [key, plain(value)]));
   const read = (rows) => [...rows].sort((a, b) => (a.id < b.id ? -1 : 1));
   api.state = api.applyOrder(api.normalize({
     version: 1,
@@ -134,7 +132,7 @@ test("a restored row lands where the app put it, not where it was created", () =
   api.archiveItemQuiet("i5");
   flush();
   reload();
-  api.restoreItems(["i5"]);
+  api.restore("item", ["i5"]);
   flush();
   reload();
   assert.deepEqual(inList(api.state, "b"), ["i5", "i6"]);
@@ -145,7 +143,7 @@ test("a restored list comes back with the items that went into the archive with 
   api.archiveChecklistQuiet("a");
   flush();
   reload();
-  api.restoreLists(["a"]);
+  api.restore("list", ["a"]);
   flush();
   reload();
   assert.deepEqual(ids(api.state.checklists), ["a", "b"]);

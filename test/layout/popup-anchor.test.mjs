@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withEnv as restoreEnv } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
 const env = { innerWidth: 1440, innerHeight: 900, safeLeft: 0, safeRight: 0 };
 const withEnv = (patch, fn) => restoreEnv(env, patch, fn);
@@ -16,10 +16,7 @@ const box = {
 };
 Object.defineProperty(box, "innerWidth", { get: () => env.innerWidth });
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
-const { anchoredBox } = vm(
-  [slice("clamp"), slice("cssVarPx"), slice("anchoredBox"), "({ anchoredBox });"],
-  box,
-);
+const { anchoredBox } = sliceVm(["clamp", "cssVarPx", "anchoredBox"], box);
 
 // The trigger sits at (left, top)..(right, bottom), like a getBoundingClientRect result.
 const trigger = (top, bottom, left, right) => ({ top, bottom, left, right });

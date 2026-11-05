@@ -1,44 +1,39 @@
 // The `state` shim the store-level functions run against: sliced by name into one sandbox,
 // so a test drives the real function over a real object graph instead of a mock of it.
-import { createContext, runInContext } from "node:vm";
-import { slice } from "./html-source.mjs";
-
-// The sliced functions reach for these at runtime; the harness keeps them out of the way.
-const PRELUDE = `
-let found = null;
-let scrollTarget = null;
-let lastToast = null;
-const calls = [];
-function commit() { calls.push("commit"); }
-function queueSave() { calls.push("queueSave"); }
-function flushSave() { calls.push("flushSave"); }
-function repaintRow(kind, id) { calls.push("repaintRow:" + kind + ":" + id); }
-function rowById() { return null; }
-function markDirty() {}
-function markGone() {}
-function markOrder() {}
-function showToast(text) { lastToast = text; }
-function t(key) { return key; }
-`;
+import { sliceVm } from "./html-source.mjs";
 
 export function stateHarness(names) {
-  const sandbox = { state: null };
-  createContext(sandbox);
-  const { api, scrollTargetOf, resetScroll, toastOf, calls, resetCalls } = runInContext(
-    [slice("PAGE_SIZES"), PRELUDE, ...names.map(slice),
-      `({ api: { ${names.join(", ")} }, scrollTargetOf: () => scrollTarget,`,
-      "  resetScroll: () => { scrollTarget = null; },",
-      "  toastOf: () => lastToast, calls: () => calls.join(\",\"), resetCalls: () => { calls.length = 0; } });",
-    ].join("\n"),
-    sandbox,
-  );
+  // The globals the sliced functions reach for; assigning one (found, scrollTarget) writes back here.
+  const sandbox = {
+    state: null,
+    found: null,
+    scrollTarget: null,
+    lastToast: null,
+    calls: [],
+    commit: () => sandbox.calls.push("commit"),
+    queueSave: () => sandbox.calls.push("queueSave"),
+    flushSave: () => sandbox.calls.push("flushSave"),
+    repaintRow: (kind, id) => sandbox.calls.push(`repaintRow:${kind}:${id}`),
+    showToast: (text) => { sandbox.lastToast = text; },
+    rowById: () => null,
+    markDirty: () => {},
+    markGone: () => {},
+    markOrder: () => {},
+    t: (key) => key,
+  };
+  const api = sliceVm(["PAGE_SIZES", ...names], sandbox);
 
   return {
-    api, scrollTargetOf, resetScroll, toastOf, calls, resetCalls,
-    // Objects built inside the VM have that realm's prototypes, so compare plain copies of their fields.
-    plainBulk: (bulk) => ({ kind: bulk.kind, ids: Array.from(bulk.ids) }),
+    api,
+    scrollTargetOf: () => sandbox.scrollTarget,
+    resetScroll: () => { sandbox.scrollTarget = null; },
+    toastOf: () => sandbox.lastToast,
+    calls: () => sandbox.calls.join(","),
+    resetCalls: () => {
+      sandbox.calls.length = 0;
+    },
     store: (checklists, items, ui) => {
-      resetCalls();
+      sandbox.calls.length = 0;
       sandbox.state = {
         checklists,
         items,

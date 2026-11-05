@@ -2,17 +2,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { item, list } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { item, list, plain } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { fold, searchTokens, matchRanges } = vm(
-  [slice("folded"), slice("fold"), slice("searchTokens"), slice("matchRanges"),
-    "({ fold, searchTokens, matchRanges })"],
-);
+const { fold, searchTokens, matchRanges } = sliceVm(["folded", "fold", "searchTokens", "matchRanges"]);
 
-// Values built inside the VM carry that realm's prototypes, so compare plain copies of them.
-const plain = (value) => JSON.parse(JSON.stringify(value));
 const hits = (text, query) => plain(matchRanges(text, searchTokens(query)));
 
 test("fold ignores case and diacritics and keeps its offsets mapped to the original", () => {
@@ -22,36 +17,30 @@ test("fold ignores case and diacritics and keeps its offsets mapped to the origi
   assert.deepEqual(plain(fold("É").map), [0]);
 });
 
-test("a query of one piece matches wherever it sits in the text", () => {
-  assert.deepEqual(hits("стояла курица", "ку"), [[7, 9]]);
-  assert.deepEqual(hits("моя покупка", "ку"), [[6, 8]]);
-  assert.deepEqual(hits("колесо", "с"), [[4, 5]]);
-  assert.equal(hits("колесо", "ку"), null);
-});
-
-test("pieces of a query may come in any order and any distance apart", () => {
-  assert.deepEqual(hits("сегодня", "е я"), [[1, 2], [6, 7]]);
-  assert.deepEqual(hits("пошел в пизду", "по з"), [[0, 2], [10, 11]]);
-  assert.deepEqual(hits("купить сегодня молоко", "купи ко"), [[0, 4], [19, 21]]);
-});
-
-test("accents and case are irrelevant on both sides", () => {
-  assert.deepEqual(hits("français", "FRANCAIS"), [[0, 8]]);
-  assert.deepEqual(hits("français", "çais"), [[4, 8]]);
-});
-
-test("overlapping hits merge into one range", () => {
-  assert.deepEqual(hits("banana", "an a"), [[1, 6]]);
+// [text, query, expected ranges] - a piece may sit anywhere, in any order and at any distance.
+test("every query piece has to be found, and the hits merge", () => {
+  const rows = [
+    ["стояла курица", "ку", [[7, 9]]],
+    ["моя покупка", "ку", [[6, 8]]],
+    ["колесо", "с", [[4, 5]]],
+    ["колесо", "ку", null, "the piece is missing"],
+    ["сегодня", "е я", [[1, 2], [6, 7]]],
+    ["пошел в пизду", "по з", [[0, 2], [10, 11]]],
+    ["купить сегодня молоко", "купи ко", [[0, 4], [19, 21]]],
+    ["banana", "an a", [[1, 6]], "overlapping hits merge into one range"],
+    ["français", "FRANCAIS", [[0, 8]], "case and diacritics are irrelevant on both sides"],
+    ["français", "çais", [[4, 8]]],
+    ["купить сегодня молоко", "купи нет", null, "one missing piece is enough"],
+    ["", "что", null, "nothing to search in"],
+  ];
+  for (const [text, query, want, note] of rows) {
+    assert.deepEqual(hits(text, query), want, `"${query}" in "${text}": ${note ?? "ok"}`);
+  }
 });
 
 test("a query of bare combining marks leaves no token and matches nothing", () => {
   assert.deepEqual(plain(searchTokens("\u0301 \u0302 x")), ["x"]);
   assert.equal(hits("колесо", "\u0301"), null, "and does not loop over an empty token");
-});
-
-test("a piece missing from the text is out, however well the rest fits", () => {
-  assert.equal(hits("купить сегодня молоко", "купи нет"), null);
-  assert.equal(hits("", "что"), null);
 });
 
 /* ---------- which rows a query lets through ---------- */

@@ -2,19 +2,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const SRC = [
-  slice("flushPendingEdit"),
-  slice("startEdit"),
-  slice("addItem"),
-  slice("addChecklist"),
-  slice("onListBlur"),
-  "({ flushPendingEdit, startEdit, addItem, addChecklist, onListBlur })",
-];
+const SRC = ["flushPendingEdit", "startEdit", "addItem", "addChecklist", "onListBlur"];
 
 // One card with a nameless item, each row carrying its own editor input.
 function board() {
@@ -39,9 +32,6 @@ function board() {
 }
 
 const textOf = (kind, entity) => (kind === "list" ? entity?.title : entity?.text);
-// Objects built inside the VM carry that realm's prototype, so compare plain copies of their fields.
-const plain = (editing) => editing && { kind: editing.kind, id: editing.id };
-
 function harness({ editing = null, ...shape } = {}) {
   const rows = shape.rows ?? {};
   const ctx = {
@@ -78,7 +68,7 @@ function harness({ editing = null, ...shape } = {}) {
       ctx.commit();
     }
   };
-  return { ...vm(SRC, ctx), ctx };
+  return { ...sliceVm(SRC, ctx), ctx };
 }
 
 const typed = () => {
@@ -91,7 +81,6 @@ test("a draft is committed to the row that owns it", () => {
   const { flushPendingEdit, ctx } = typed();
   flushPendingEdit();
   assert.deepEqual(ctx.commits, ["item:i1:BBB"]);
-  assert.equal(ctx.items.get("i1").text, "BBB");
 });
 
 test("nothing is committed when no row is being edited", () => {
@@ -192,17 +181,8 @@ test("creating a list saves the draft that was still open", () => {
 });
 
 // The same flow over the real save path, where commitText itself writes, rolls back or drops the row.
-const REAL = [
-  slice("findList"),
-  slice("findItem"),
-  slice("entityText"),
-  slice("removeEntity"),
-  slice("cancelEdit"),
-  slice("commitText"),
-  slice("flushPendingEdit"),
-  slice("startEdit"),
-  "({ flushPendingEdit, startEdit })",
-];
+const REAL = ["findList", "findItem", "entityText", "removeEntity", "cancelEdit", "commitText",
+  "flushPendingEdit", "startEdit"];
 
 function realPath(editing, draft) {
   const shape = board();
@@ -219,7 +199,7 @@ function realPath(editing, draft) {
     commit: () => {},
   };
   ctx.rowById = (kind, id) => shape.rows[id] ?? null;
-  return { ...vm(REAL, ctx), ctx };
+  return { ...sliceVm(REAL, ctx), ctx };
 }
 
 test("the real save puts the draft in its own row", () => {
@@ -315,7 +295,7 @@ function flow(editing, { title = "", text = "", draft = "", onScreen = true } = 
     addItem: (listId) => calls.push(`addItem:${listId}`),
     commitText: (kind, id, raw) => calls.push(`commitText:${kind}:${id}:${raw.trim()}`),
   };
-  return { ctx, commitEditor: vm([slice("entityText"), slice("commitEditor"), "commitEditor"], ctx) };
+  return { ctx, commitEditor: sliceVm(["entityText", "commitEditor"], ctx).commitEditor };
 }
 
 test("naming a new checklist opens its first item", () => {

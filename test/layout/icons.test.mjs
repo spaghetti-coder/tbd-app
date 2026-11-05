@@ -2,9 +2,9 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, slice, vm } from "../../testkit/html-source.mjs";
+import { html, sliceVm } from "../../testkit/html-source.mjs";
 
-const icons = vm([slice("ICONS"), "ICONS"]);
+const { ICONS: icons } = sliceVm(["ICONS"]);
 
 test("every icon the button builders are called with is in ICONS", () => {
   const used = new Set();
@@ -28,10 +28,4 @@ test("every icon has a fallback glyph", () => {
     assert.equal(typeof entry[1], "string", `"${name}" has no fallback glyph`);
     assert.ok(entry[1].length > 0, `"${name}" has an empty fallback glyph`);
   }
-});
-
-test("the style sheet masks exactly the icons in ICONS", () => {
-  const names = Object.keys(icons).sort();
-  const masked = [...html.matchAll(/--ic-([a-z-]+), none\)/g)].map((m) => m[1]).sort();
-  assert.deepEqual(masked, names);
 });

@@ -3,30 +3,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ids, list } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { render } = vm([
-  "const state = { ui: { page: 1, pageSize: 20 }, checklists: [] };",
-  "const nodes = {};",
-  "function byId(id) { return (nodes[id] ??= { hidden: false, disabled: false, textContent: \"\" }); }",
-  "function t(key, vars) { return `${key} ${vars.n}/${vars.m}`; }",
-  "function visibleChecklists() { return state.checklists; }",
-  "const document = { documentElement: { style: { setProperty() {} } } };",
-  slice("clamp"),
-  slice("pageCount"),
-  slice("renderPager"),
-  "({",
-  "  render: (count, pageSize, page) => {",
-  "    state.checklists = Array.from({ length: count }, (_, i) => ({ id: `l${i}` }));",
-  "    state.ui.pageSize = pageSize;",
-  "    state.ui.page = page;",
-  "    for (const node of Object.values(nodes)) { node.hidden = false; node.disabled = false; node.textContent = \"\"; }",
-  "    renderPager();",
-  "    return { ...nodes, page: state.ui.page };",
-  "  },",
-  "});",
-]);
+const nodes = {};
+const pagerEnv = {
+  state: { ui: { page: 1, pageSize: 20 }, checklists: [] },
+  byId: (id) => (nodes[id] ??= { hidden: false, disabled: false, textContent: "" }),
+  t: (key, vars) => `${key} ${vars.n}/${vars.m}`,
+  visibleChecklists: () => pagerEnv.state.checklists,
+  document: { documentElement: { style: { setProperty() {} } } },
+};
+const { renderPager } = sliceVm(["clamp", "pageCount", "renderPager"], pagerEnv);
+
+const render = (count, pageSize, page) => {
+  pagerEnv.state.checklists = Array.from({ length: count }, (_, i) => ({ id: `l${i}` }));
+  pagerEnv.state.ui.pageSize = pageSize;
+  pagerEnv.state.ui.page = page;
+  for (const node of Object.values(nodes)) {
+    node.hidden = false;
+    node.disabled = false;
+    node.textContent = "";
+  }
+  renderPager();
+  return { ...nodes, page: pagerEnv.state.ui.page };
+};
 
 test("a second page shows the pager", () => {
   const out = render(21, 20, 1);

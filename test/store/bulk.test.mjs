@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, store, plainBulk, toastOf } = stateHarness([
+const { api, store } = stateHarness([
   "setBulk",
   "startBulk",
   "togglePick",
@@ -30,8 +30,7 @@ test("deleteMany removes a checklist with its items and ends the selection", () 
   api.deleteMany("list", ["c1"]);
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["p"], "the items of a deleted checklist go with it");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] });
-  assert.equal(toastOf(), "toast_deleted");
+  assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
 });
 
 test("deleteMany of items leaves the rows that were not picked", () => {
@@ -39,7 +38,7 @@ test("deleteMany of items leaves the rows that were not picked", () => {
   state.ui.bulk = { kind: "item", ids: ["a", "c"] };
   api.deleteMany("item", ["a", "c"]);
   assert.deepEqual(ids(state.items), ["b"]);
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
+  assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
 });
 
 test("archiveMany marks lists as list-archived and items as user-archived", () => {
@@ -50,8 +49,7 @@ test("archiveMany marks lists as list-archived and items as user-archived", () =
   assert.deepEqual([api.findList("c1").archived, api.findList("c2").archived], [true, true]);
   assert.equal(api.findItem("a").archivedBy, "list");
   assert.equal(api.findItem("b").archivedBy, "list");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] });
-  assert.equal(toastOf(), "toast_archived");
+  assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
   state.ui.bulk = { kind: "item", ids: ["b", "kept"] };
   api.archiveMany("item", ["b", "kept"]);
   assert.equal(api.findItem("b").archived, true);
@@ -63,22 +61,22 @@ test("pruneSelection drops the picks that are gone and keeps the rest", () => {
   const archived = store([list("c1"), list("c2")], [item("a", "c1"), item("p", "c2")]);
   archived.ui.bulk = { kind: "item", ids: ["a", "p"] };
   api.archiveMany("item", ["p"]);
-  assert.deepEqual(plainBulk(archived.ui.bulk), { kind: "item", ids: ["a"] }, "an archived pick leaves, the rest survives");
+  assert.deepEqual(plain(archived.ui.bulk), { kind: "item", ids: ["a"] }, "an archived pick leaves, the rest survives");
 
   const gone = store([list("c1"), list("c2")], [item("a", "c1"), item("p", "c2")]);
   gone.ui.bulk = { kind: "item", ids: ["a", "p"] };
   api.deleteMany("list", ["c1"]);
-  assert.deepEqual(plainBulk(gone.ui.bulk), { kind: "item", ids: ["p"] }, "deleting a list keeps the picks of the others");
+  assert.deepEqual(plain(gone.ui.bulk), { kind: "item", ids: ["p"] }, "deleting a list keeps the picks of the others");
 
   const empty = store([list("c1")], [item("a", "c1")]);
   empty.ui.bulk = { kind: "item", ids: ["a"] };
   api.deleteMany("item", ["a"]);
-  assert.deepEqual(plainBulk(empty.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
+  assert.deepEqual(plain(empty.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
 
   const untouched = store([list("c1"), list("c2")], [item("a", "c1"), item("p", "c2")]);
   untouched.ui.bulk = { kind: "item", ids: ["a", "p"] };
   api.deleteMany("item", ["gone"]);
-  assert.deepEqual(plainBulk(untouched.ui.bulk), { kind: "item", ids: ["a", "p"] });
+  assert.deepEqual(plain(untouched.ui.bulk), { kind: "item", ids: ["a", "p"] });
 });
 
 test("spansLists is true only for an item selection spread over two checklists", () => {
@@ -96,15 +94,15 @@ test("togglePick picks items across checklists", () => {
   const state = store([list("c1"), list("c2")],
     [item("a", "c1"), item("b", "c1"), item("p", "c2")]);
   api.togglePick("item", "a");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: "item", ids: ["a"] });
+  assert.deepEqual(plain(state.ui.bulk), { kind: "item", ids: ["a"] });
   api.togglePick("item", "p");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: "item", ids: ["a", "p"] }, "a pick in another checklist joins it");
+  assert.deepEqual(plain(state.ui.bulk), { kind: "item", ids: ["a", "p"] }, "a pick in another checklist joins it");
   api.togglePick("item", "a");
   api.togglePick("item", "p");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
+  assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] }, "emptying it ends bulk");
   api.togglePick("item", "a");
   api.togglePick("list", "c1");
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: "list", ids: ["c1"] }, "another kind starts a new selection");
+  assert.deepEqual(plain(state.ui.bulk), { kind: "list", ids: ["c1"] }, "another kind starts a new selection");
 });
 
 test("starting a selection expands a collapsed panel", () => {

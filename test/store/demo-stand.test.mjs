@@ -3,20 +3,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { ids, plain } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
-const { demoData, seedRows, UI_KEY } = vm([
-  slice("UI_KEY"),
-  slice("STORES"),
-  slice("DEMO_LISTS"),
-  slice("DEMO_SIZES"),
-  slice("DEMO_TASKS"),
-  slice("demoList"),
-  slice("demoItem"),
-  slice("demoData"),
-  slice("withTx"),
-  slice("seedRows"),
-  "({ demoData, seedRows, UI_KEY })",
+const { demoData, seedRows, UI_KEY } = sliceVm([
+  "UI_KEY", "STORES", "DEMO_LISTS", "DEMO_SIZES", "DEMO_TASKS", "demoList", "demoItem", "demoData",
+  "withTx", "seedRows",
 ]);
 
 // A stand-in for an IDB connection: records every store call, keeps what reached the doc store,
@@ -52,7 +44,8 @@ const live = data.checklists.filter((cl) => !cl.archived);
 const of = (id) => data.items.filter((item) => item.checklistId === id);
 const shown = (cl) => of(cl.id).filter((item) => !item.archived).length;
 
-test("25 live checklists cover every declared size, five each", () => {
+test("the stand's rows are well formed", () => {
+  // 25 live checklists, five at each declared size.
   assert.equal(data.checklists.length, 26);
   assert.equal(live.length, 25);
   const histogram = {};
@@ -60,6 +53,25 @@ test("25 live checklists cover every declared size, five each", () => {
     histogram[shown(cl)] = (histogram[shown(cl)] ?? 0) + 1;
   }
   assert.deepEqual(histogram, { 0: 5, 1: 5, 5: 5, 20: 5, 40: 5 });
+
+  assert.equal(new Set(ids(data.checklists)).size, data.checklists.length, "a checklist id repeats");
+  assert.equal(new Set(ids(data.items)).size, data.items.length, "an item id repeats");
+  const known = new Set(ids(data.checklists));
+  for (const row of data.items) {
+    assert.ok(known.has(row.checklistId), `orphan item ${row.id}`);
+  }
+
+  for (const cl of data.checklists) {
+    assert.match(cl.title, /^[\x20-\x7e]+$/, `"${cl.title}" is not plain text`);
+  }
+  const big = live.find((cl) => shown(cl) === 40);
+  assert.equal(new Set(of(big.id).map((row) => row.text)).size, 40, "the long list repeats a label");
+
+  const done = data.items.filter((row) => row.done).length;
+  assert.ok(done > 0 && done < data.items.length, "every item checked, or none");
+  for (const cl of live.filter((row) => shown(row) < 2)) {
+    assert.equal(of(cl.id).filter((row) => row.done).length, 0, `a checked item in the one-item list ${cl.id}`);
+  }
 });
 
 test("the archive holds one checklist, and three items of their own", () => {
@@ -80,40 +92,14 @@ test("the archive holds one checklist, and three items of their own", () => {
   }
 });
 
-test("every item belongs to a checklist, and no id repeats", () => {
-  const ids = data.checklists.map((cl) => cl.id);
-  assert.equal(new Set(ids).size, ids.length);
-  const known = new Set(ids);
-  for (const item of data.items) {
-    assert.ok(known.has(item.checklistId), `orphan item ${item.id}`);
-  }
-  assert.equal(new Set(data.items.map((item) => item.id)).size, data.items.length);
-});
-
-test("labels are plain English text, and the long list does not repeat one", () => {
-  for (const cl of data.checklists) {
-    assert.match(cl.title, /^[\x20-\x7e]+$/);
-  }
-  const big = live.find((cl) => shown(cl) === 40);
-  assert.equal(new Set(of(big.id).map((item) => item.text)).size, 40);
-});
-
-test("some items are checked, none in the one-item lists", () => {
-  const done = data.items.filter((item) => item.done).length;
-  assert.ok(done > 0 && done < data.items.length);
-  for (const cl of live.filter((row) => shown(row) < 2)) {
-    assert.equal(of(cl.id).filter((item) => item.done).length, 0);
-  }
-});
-
 /* A fresh stand database holds no order docs, so getAll returns the rows by key: the ids have to
    sort into the order the stand shows. */
 test("row keys sort into the intended order", () => {
-  const ids = data.checklists.map((cl) => cl.id);
-  assert.equal([...ids].sort().join(), ids.join());
+  const keys = ids(data.checklists);
+  assert.equal([...keys].sort().join(), keys.join());
   for (const cl of live) {
-    const keys = of(cl.id).filter((item) => !item.archived).map((item) => item.id);
-    assert.equal([...keys].sort().join(), keys.join(), cl.id);
+    const inList = ids(of(cl.id).filter((item) => !item.archived));
+    assert.equal([...inList].sort().join(), inList.join(), cl.id);
   }
 });
 
@@ -141,8 +127,7 @@ test("a seeded stand carries the given settings, and only them", async () => {
     bulk: { kind: "list", ids: ["somewhere-else"] },
   });
   assert.deepEqual(conn.docs.map((doc) => doc.key), [UI_KEY]);
-  // The seed built its object in another realm; the copy is what strict comparison accepts.
-  const { bulk, ...carried } = JSON.parse(JSON.stringify(conn.docs[0].value));
+  const { bulk, ...carried } = plain(conn.docs[0].value);
   assert.deepEqual(carried, {
     theme: "dark",
     lang: "ru",

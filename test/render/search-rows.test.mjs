@@ -3,94 +3,59 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { item, list } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
-import { fakeNode } from "../../testkit/fake-dom.mjs";
+import { list } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
+import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
 
-const state = { items: [] };
-let painted = [];
-
-const env = {
-  state,
-  found: null,
-  t: (key) => key,
-  isMuted: () => false,
-  paintHead: (node, cl, open) => {
-    node.open = open;
-  },
-  withoutArchived: (items, checklistId) => items.filter((i) => i.checklistId === checklistId && !i.archived),
-  paintItem: (node) => painted.push(node.dataset.id),
-  buildItem: (row) => {
-    painted.push(row.id);
-    return fakeNode({ classes: ["item"], id: row.id });
-  },
-};
-
-const { paintChecklist } = vm(
-  [slice("reconcile"), slice("paintChecklist"), "({ paintChecklist })"],
-  env,
-);
-
-function board(rows) {
-  painted = [];
-  const host = fakeNode({ classes: ["items"], children: rows });
-  const hint = fakeNode({ classes: ["card__empty"] });
-  const card = fakeNode({ classes: ["card"], kind: "list", id: "L1", children: [
-    fakeNode({ classes: ["card__body"], children: [hint, host] }),
-  ] });
-  return { card, host, hint };
-}
-
-const row = (id) => fakeNode({ classes: ["item"], id });
 const itemRow = (id) => ({ id, checklistId: "L1" });
 const byId = (id, ranges = [[0, 1]]) => new Map([[id, ranges]]);
+const NONE = { byItems: true, expand: new Set(), items: new Map(), titles: new Map() };
+const HIT = (id) => ({ byItems: true, expand: new Set(["L1"]), items: byId(id), titles: new Map() });
 
 test("only the matching items stay in the body of a searched list", () => {
-  const [a, b] = [row("i1"), row("i2")];
-  const { card, host } = board([a, b]);
+  const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
   state.items = [itemRow("i1"), itemRow("i2")];
-  env.found = { byItems: true, expand: new Set(["L1"]), items: byId("i1"), titles: new Map() };
+  env.found = HIT("i1");
   paintChecklist(card, list("L1", { expanded: false }));
-  assert.deepEqual(host.children.map((node) => node.dataset.id), ["i1"]);
+  assert.equal(idsOf(host), "i1");
 });
 
 test("a searched list opens without touching what the user left it as", () => {
-  const { card } = board([]);
+  const { state, env, card, paintChecklist } = paintHarness([]);
   state.items = [itemRow("i1")];
   const cl = list("L1", { expanded: false });
-  env.found = { byItems: true, expand: new Set(["L1"]), items: byId("i1"), titles: new Map() };
+  env.found = HIT("i1");
   paintChecklist(card, cl);
   assert.equal(card.open, true, "open for the search");
   assert.equal(card.querySelector(".card__body").hidden, false);
   assert.equal(cl.expanded, false, "the saved state is untouched");
 
-  env.found = { byItems: true, expand: new Set(), items: new Map(), titles: new Map() };
+  env.found = NONE;
   paintChecklist(card, cl);
   assert.equal(card.open, false, "left as the user had it");
   assert.equal(card.querySelector(".card__body").hidden, true);
 });
 
 test("lists-only search keeps every item inside", () => {
-  const [a, b] = [row("i1"), row("i2")];
-  const { card, host } = board([a, b]);
+  const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
   state.items = [itemRow("i1"), itemRow("i2")];
   env.found = { byItems: false, expand: new Set(), items: new Map(), titles: byId("L1") };
   paintChecklist(card, list("L1", { expanded: true }));
-  assert.deepEqual(host.children.map((node) => node.dataset.id), ["i1", "i2"]);
+  assert.equal(idsOf(host), "i1,i2");
 });
 
 test("an empty body says what is empty", () => {
-  state.items = [itemRow("i1")];
-  env.found = { byItems: true, expand: new Set(), items: new Map(), titles: new Map() };
-  const nothing = board([]);
-  paintChecklist(nothing.card, list("L1", { expanded: true }));
-  assert.equal(nothing.hint.hidden, false);
-  assert.equal(nothing.hint.textContent, "empty_items_match", "items exist, none of them matches");
+  const some = paintHarness([]);
+  some.env.found = NONE;
+  some.state.items = [itemRow("i1")];
+  some.paintChecklist(some.card, list("L1", { expanded: true }));
+  assert.equal(some.hint.hidden, false);
+  assert.equal(some.hint.textContent, "empty_items_match", "items exist, none of them matches");
 
-  state.items = [];
-  const empty = board([]);
-  paintChecklist(empty.card, list("L1", { expanded: true }));
-  assert.equal(empty.hint.textContent, "empty_items", "the list itself is empty");
+  const none = paintHarness([]);
+  none.env.found = NONE;
+  none.paintChecklist(none.card, list("L1", { expanded: true }));
+  assert.equal(none.hint.textContent, "empty_items", "the list itself is empty");
 });
 
 /* ---------- the line itself ---------- */
@@ -125,10 +90,7 @@ const paintEnv = {
   found: null,
 };
 
-const { paintText, fitMatches } = vm(
-  [slice("HIT_LEAD"), slice("hitRanges"), slice("paintText"), slice("fitMatches"), "({ paintText, fitMatches })"],
-  paintEnv,
-);
+const { paintText, fitMatches } = sliceVm(["HIT_LEAD", "hitRanges", "paintText", "fitMatches"], paintEnv);
 
 test("text without a match stays a single string", () => {
   const node = label("i1", 0);

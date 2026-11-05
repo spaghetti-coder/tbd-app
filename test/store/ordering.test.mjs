@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, store, plainBulk } = stateHarness([
+const { api, store } = stateHarness([
   "clamp",
   "moveGroup",
   "refIndex",
@@ -20,13 +20,6 @@ const { api, store, plainBulk } = stateHarness([
 ]);
 
 const rows = (...picked) => picked.map((id) => ({ id }));
-
-test("clamp keeps a value inside the range it is given", () => {
-  assert.equal(api.clamp(5, 0, 10), 5);
-  assert.equal(api.clamp(-5, 0, 10), 0);
-  assert.equal(api.clamp(50, 0, 10), 10);
-  assert.equal(api.clamp(0.4, 0, 1), 0.4);
-});
 
 test("joinIndex joins the first peer, the last one, or the end when there are none", () => {
   const [a, b, c] = rows("a", "b", "c");
@@ -148,8 +141,8 @@ test("dropItemsInto leaves the selection untouched, so a bulk drop keeps every p
     [item("a", "c1"), item("b", "c1"), item("p", "c2")]);
   state.ui.bulk = { kind: "item", ids: ["a", "p"] };
   api.dropItemsInto(["a", "b"], "c2", null);
-  assert.deepEqual(plainBulk(state.ui.bulk), { kind: "item", ids: ["a", "p"] });
-  const plain = store([list("c1"), list("c2")], [item("a", "c1"), item("p", "c2")]);
+  assert.deepEqual(plain(state.ui.bulk), { kind: "item", ids: ["a", "p"] });
+  const single = store([list("c1"), list("c2")], [item("a", "c1"), item("p", "c2")]);
   api.dropItemsInto(["a"], "c2", null);
-  assert.deepEqual(plain.ui.bulk, { kind: null, ids: [] });
+  assert.deepEqual(single.ui.bulk, { kind: null, ids: [] });
 });

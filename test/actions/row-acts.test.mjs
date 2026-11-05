@@ -2,28 +2,25 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
 function harness({ checklists = [], items = [], editing, found = null } = {}) {
   const calls = [];
   const find = (rows) => (id) => rows.find((row) => row.id === id);
-  const onRowAct = vm(
-    [slice("flipFlag"), slice("ROW_ACTS"), slice("onRowAct"), "onRowAct"],
-    {
-      state: { ui: { editing } },
-      found,
-      findList: find(checklists),
-      findItem: find(items),
-      markDirty: (kind, id) => calls.push(`markDirty:${kind}:${id}`),
-      queueSave: () => calls.push("queueSave"),
-      repaintRow: (kind, id) => calls.push(`repaintRow:${kind}:${id}`),
-      togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
-      startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),
-      addItem: (id) => calls.push(`addItem:${id}`),
-      openEntityMenu: (kind, id, trigger) => calls.push(`openEntityMenu:${kind}:${id}:${trigger.name}`),
-      commitEditor: () => calls.push("commitEditor"),
-    },
-  );
+  const { onRowAct } = sliceVm(["flipFlag", "ROW_ACTS", "onRowAct"], {
+    state: { ui: { editing } },
+    found,
+    findList: find(checklists),
+    findItem: find(items),
+    markDirty: (kind, id) => calls.push(`markDirty:${kind}:${id}`),
+    queueSave: () => calls.push("queueSave"),
+    repaintRow: (kind, id) => calls.push(`repaintRow:${kind}:${id}`),
+    togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
+    startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),
+    addItem: (id) => calls.push(`addItem:${id}`),
+    openEntityMenu: (kind, id, trigger) => calls.push(`openEntityMenu:${kind}:${id}:${trigger.name}`),
+    commitEditor: () => calls.push("commitEditor"),
+  });
   const row = {};
   return { calls, onRowAct, row };
 }

@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 // Virtual clock: timers fire only when the test advances it, in due order.
@@ -58,10 +58,8 @@ function control() {
 
 function rig() {
   const timers = clock();
-  const { demoHold } = vm(
-    [slice("DEMO_HOLD"), slice("demoHold"), "({ demoHold })"],
-    { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout },
-  );
+  const { demoHold } = sliceVm(["DEMO_HOLD", "demoHold"],
+    { setTimeout: timers.setTimeout, clearTimeout: timers.clearTimeout });
   const button = control();
   const bar = fakeNode({ classes: ["hold"] });
   const taps = [];
@@ -90,28 +88,27 @@ test("the fill starts when the silent window ends", () => {
   assert.equal(filling(r), true);
 });
 
-test("releasing mid-fill is a cancelled hold: the bar resets, the click is swallowed", () => {
-  const r = rig();
-  r.button.fire("pointerdown");
-  r.timers.advance(900);
-  assert.equal(filling(r), true);
-  r.button.fire("pointerup");
-  assert.equal(filling(r), false);
-  r.timers.advance(10000);
-  assert.equal(r.holds.length, 0);
-  assert.equal(r.holdConsumed(), true, "a broken hold is a hold, not a tap");
-  assert.equal(r.taps.length, 0);
-});
-
-test("leaving the button mid-fill cancels the same way", () => {
-  const r = rig();
-  r.button.fire("pointerdown");
-  r.timers.advance(900);
-  r.button.fire("pointerleave");
-  assert.equal(filling(r), false);
-  r.timers.advance(10000);
-  assert.equal(r.holds.length, 0);
-  assert.equal(r.holdConsumed(), true);
+// [press event, release event, note] - the pointer and the keyboard path take the same shape.
+test("released mid-fill is a cancelled hold: the bar resets, and it is neither a tap nor a hold", () => {
+  const rows = [
+    ["pointerup", null, "letting go"],
+    ["pointerleave", null, "leaving the button"],
+    ["keyup", "Enter", "releasing the key"],
+  ];
+  for (const [up, key, note] of rows) {
+    const r = rig();
+    const event = key ? { key } : {};
+    r.button.fire("pointerdown", event);
+    r.button.fire("keydown", event);
+    r.timers.advance(900);
+    assert.equal(filling(r), true, `${note}: the bar is filling`);
+    r.button.fire(up, event);
+    assert.equal(filling(r), false, `${note}: the bar is reset`);
+    r.timers.advance(10000);
+    assert.equal(r.holds.length, 0, `${note}: no hold`);
+    assert.equal(r.taps.length, 0, `${note}: and not a tap either`);
+    assert.equal(r.holdConsumed(), true, `${note}: a broken hold swallows the click`);
+  }
 });
 
 test("the full hold lands once, and the trailing click is swallowed", () => {
@@ -166,17 +163,5 @@ test("Enter held for the full hold lands it, and its keyup stays silent", () => 
   r.timers.advance(1800);
   assert.equal(r.holds.length, 1);
   r.button.fire("keyup", { key: "Enter" });
-  assert.equal(r.taps.length, 0);
-});
-
-test("Enter released mid-fill cancels: no hold, no tap", () => {
-  const r = rig();
-  r.button.fire("keydown", { key: "Enter" });
-  r.timers.advance(900);
-  assert.equal(filling(r), true);
-  r.button.fire("keyup", { key: "Enter" });
-  assert.equal(filling(r), false);
-  r.timers.advance(10000);
-  assert.equal(r.holds.length, 0);
   assert.equal(r.taps.length, 0);
 });

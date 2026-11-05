@@ -2,41 +2,12 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 let board = [];
-
-const { GESTURE, aim, timers, setDrag, setScrolling, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget } = vm(
-  [
-    slice("GESTURE"),
-    "let drag = null;",
-    "let autoScrolling = false;",
-    "const timers = { armed: [], cleared: 0 };",
-    "function setTimeout(fn, ms) { timers.armed.push(ms); return timers.armed.length; }",
-    "function clearTimeout() { timers.cleared++; }",
-    slice("rowById"),
-    slice("collapsedHeadAt"),
-    slice("clearCollapsedTarget"),
-    slice("handleHover"),
-    // Only the aim is under test; the layout retarget() drives is stubbed out.
-    "function cloneCenter() { return aim.y; }",
-    "function targetContainer() { return aim.container; }",
-    "function indexAt() { return 0; }",
-    "function moveClone() {}",
-    "function placeGap() {}",
-    slice("retarget"),
-    "const aim = { y: 0, container: null };",
-    "({ GESTURE, aim, timers, setDrag: (value) => { drag = value; }, setScrolling: (value) => { autoScrolling = value; }, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget });",
-  ],
-  {
-    CSS: { escape: (id) => id },
-    document: {
-      querySelectorAll: () => board.filter((card) => !card.classes.has("is-open")).map(headOf),
-      querySelector: (sel) => board.find((card) => card.dataset.id === /data-id="([^"]+)"/.exec(sel)[1]) ?? null,
-    },
-  },
-);
+const timers = { armed: [], cleared: 0 };
+const aim = { y: 0, container: null };
 
 // A collapsed card is its head: the body is hidden, so both share a rect.
 function card(id, top, bottom, { open = false } = {}) {
@@ -52,8 +23,30 @@ function card(id, top, bottom, { open = false } = {}) {
 
 const headOf = (node) => node.querySelector(":scope > .card__head");
 
-// timers.armed comes back as the VM realm's array, so copy it into a plain one.
-const armed = () => [...timers.armed];
+const hoverBox = {
+  drag: null,
+  autoScrolling: false,
+  setTimeout: (fn, ms) => {
+    timers.armed.push(ms);
+    return timers.armed.length;
+  },
+  clearTimeout: () => { timers.cleared += 1; },
+  // Only the aim is under test; the layout retarget() drives is stubbed out.
+  cloneCenter: () => aim.y,
+  targetContainer: () => aim.container,
+  indexAt: () => 0,
+  moveClone: () => {},
+  placeGap: () => {},
+  CSS: { escape: (id) => id },
+  document: {
+    querySelectorAll: () => board.filter((card) => !card.classes.has("is-open")).map(headOf),
+    querySelector: (sel) => board.find((node) => node.dataset.id === /data-id="([^"]+)"/.exec(sel)[1]) ?? null,
+  },
+};
+
+const { GESTURE, collapsedHeadAt, retarget, handleHover, clearCollapsedTarget } = sliceVm(
+  ["GESTURE", "rowById", "collapsedHeadAt", "clearCollapsedTarget", "handleHover", "retarget"], hoverBox,
+);
 
 const dragState = (over = null) => ({
   kind: "item",
@@ -69,53 +62,47 @@ const dragState = (over = null) => ({
 // A is at the top, C below it, with a gap in between that belongs to neither.
 function setup(held = null) {
   board = [card("A", 0, 60), card("C", 300, 360)];
-  const drag = dragState(held);
-  setDrag(drag);
   timers.armed.length = 0;
   timers.cleared = 0;
-  setScrolling(false);
-  return { A: board[0], C: board[1], drag };
+  hoverBox.autoScrolling = false;
+  hoverBox.drag = dragState(held);
+  return { A: board[0], C: board[1], drag: hoverBox.drag };
 }
 
-test("the aim lands on the closed head it is over", () => {
-  const { A, C } = setup();
-  assert.equal(collapsedHeadAt(30), headOf(A));
-  assert.equal(collapsedHeadAt(330), headOf(C));
-  assert.equal(collapsedHeadAt(200), null, "the strip between two lists is no target");
-});
-
-test("a list that is not held is only hit inside its own rect", () => {
-  setup();
-  assert.equal(collapsedHeadAt(290), null, "10px above C is still nothing");
-  assert.equal(collapsedHeadAt(370), null, "10px below C is still nothing");
-});
-
-test("jitter on the held target keeps it", () => {
-  const { C } = setup("C");
-  assert.equal(collapsedHeadAt(300 - 8), headOf(C), "8px above the top edge");
-  assert.equal(collapsedHeadAt(360 + 8), headOf(C), "8px below the bottom edge");
-  assert.equal(collapsedHeadAt(300 - GESTURE.hoverPad), headOf(C), "right on the pad");
-  assert.equal(collapsedHeadAt(68), null, "a neighbour list gets no pad");
-});
-
-test("aiming further than the pad away releases the target", () => {
-  setup("C");
-  assert.equal(collapsedHeadAt(300 - 30), null);
-  assert.equal(collapsedHeadAt(360 + 30), null);
+// [held id, aim y, expected card id, note]
+test("the aim lands on the closed head it is over, and holds within the pad of its own target", () => {
+  const rows = [
+    [null, 30, "A"],
+    [null, 330, "C"],
+    [null, 200, null, "the strip between two lists is no target"],
+    [null, 290, null, "10px above C is still nothing"],
+    [null, 370, null, "10px below C is still nothing"],
+    ["C", 292, "C", "8px above the top edge"],
+    ["C", 368, "C", "8px below the bottom edge"],
+    ["C", 288, "C", "right on the pad"],
+    ["C", 68, null, "a neighbour list gets no pad"],
+    ["C", 270, null, "further than the pad releases the target"],
+    ["C", 390, null, "and so does it below"],
+  ];
+  for (const [over, y, want, note] of rows) {
+    const { A, C } = setup(over);
+    const heads = { A: headOf(A), C: headOf(C) };
+    assert.equal(collapsedHeadAt(y), want && heads[want], `${note ?? `${y} held by ${over}`}`);
+  }
 });
 
 test("a scrolling page does not arm the hold, a standing one does", () => {
   const { C, drag } = setup();
   aim.y = 330;
   aim.container = null;
-  setScrolling(true);
+  hoverBox.autoScrolling = true;
   retarget();
-  assert.deepEqual(armed(), [], "no hold while the page runs");
+  assert.deepEqual(timers.armed, [], "no hold while the page runs");
   assert.equal(drag.collapsedId, null);
   assert.equal(C.classes.has("is-drop-hover"), false);
-  setScrolling(false);
+  hoverBox.autoScrolling = false;
   retarget();
-  assert.deepEqual(armed(), [GESTURE.hover]);
+  assert.deepEqual(timers.armed, [GESTURE.hover]);
   assert.equal(drag.collapsedId, "C");
 });
 
@@ -125,9 +112,9 @@ test("hovering marks the target and parks the placeholder without hiding it", ()
   assert.equal(C.classes.has("is-drop-hover"), true);
   assert.equal(drag.gap.classes.has("is-standby"), true);
   assert.equal(drag.gap.style.display, undefined, "display is left alone, so the height stays");
-  assert.deepEqual(armed(), [GESTURE.hover]);
+  assert.deepEqual(timers.armed, [GESTURE.hover]);
   handleHover(headOf(C));
-  assert.deepEqual(armed(), [GESTURE.hover], "staying on the same target does not restart the hold");
+  assert.deepEqual(timers.armed, [GESTURE.hover], "staying on the same target does not restart the hold");
   assert.equal(timers.cleared, 1);
   clearCollapsedTarget();
   assert.equal(C.classes.has("is-drop-hover"), false);
@@ -138,50 +125,51 @@ test("hovering marks the target and parks the placeholder without hiding it", ()
 /* ---------- auto-scroll frames ---------- */
 
 const page = { y: 0, max: 1000, viewport: 900 };
-const frameBox = {
-  scrollBy: (dx, dy) => {
-    page.y = Math.max(0, Math.min(page.max, page.y + dy));
+const frames = [];
+const scrollCalls = [];
+const scrollBox = {
+  pointerY: 0,
+  autoScrolling: false,
+  scrollRaf: 0,
+  panelDrag: null,
+  drag: { kind: "item" },
+  scrollBy: (dx, dy) => { page.y = Math.max(0, Math.min(page.max, page.y + dy)); },
+  requestAnimationFrame: (fn) => {
+    frames.push(fn);
+    return frames.length;
   },
+  cancelAnimationFrame: () => { frames.length = 0; },
+  retarget: () => scrollCalls.push(scrollBox.autoScrolling ? "scrolling" : "held"),
 };
-Object.defineProperty(frameBox, "innerHeight", { get: () => page.viewport });
-Object.defineProperty(frameBox, "scrollY", { get: () => page.y });
-const { start, run, stop, scrolling } = vm(
-  [
-    slice("GESTURE"),
-    slice("clamp"),
-    slice("ramp"),
-    "let pointerY = 0;",
-    "let autoScrolling = false;",
-    "let scrollRaf = 0;",
-    "let panelDrag = null;",
-    "const drag = { kind: \"item\" };",
-    "const frames = [];",
-    "const calls = [];",
-    "function requestAnimationFrame(fn) { frames.push(fn); return frames.length; }",
-    "function cancelAnimationFrame() { frames.length = 0; }",
-    "function retarget() { calls.push(autoScrolling ? \"scrolling\" : \"held\"); }",
-    slice("startAutoScroll"),
-    slice("stopAutoScroll"),
-    "({",
-    "  start: () => { calls.length = 0; startAutoScroll(); },",
-    "  run: (pointer, times) => {",
-    "    pointerY = pointer;",
-    "    for (let i = 0; i < times; i++) { const step = frames.shift(); if (step) step(); }",
-    "    return calls.join(\",\");",
-    "  },",
-    "  stop: stopAutoScroll,",
-    "  scrolling: () => autoScrolling,",
-    "});",
-  ],
-  frameBox,
+Object.defineProperty(scrollBox, "innerHeight", { get: () => page.viewport });
+Object.defineProperty(scrollBox, "scrollY", { get: () => page.y });
+
+const { startAutoScroll, stopAutoScroll } = sliceVm(
+  ["GESTURE", "clamp", "ramp", "startAutoScroll", "stopAutoScroll"], scrollBox,
 );
+
+const start = () => {
+  scrollCalls.length = 0;
+  startAutoScroll();
+};
+const run = (pointer, times) => {
+  scrollBox.pointerY = pointer;
+  for (let i = 0; i < times; i += 1) {
+    const step = frames.shift();
+    if (step) {
+      step();
+    }
+  }
+  return scrollCalls.join(",");
+};
+const scrolling = () => scrollBox.autoScrolling;
 
 test("auto-scroll retargets while it moves and once more when it runs out of page", () => {
   page.y = 994;
   start();
   assert.equal(run(page.viewport - 12, 3), "scrolling,held", "the hold arms on the frame the scroll stops");
   assert.equal(scrolling(), false);
-  stop();
+  stopAutoScroll();
   assert.equal(scrolling(), false, "stopping clears the flag");
 });
 
@@ -194,35 +182,44 @@ test("auto-scroll leaves the aim alone off the edges", () => {
 
 /* ---------- the drop at the end of a drag ---------- */
 
-const { drop } = vm([
-  "let drag = null;",
-  "const calls = [];",
+const dropCalls = [];
+const held = [];
+let cancelled = 0;
+const dropBox = {
+  drag: null,
   // The marker placed by the last frame and the one the current clone position asks for.
-  "const placed = { id: \"old\", remove() {} };",
-  "const live = { id: \"new\", remove() {} };",
-  "function retarget() { calls.push(\"retarget\"); drag.gap = live; }",
-  "function siblingId(gap) { calls.push(gap.id); return gap.id; }",
-  "let cancelled = 0;",
-  // The card that was held as a collapsed drop target; endDrag has to take its progress bar off.
-  "const held = [];",
-  "function rowById(kind, id) { return id ? { classList: { remove: (name) => held.push(name) } } : null; }",
-  "function cancelAnimationFrame() { cancelled++; }",
-  "function clearTimeout() {}",
-  "function stopAutoScroll() {}",
-  "function render() {}",
-  "const document = { documentElement: { classList: { remove() {} } } };",
-  slice("endDrag"),
-  "({",
-  "  drop: (pending, collapsedId) => {",
-  "    drag = { kind: \"item\", ids: [\"a\"], gap: placed, clone: { remove() {} }, hoverTimer: 0, container: null, collapsedId, raf: pending ? 7 : 0 };",
-  "    calls.length = 0;",
-  "    held.length = 0;",
-  "    const before = cancelled;",
-  "    endDrag(false);",
-  "    return { calls: calls.join(\",\"), cancelled: cancelled - before, held: held.join(\",\") };",
-  "  },",
-  "});",
-]);
+  placed: { id: "old", remove() {} },
+  live: { id: "new", remove() {} },
+  retarget: () => {
+    dropCalls.push("retarget");
+    dropBox.drag.gap = dropBox.live;
+  },
+  siblingId: (gap) => {
+    dropCalls.push(gap.id);
+    return gap.id;
+  },
+  // The card that was held as a collapsed drop target; endDrag has to take its hold bar off.
+  rowById: (kind, id) => (id ? { classList: { remove: (name) => held.push(name) } } : null),
+  cancelAnimationFrame: () => { cancelled += 1; },
+  clearTimeout: () => {},
+  stopAutoScroll: () => {},
+  render: () => {},
+  document: { documentElement: { classList: { remove() {} } } },
+};
+
+const { endDrag } = sliceVm(["endDrag"], dropBox);
+
+const drop = (pending, collapsedId) => {
+  dropBox.drag = {
+    kind: "item", ids: ["a"], gap: dropBox.placed, clone: { remove() {} }, hoverTimer: 0,
+    container: null, collapsedId, raf: pending ? 7 : 0,
+  };
+  dropCalls.length = 0;
+  held.length = 0;
+  const before = cancelled;
+  endDrag(false);
+  return { calls: dropCalls.join(","), cancelled: cancelled - before, held: held.join(",") };
+};
 
 test("a drop with a frame still pending retargets first", () => {
   const dropped = drop(true);

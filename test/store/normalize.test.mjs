@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, plainBulk } = stateHarness(["normalize", "defaults", "validBulk", "normalizeSearch", "clamp"]);
+const { api } = stateHarness(["normalize", "defaults", "validBulk", "normalizeSearch", "clamp"]);
 
 test("normalize drops items whose checklist is gone", () => {
   const out = api.normalize({
@@ -32,9 +32,9 @@ test("normalize keeps the theme, panel and bulk rules", () => {
   assert.equal(api.normalize({ version: 1, ui: { bulk: { kind: "weird", ids: ["a"] } } }).ui.bulk.kind, null);
   assert.deepEqual(api.normalize({ version: 1, ui: { bulk: { kind: "item", ids: ["a"] } } }).ui.bulk,
     { kind: "item", ids: ["a"] });
-  assert.deepEqual(plainBulk(api.normalize({ version: 1, ui: { bulk: { kind: "item", ids: "abc" } } }).ui.bulk),
+  assert.deepEqual(plain(api.normalize({ version: 1, ui: { bulk: { kind: "item", ids: "abc" } } }).ui.bulk),
     { kind: null, ids: [] }, "ids has to be a list");
-  assert.deepEqual(plainBulk(api.normalize({ version: 1, ui: { bulk: { kind: "list" } } }).ui.bulk),
+  assert.deepEqual(plain(api.normalize({ version: 1, ui: { bulk: { kind: "list" } } }).ui.bulk),
     { kind: null, ids: [] });
   const legacy = api.normalize({ version: 1, ui: { bulk: { kind: "item", checklistId: "c1", ids: ["a"] } } }).ui.bulk;
   assert.equal(legacy.kind, "item", "a selection saved by an older build still restores");

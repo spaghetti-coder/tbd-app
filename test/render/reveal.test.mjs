@@ -3,28 +3,24 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
-const { revealDelta } = vm([slice("revealDelta"), "({ revealDelta })"]);
+const { revealDelta } = sliceVm(["revealDelta"]);
 
 const band = { top: 64, bottom: 500 };
-const rect = (top, bottom) => ({ top, bottom });
 
-test("a row inside the band is left alone", () => {
-  assert.equal(revealDelta(rect(100, 144), band), 0);
-  assert.equal(revealDelta(rect(64, 108), band), 0, "top edge on the band edge");
-  assert.equal(revealDelta(rect(456, 500), band), 0, "bottom edge on the band edge");
-});
-
-test("a row under the keyboard comes up by what sticks out, no further", () => {
-  assert.equal(revealDelta(rect(470, 514), band), 14);
-  assert.equal(revealDelta(rect(600, 644), band), 144, "a far row still lands on the band edge");
-});
-
-test("a row scrolled past the header comes back down to it", () => {
-  assert.equal(revealDelta(rect(20, 64), band), -44);
-});
-
-test("a row taller than the band shows its top", () => {
-  assert.equal(revealDelta(rect(60, 900), band), -4);
+// [row top, row bottom, expected scroll], the band being the area between header and keyboard.
+test("a row is scrolled just far enough to sit inside the band", () => {
+  const rows = [
+    [100, 144, 0],
+    [64, 108, 0],
+    [456, 500, 0],
+    [470, 514, 14],
+    [600, 644, 144],
+    [20, 64, -44],
+    [60, 900, -4],
+  ];
+  for (const [top, bottom, want] of rows) {
+    assert.equal(revealDelta({ top, bottom }, band), want, `${top}..${bottom}`);
+  }
 });

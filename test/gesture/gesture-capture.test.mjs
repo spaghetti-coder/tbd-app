@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
-const { rowHandle } = vm([slice("rowHandle"), "({ rowHandle })"]);
+const { rowHandle } = sliceVm(["rowHandle"]);
 
 // Shaped like tpl-checklist / tpl-item: one card head and one item, each with a mover row,
 // controls and a hidden editor. `id: null` builds the row without its data-id.

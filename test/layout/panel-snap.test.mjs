@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withEnv as restoreEnv } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { plain, withEnv as restoreEnv } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 
 const env = { innerHeight: 900, paddingBottom: "24px", topbarBottom: 68 };
 const withEnv = (patch, fn) => restoreEnv(env, patch, fn);
@@ -16,20 +16,9 @@ const box = {
   getComputedStyle: () => ({ paddingBottom: env.paddingBottom }),
 };
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
-const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached } = vm(
-  [
-    slice("GESTURE"),
-    slice("clamp"),
-    slice("sideFor"),
-    slice("cssBottomInset"),
-    slice("panelCeiling"),
-    slice("panelTopRange"),
-    slice("panelFits"),
-    slice("panelTop"),
-    slice("panelFraction"),
-    slice("detached"),
-    "({ GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached });",
-  ],
+const { GESTURE, sideFor, panelTopRange, panelFits, panelTop, panelFraction, detached } = sliceVm(
+  ["GESTURE", "clamp", "sideFor", "cssBottomInset", "panelCeiling", "panelTopRange",
+    "panelFits", "panelTop", "panelFraction", "detached"],
   box,
 );
 
@@ -37,11 +26,7 @@ const LEFT = 100;
 const RIGHT = 900;
 const SPAN = RIGHT - LEFT;
 const at = (fraction) => LEFT + SPAN * fraction;
-// The range comes back as the VM realm's array, so rebuild it from its primitives.
-const range = (height) => {
-  const [min, max] = panelTopRange(height);
-  return [min, max];
-};
+const range = (height) => plain(panelTopRange(height));
 
 test("sideFor switches docks only past 33% of the span from the current one", () => {
   const rows = [];

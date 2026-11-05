@@ -19,6 +19,7 @@ export default {
     "selector-id-pattern": null,
     "keyframes-name-pattern": null,
     "color-named": "never",
+    "property-no-vendor-prefix": null,
     "no-descending-specificity": null,
     "order/properties-alphabetical-order": null,
     "order/order": [

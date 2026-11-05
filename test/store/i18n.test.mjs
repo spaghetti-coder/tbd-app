@@ -2,10 +2,10 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 // The dictionaries are literals in the file; they are evaluated once so the tests can read them.
-const dicts = vm([slice("EN"), slice("DICTS"), "DICTS"]);
-const { actionMessage } = vm(["function t(key) { return key; }", slice("actionMessage"), "({ actionMessage })"]);
+const { DICTS: dicts } = sliceVm(["EN", "DICTS"]);
+const { actionMessage } = sliceVm(["actionMessage"], { t: (key) => key });
 
 test("actionMessage names the confirmation key for kind, count and verb", () => {
   for (const kind of ["list", "item"]) {
