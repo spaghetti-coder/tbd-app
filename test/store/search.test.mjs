@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { item, list, plain } from "../../testkit/fixtures.mjs";
-import { sliceVm } from "../../testkit/html-source.mjs";
+import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
 const { fold, searchTokens, matchRanges } = sliceVm(["folded", "fold", "searchTokens", "matchRanges"]);
@@ -45,16 +45,7 @@ test("a query of bare combining marks leaves no token and matches nothing", () =
 
 /* ---------- which rows a query lets through ---------- */
 
-const { api, store } = stateHarness([
-  "buildSearch",
-  "matchedRows",
-  "matchRanges",
-  "searchTokens",
-  "folded",
-  "fold",
-  "normalizeSearch",
-  "defaults",
-]);
+const { api, store } = stateHarness([...SEARCH, "normalizeSearch", "defaults"]);
 
 const board = (ui) => {
   store([

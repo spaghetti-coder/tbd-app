@@ -25,6 +25,7 @@ export function stateHarness(names) {
 
   return {
     api,
+    foundOf: () => sandbox.found,
     scrollTargetOf: () => sandbox.scrollTarget,
     resetScroll: () => { sandbox.scrollTarget = null; },
     toastOf: () => sandbox.lastToast,

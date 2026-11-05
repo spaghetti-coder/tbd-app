@@ -3,22 +3,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { item, list, plain } from "../../testkit/fixtures.mjs";
-import { sliceVm } from "../../testkit/html-source.mjs";
+import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
 const NAMES = [
+  ...SEARCH,
   "FLASH",
   "JUMP_FLASH",
   "gotoHit",
   "clearSearch",
   "setSearchScope",
-  "refreshSearch",
-  "buildSearch",
-  "matchedRows",
-  "matchRanges",
-  "searchTokens",
-  "folded",
-  "fold",
   "visibleChecklists",
   "indexOfVisible",
   "jumpTo",
@@ -130,8 +124,7 @@ const created = {
 };
 
 const { addChecklist, buildSearch: buildCreated } = sliceVm(
-  ["folded", "fold", "searchTokens", "matchedRows", "matchRanges", "buildSearch", "refreshSearch", "clearSearch",
-    "addChecklist", "findList"],
+  [...SEARCH, "clearSearch", "addChecklist", "findList"],
   created,
 );
 

@@ -4,13 +4,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { list } from "../../testkit/fixtures.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
 
 const itemRow = (id) => ({ id, checklistId: "L1" });
 const byId = (id, ranges = [[0, 1]]) => new Map([[id, ranges]]);
-const NONE = { byItems: true, expand: new Set(), items: new Map(), titles: new Map() };
-const HIT = (id) => ({ byItems: true, expand: new Set(["L1"]), items: byId(id), titles: new Map() });
+const NONE = { byItems: true, expand: new Set(), visible: new Set(), items: new Map(), titles: new Map() };
+const HIT = (id) => ({ byItems: true, expand: new Set(["L1"]), visible: new Set(["L1"]), items: byId(id), titles: new Map() });
 
 test("only the matching items stay in the body of a searched list", () => {
   const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
@@ -127,4 +128,74 @@ test("a match that is already visible is left alone", () => {
   fitMatches();
   assert.equal(node.children.length, 1, "re-painted only when it had to be");
   delete nodes.m;
+});
+
+/* ---------- one row under a running search ---------- */
+
+function rowHarness(found) {
+  const hit = { id: "i1", checklistId: "L1", text: "молоко" };
+  const card = fakeNode({ classes: ["card"], kind: "list", id: "L1", children: [
+    fakeNode({ classes: ["item"], kind: "item", id: "i1" }),
+  ] });
+  const painted = [];
+  const rebuilt = [];
+  const env = {
+    state: { items: [hit] },
+    found,
+    findList: (id) => (id === "L1" ? { id: "L1", expanded: true } : null),
+    findItem: (id) => (id === "i1" ? hit : null),
+    isMuted: () => false,
+    withoutArchived: (items) => items,
+    paintChecklist: (node, cl) => painted.push(`list:${cl.id}`),
+    paintItem: (node, item) => painted.push(`item:${item.id}`),
+    rowById: (kind, id) => (kind === "item" && id === "i1" ? card.children[0] : null),
+    render: () => rebuilt.push("render"),
+    renderPanel: () => {},
+    maybeReload: () => {},
+  };
+  return { card, itemRow: card.children[0], painted, rebuilt, ...sliceVm(["paintRow", "repaintRow"], env) };
+}
+
+test("a row the search keeps is painted in place", () => {
+  const { itemRow, painted, paintRow } = rowHarness(HIT("i1"));
+  assert.equal(paintRow(itemRow, "item", "i1"), true);
+  assert.deepEqual(painted, ["item:i1"]);
+});
+
+test("a row the item search dropped needs a rebuild", () => {
+  const { itemRow, painted, paintRow } = rowHarness(NONE);
+  assert.equal(paintRow(itemRow, "item", "i1"), false);
+  assert.deepEqual(painted, [], "nothing is painted for a row that is leaving");
+});
+
+test("a search over lists alone never drops an item row", () => {
+  const { itemRow, painted, paintRow } = rowHarness({ ...NONE, byItems: false });
+  assert.equal(paintRow(itemRow, "item", "i1"), true);
+  assert.deepEqual(painted, ["item:i1"]);
+});
+
+test("a list the search dropped needs a rebuild", () => {
+  const kept = rowHarness({ ...NONE, visible: new Set(["L1"]) });
+  assert.equal(kept.paintRow(kept.card, "list", "L1"), true);
+  assert.deepEqual(kept.painted, ["list:L1"]);
+
+  const dropped = rowHarness(NONE);
+  assert.equal(dropped.paintRow(dropped.card, "list", "L1"), false);
+  assert.deepEqual(dropped.painted, []);
+});
+
+test("only a row that leaves the result takes the rebuild", () => {
+  const stays = rowHarness(HIT("i1"));
+  stays.repaintRow("item", "i1");
+  assert.deepEqual(stays.painted, ["item:i1"]);
+  assert.deepEqual(stays.rebuilt, [], "a row that stays is patched in place");
+
+  const leaves = rowHarness(NONE);
+  leaves.repaintRow("item", "i1");
+  assert.deepEqual(leaves.painted, [], "a leaving row is not patched");
+  assert.deepEqual(leaves.rebuilt, ["render"], "the rebuild takes it out");
+
+  const fresh = rowHarness(HIT("i9"));
+  fresh.repaintRow("item", "i9");
+  assert.deepEqual(fresh.rebuilt, ["render"], "a row that just entered the result is rendered");
 });

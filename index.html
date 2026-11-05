@@ -1049,17 +1049,17 @@
     background: var(--surface-2);
   }
 
-  /* With a mouse the pencil action waits for hover or focus; touch always shows it. */
+  /* With a mouse the pencil action waits for hover or focus; touch always shows it. It collapses to
+     zero width, not display:none, so the keyboard and a screen reader still reach it. */
   @media (hover: hover) {
     .act--edit {
-      opacity: 0;
-      pointer-events: none;
+      overflow: hidden;
+      width: 0;
     }
 
     .card__row:hover .act--edit,
     .act--edit:focus-visible {
-      opacity: 1;
-      pointer-events: auto;
+      width: 44px;
     }
   }
 
@@ -3076,7 +3076,9 @@ function commitText(kind, id, raw) {
   }
   state.ui.editing = null;
   markDirty(kind, id);
-  // Repaint only this row: rebuilding would destroy the button that just took focus away, and its click with it.
+  // A running search counts the saved text, not the one its result was built on.
+  refreshSearch();
+  // Repaint one row: rebuilding would destroy the button that just took focus away, and its click with it.
   flushSave();
   repaintRow(kind, id);
 }
@@ -3609,7 +3611,7 @@ function repaintRow(kind, id) {
 function paintRow(row, kind, id) {
   if (kind === "list") {
     const cl = findList(id);
-    if (!cl) return false;
+    if (!cl || (found && !found.visible.has(id))) return false;
     paintChecklist(row, cl);
     return true;
   }
@@ -3617,6 +3619,10 @@ function paintRow(row, kind, id) {
   const card = row.closest(".card");
   const cl = card ? findList(card.dataset.id) : null;
   if (!item || !cl || item.checklistId !== cl.id) {
+    return false;
+  }
+  // A row the item query dropped has to leave the screen; only a rebuild takes it out.
+  if (found && found.byItems && !found.items.has(id)) {
     return false;
   }
   paintItem(row, item);
