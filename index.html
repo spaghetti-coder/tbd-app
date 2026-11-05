@@ -5323,13 +5323,7 @@ const ROW_ACTS = {
   "add-item": (kind, id) => addItem(id),
   menu: (kind, id, row, trigger) => openEntityMenu(kind, id, trigger),
   goto: (kind, id) => gotoHit(kind, id),
-  save: (kind, id, row) => {
-    const editing = state.ui.editing;
-    const input = row.querySelector(".row-edit input");
-    if (editing && input) {
-      commitText(editing.kind, editing.id, input.value);
-    }
-  },
+  save: () => commitEditor(),
 };
 
 function onRowAct(act, kind, id, row, trigger) {
@@ -5381,6 +5375,26 @@ function onListDblClick(event) {
    replaced input, and by then `editing` may point at the fresh row, whose text is empty. */
 let blurSuppress = false;
 
+/* Saving a name the row never had keeps the typing flow going: the next editor opens right away.
+   A rename only saves. The target list and the nameless state are read before the save, which
+   drops a row that is still nameless. */
+function commitEditor() {
+  const editing = state.ui.editing;
+  const row = editing && rowById(editing.kind, editing.id);
+  const input = row && row.querySelector(".row-edit input");
+  if (!input) {
+    return;
+  }
+  const created = !entityText(editing.kind, editing.id);
+  const list = editing.kind === "item" ? (findItem(editing.id) ?? {}).checklistId : editing.id;
+  const named = input.value.trim() !== "";
+  blurSuppress = true;
+  commitText(editing.kind, editing.id, input.value);
+  if (created && named && list) {
+    addItem(list);
+  }
+}
+
 function onListKeyDown(event) {
   const input = event.target;
   if (!input.classList || !input.classList.contains("input")) {
@@ -5388,20 +5402,7 @@ function onListKeyDown(event) {
   }
   if (event.key === "Enter") {
     event.preventDefault();
-    blurSuppress = true;
-    const editing = state.ui.editing;
-    const named = input.value.trim() !== "";
-    commitText(editing.kind, editing.id, input.value);
-    if (!named) return;
-    // Enter keeps the typing flow going: a fresh empty input opens right away.
-    if (editing.kind === "item") {
-      addItem(findItem(editing.id).checklistId);
-    } else {
-      const cl = findList(editing.id);
-      if (cl && withoutArchived(state.items, cl.id).length === 0) {
-        addItem(cl.id);
-      }
-    }
+    commitEditor();
     return;
   }
   if (event.key === "Escape") {
@@ -5422,6 +5423,9 @@ function onListBlur(event) {
   // A detached node's blur is a rebuild artifact, not a user commit.
   if (!input.isConnected) return;
   if (!input.classList || !input.classList.contains("input")) return;
+  // Focus handed to the row's save button: the save itself commits, and a blur must not get there
+  // first and stop the flow.
+  if (event.relatedTarget?.closest(".act--save")) return;
   const editing = state.ui.editing;
   const owner = input.closest && input.closest(".card, .item");
   // Focus may already be another row's editor by now: commit only the row that owns this input.

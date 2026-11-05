@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { slice, vm } from "../../testkit/html-source.mjs";
 
-function harness({ checklists = [], items = [], editing, input, found = null } = {}) {
+function harness({ checklists = [], items = [], editing, found = null } = {}) {
   const calls = [];
   const find = (rows) => (id) => rows.find((row) => row.id === id);
   const onRowAct = vm(
@@ -21,10 +21,10 @@ function harness({ checklists = [], items = [], editing, input, found = null } =
       startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),
       addItem: (id) => calls.push(`addItem:${id}`),
       openEntityMenu: (kind, id, trigger) => calls.push(`openEntityMenu:${kind}:${id}:${trigger.name}`),
-      commitText: (kind, id, raw) => calls.push(`commitText:${kind}:${id}:${raw}`),
+      commitEditor: () => calls.push("commitEditor"),
     },
   );
-  const row = { querySelector: () => input };
+  const row = {};
   return { calls, onRowAct, row };
 }
 
@@ -77,20 +77,10 @@ test("pick, edit, add-item and menu forward their arguments", () => {
   ]);
 });
 
-test("save commits the text of the row being edited", () => {
-  const { calls, onRowAct, row } = harness({ editing: { kind: "item", id: "i1" }, input: { value: "New" } });
+test("save routes to the editor commit", () => {
+  const { calls, onRowAct, row } = harness({ editing: { kind: "item", id: "i1" } });
   onRowAct("save", "item", "i1", row, TRIGGER);
-  assert.deepEqual(calls, ["commitText:item:i1:New"]);
-});
-
-test("save without an editor or without an input does nothing", () => {
-  const noEditor = harness({ input: { value: "New" } });
-  noEditor.onRowAct("save", "item", "i1", noEditor.row, TRIGGER);
-  assert.deepEqual(noEditor.calls, []);
-
-  const noInput = harness({ editing: { kind: "list", id: "c1" } });
-  noInput.onRowAct("save", "list", "c1", noInput.row, TRIGGER);
-  assert.deepEqual(noInput.calls, []);
+  assert.deepEqual(calls, ["commitEditor"]);
 });
 
 test("an unknown act is ignored", () => {

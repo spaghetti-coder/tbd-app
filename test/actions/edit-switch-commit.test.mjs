@@ -138,6 +138,14 @@ test("a blur from the edited row commits it", () => {
   assert.deepEqual(ctx.commits, ["item:i1:BBB"]);
 });
 
+// The save button commits on click; the blur that only hands focus to it must not commit first.
+test("a blur handed to the save button commits nothing", () => {
+  const { onListBlur, ctx, itemInput } = typed();
+  const save = fakeNode({ tag: "button", classes: ["act", "act--save"] });
+  onListBlur({ target: itemInput, relatedTarget: save });
+  assert.deepEqual(ctx.commits, []);
+});
+
 // The state swipe-right leaves behind: the list owns the editor, the item input still holds "BBB".
 test("a blur left behind by another row taking the editor commits nothing", () => {
   const { onListBlur, ctx, itemInput } = typed();
@@ -285,4 +293,69 @@ test("cancelling discards a new entity and keeps a named one", () => {
   assert.deepEqual(ids(named.checklists), ["c1"]);
   assert.equal(named.checklists[0].title, "keep");
   assert.equal(named.ui.editing, null);
+});
+
+/* ---------- what a save does with the row it named: only a first name continues ---------- */
+
+// commitEditor takes the draft from the edited row's own input, so every case hands it one.
+function flow(editing, { title = "", text = "", draft = "", onScreen = true } = {}) {
+  const lists = [{ id: "L1", title }];
+  const items = [{ id: "i1", checklistId: "L1", text }];
+  const calls = [];
+  const input = fakeNode({ tag: "input", classes: ["input"] });
+  input.value = draft;
+  const edited = fakeNode({ children: [fakeNode({ classes: ["row-edit"], children: [input] })] });
+  const ctx = {
+    state: { ui: { editing } },
+    blurSuppress: false,
+    calls,
+    rowById: () => (onScreen ? edited : null),
+    findList: (id) => lists.find((cl) => cl.id === id) ?? null,
+    findItem: (id) => items.find((row) => row.id === id) ?? null,
+    addItem: (listId) => calls.push(`addItem:${listId}`),
+    commitText: (kind, id, raw) => calls.push(`commitText:${kind}:${id}:${raw.trim()}`),
+  };
+  return { ctx, commitEditor: vm([slice("entityText"), slice("commitEditor"), "commitEditor"], ctx) };
+}
+
+test("naming a new checklist opens its first item", () => {
+  const { commitEditor, ctx } = flow({ kind: "list", id: "L1" }, { draft: "Groceries" });
+  commitEditor();
+  assert.deepEqual(ctx.calls, ["commitText:list:L1:Groceries", "addItem:L1"]);
+  assert.equal(ctx.blurSuppress, true, "the trailing blur of the replaced input is swallowed");
+});
+
+test("naming a new item opens the next one in the same checklist", () => {
+  const { commitEditor, ctx } = flow({ kind: "item", id: "i1" }, { draft: "Milk" });
+  commitEditor();
+  assert.deepEqual(ctx.calls, ["commitText:item:i1:Milk", "addItem:L1"]);
+});
+
+test("renaming saves and stops", () => {
+  const list = flow({ kind: "list", id: "L1" }, { title: "Groceries", draft: "Shopping" });
+  list.commitEditor();
+  assert.deepEqual(list.ctx.calls, ["commitText:list:L1:Shopping"]);
+
+  const item = flow({ kind: "item", id: "i1" }, { text: "Milk", draft: "Bread" });
+  item.commitEditor();
+  assert.deepEqual(item.ctx.calls, ["commitText:item:i1:Bread"]);
+});
+
+test("a still nameless row is saved without continuing", () => {
+  const { commitEditor, ctx } = flow({ kind: "list", id: "L1" }, { draft: "   " });
+  commitEditor();
+  assert.deepEqual(ctx.calls, ["commitText:list:L1:"]);
+});
+
+test("a save with no editor commits nothing", () => {
+  const { commitEditor, ctx } = flow(null, { draft: "Groceries" });
+  commitEditor();
+  assert.deepEqual(ctx.calls, []);
+  assert.equal(ctx.blurSuppress, false, "no blur is pending");
+});
+
+test("a save on a row that is no longer on screen commits nothing", () => {
+  const { commitEditor, ctx } = flow({ kind: "list", id: "L1" }, { draft: "Groceries", onScreen: false });
+  commitEditor();
+  assert.deepEqual(ctx.calls, []);
 });
