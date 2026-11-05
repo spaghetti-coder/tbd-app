@@ -1144,6 +1144,7 @@
     /* The field belongs in the title row; only the scope switches stay on their own line. */
     /* The field belongs in the title row; the scope switches go under it, in its own column. */
     .topbar__inner {
+      column-gap: 6px;
       grid-template:
         "title search acts" 56px
         ". filters ." auto / auto minmax(0, 1fr) auto;
