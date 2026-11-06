@@ -1,6 +1,7 @@
 {
   "scripts": {
     "lint:js": "node scripts/get-js.mjs index.html | npx eslint --stdin --stdin-filename=index.html",
+    "lint:tests": "npx eslint test testkit scripts",
     "lint:css": "npx stylelint index.html",
     "syntax": "node scripts/get-js.mjs index.html | node --input-type=module --check -",
     "test": "node --test"

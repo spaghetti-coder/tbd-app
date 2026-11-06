@@ -20,9 +20,14 @@ env:
 
 
 jobs:
-  lint-css:
+  lints-and-tests:
+    name: ${{ matrix.script }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        script: ["lint:js", "lint:css", "lint:tests", "test"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -30,37 +35,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run lint:css
-
-  lint-js:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run lint:js
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm test
+      - run: npm run ${{ matrix.script }}
 
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event_name != 'pull_request'
-    needs: [lint-css, lint-js, test]
+    needs: [lints-and-tests]
     steps:
       - uses: actions/checkout@v7
 
