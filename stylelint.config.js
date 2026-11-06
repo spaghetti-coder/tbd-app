@@ -11,7 +11,6 @@ export default {
     "declaration-block-no-duplicate-custom-properties": true,
     "no-duplicate-selectors": true,
     "no-empty-source": true,
-    "declaration-block-single-line-max-declarations": null,
     "rule-empty-line-before": null,
     "at-rule-empty-line-before": null,
     "comment-empty-line-before": null,
