@@ -3688,6 +3688,7 @@ function visibleBand() {
   const vv = visualViewport;
   return {
     bottom: (vv ? vv.height + vv.offsetTop : innerHeight) - (pager.hidden ? 0 : pager.offsetHeight + 8) - 8,
+    header,
     top: header + 8,
   };
 }
@@ -3705,11 +3706,27 @@ function revealDelta(rect, band) {
 
 const scrollBehavior = () => (reduce.matches ? "auto" : "smooth");
 
+/* The top edge a row has to clear. A card head sticks to the header line and paints over the gap
+   under it: an item revealed in the gap ends up behind the head, while a head pinned to that line
+   has nowhere left to be scrolled to. */
+function revealTop(row, band) {
+  const head = row.closest(".card")?.querySelector(":scope > .card__head");
+  if (!head) {
+    return band.top;
+  }
+  const rect = head.getBoundingClientRect();
+  if (row.dataset.kind === "item") {
+    return Math.max(band.top, rect.bottom);
+  }
+  return Math.abs(rect.top - band.header) < 1 ? band.header : band.top;
+}
+
 /* Scrolling has to stay on the document: when the row cannot be centred there, Chrome pans the
    visual viewport instead, and the sticky header rides out of sight with it. */
 function revealRow(row) {
-  // A card rect covers every item in it, while the editor sits in its head, which may already be stuck at the top.
-  const delta = revealDelta(rowZone(row).getBoundingClientRect(), visibleBand());
+  const band = visibleBand();
+  band.top = revealTop(row, band);
+  const delta = revealDelta(rowZone(row).getBoundingClientRect(), band);
   if (delta) {
     scrollBy({ top: delta, behavior: scrollBehavior() });
   }

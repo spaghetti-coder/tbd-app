@@ -5,10 +5,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
 
-const { revealDelta } = sliceVm(["revealDelta"]);
+const { revealDelta, revealTop } = sliceVm(["revealDelta", "revealTop"]);
 
-const band = { top: 64, bottom: 500 };
+// The header line a card head sticks to, and the band that starts 8px under it.
+const band = { header: 56, top: 64, bottom: 500 };
+
+// The row to reveal in a card whose head paints at `head`: a list row is the card itself.
+const rowUnder = (kind, head) => {
+  const item = fakeNode({ kind: "item" });
+  const card = fakeNode({
+    classes: ["card"], kind: "list",
+    children: [fakeNode({ classes: ["card__head"], rect: head }), item],
+  });
+  return kind === "item" ? item : card;
+};
 
 // [row top, row bottom, expected scroll], the band being the area between header and keyboard.
 test("a row is scrolled just far enough to sit inside the band", () => {
@@ -24,6 +36,23 @@ test("a row is scrolled just far enough to sit inside the band", () => {
   for (const [top, bottom, want] of rows) {
     assert.equal(revealDelta({ top, bottom }, band), want, `${top}..${bottom}`);
   }
+});
+
+// A card head sticks under the header and paints over the top of the band.
+test("an item revealed at the top clears the stuck head of its list", () => {
+  assert.equal(revealTop(rowUnder("item", { top: 56, bottom: 108 }), band), 108);
+});
+
+test("a head above the band costs nothing", () => {
+  assert.equal(revealTop(rowUnder("item", { top: -200, bottom: 4 }), band), 64);
+});
+
+test("a list head pinned to the header line has nowhere to be scrolled to", () => {
+  assert.equal(revealTop(rowUnder("list", { top: 56, bottom: 108 }), band), 56);
+});
+
+test("a list head shoved above the line by its own card is still revealed", () => {
+  assert.equal(revealTop(rowUnder("list", { top: 40, bottom: 92 }), band), 64);
 });
 
 // Scrolled objects come from another realm, so the recorder keeps what it was asked for.
