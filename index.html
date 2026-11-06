@@ -81,7 +81,7 @@
 
   body {
     min-height: 100dvh;
-    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
   }
 
   html.is-locked {
@@ -290,7 +290,7 @@
   .wrap {
     margin-inline: auto;
     max-width: var(--wrap);
-    padding: var(--gap) var(--gutter) 40px;
+    padding: var(--gap) var(--gutter) 0;
   }
 
   .lists {
@@ -572,10 +572,16 @@
     display: flex;
     gap: 12px;
     justify-content: center;
-    margin-top: 14px;
+    margin-top: var(--gap);
     padding-block: 10px;
     position: sticky;
     z-index: 3;
+  }
+
+  /* The bar is the page's bottom edge, so the page keeps no room under it: sticky would un-pin it
+     short of the edge at scroll end. The fixed bar below the breakpoint takes its own room. */
+  body:has(.pager:not([hidden])) {
+    padding-bottom: 0;
   }
 
   .pager__nav {
@@ -1107,8 +1113,8 @@
     }
 
     /* Out of the flow, so the page keeps the room the bar used to take. */
-    body {
-      padding-bottom: calc(var(--pager-h, 0px) + max(24px, env(safe-area-inset-bottom)));
+    body:has(.pager:not([hidden])) {
+      padding-bottom: calc(var(--pager-h, 0px) + var(--gap));
     }
   }
 
