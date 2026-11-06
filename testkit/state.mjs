@@ -11,6 +11,10 @@ export function stateHarness(names) {
     lastToast: null,
     calls: [],
     commit: () => sandbox.calls.push("commit"),
+    // The scroll a sliced function asks for lands in the same call log.
+    scrollY: 0,
+    matchMedia: () => ({ matches: false }),
+    scrollTo: () => sandbox.calls.push("toTop"),
     queueSave: () => sandbox.calls.push("queueSave"),
     flushSave: () => sandbox.calls.push("flushSave"),
     repaintRow: (kind, id) => sandbox.calls.push(`repaintRow:${kind}:${id}`),
@@ -28,6 +32,7 @@ export function stateHarness(names) {
     foundOf: () => sandbox.found,
     scrollTargetOf: () => sandbox.scrollTarget,
     resetScroll: () => { sandbox.scrollTarget = null; },
+    setScroll: (y) => { sandbox.scrollY = y; },
     toastOf: () => sandbox.lastToast,
     calls: () => sandbox.calls.join(","),
     resetCalls: () => {

@@ -22,6 +22,7 @@
     --danger: #d1453b;
     --shadow: 0 1px 2px rgb(16 20 28 / 0.07), 0 12px 32px rgb(16 20 28 / 0.10);
     --shadow-drag: 0 2px 6px rgb(16 20 28 / 0.14), 0 18px 44px rgb(16 20 28 / 0.22);
+    --shadow-up: 0 -12px 32px rgb(16 20 28 / 0.10);
     --gutter: clamp(12px, 4vw, 20px);
     --wrap: 720px;
     --topbar-h: calc(56px + env(safe-area-inset-top));
@@ -55,6 +56,7 @@
     --danger: #f0776c;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
     --shadow-drag: 0 2px 6px rgb(0 0 0 / 0.55), 0 20px 48px rgb(0 0 0 / 0.6);
+    --shadow-up: 0 -12px 32px rgb(0 0 0 / 0.45);
 
     color-scheme: dark;
   }
@@ -564,8 +566,9 @@
 
   .pager {
     align-items: center;
-    background: var(--bg);
+    background: var(--surface);
     bottom: max(0px, env(safe-area-inset-bottom));
+    box-shadow: inset 0 1px 0 var(--line), var(--shadow-up);
     display: flex;
     gap: 12px;
     justify-content: center;
@@ -1086,6 +1089,26 @@
       font-size: 14px;
       min-width: 0;
       padding-inline: 10px;
+    }
+
+    /* Overlapping the lists here, where the border alone does not separate it. */
+    .panel {
+      box-shadow: var(--shadow);
+    }
+
+    /* Edge to edge and always on the bottom edge: a short page would otherwise leave a sticky bar
+       floating where the content ends. The safe area goes inside the bar, not under it. */
+    .pager {
+      bottom: 0;
+      inset-inline: 0;
+      margin: 0;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      position: fixed;
+    }
+
+    /* Out of the flow, so the page keeps the room the bar used to take. */
+    body {
+      padding-bottom: calc(var(--pager-h, 0px) + max(24px, env(safe-area-inset-bottom)));
     }
   }
 
@@ -2901,6 +2924,7 @@ function clearSearch() {
 function setSearchScope(key) {
   state.ui.search[key] = !state.ui.search[key];
   state.ui.page = 1;
+  toTop();
   commit();
 }
 
@@ -3673,13 +3697,23 @@ function revealDelta(rect, band) {
   return 0;
 }
 
+const scrollBehavior = () => (reduce.matches ? "auto" : "smooth");
+
 /* Scrolling has to stay on the document: when the row cannot be centred there, Chrome pans the
    visual viewport instead, and the sticky header rides out of sight with it. */
 function revealRow(row) {
   // A card rect covers every item in it, while the editor sits in its head, which may already be stuck at the top.
   const delta = revealDelta(rowZone(row).getBoundingClientRect(), visibleBand());
   if (delta) {
-    scrollBy({ top: delta, behavior: reduce.matches ? "auto" : "smooth" });
+    scrollBy({ top: delta, behavior: scrollBehavior() });
+  }
+}
+
+/* A new result set - another query, another scope, another page - starts at the top: deep in the
+   old one the new one stays off screen. Not inside clearSearch, whose other callers place a row. */
+function toTop() {
+  if (scrollY > 0) {
+    scrollTo({ top: 0, behavior: scrollBehavior() });
   }
 }
 
@@ -5369,6 +5403,7 @@ function onKey(event) {
   }
   byId("search-input").blur();
   clearSearch();
+  toTop();
   commit();
 }
 
@@ -5412,11 +5447,13 @@ function bind() {
   byId("search-clear").addEventListener("click", () => {
     byId("search-input").blur();
     clearSearch();
+    toTop();
     commit();
   });
   byId("search-input").addEventListener("input", (event) => {
     state.ui.search.text = event.target.value;
     state.ui.page = 1;
+    toTop();
     commit();
   });
   byId("scope-lists").addEventListener("click", () => setSearchScope("lists"));
@@ -5428,10 +5465,12 @@ function bind() {
   byId("banner-close").addEventListener("click", hideToast);
   byId("page-prev").addEventListener("click", () => {
     state.ui.page -= 1;
+    toTop();
     commit();
   });
   byId("page-next").addEventListener("click", () => {
     state.ui.page += 1;
+    toTop();
     commit();
   });
   const lists = byId("lists");

@@ -12,6 +12,9 @@ const NAMES = [
   "JUMP_FLASH",
   "gotoHit",
   "clearSearch",
+  "reduce",
+  "scrollBehavior",
+  "toTop",
   "setSearchScope",
   "visibleChecklists",
   "indexOfVisible",
@@ -21,7 +24,7 @@ const NAMES = [
   "clamp",
 ];
 
-const { api, store, scrollTargetOf, resetScroll, calls, resetCalls } = stateHarness(NAMES);
+const { api, store, scrollTargetOf, resetScroll, setScroll, calls, resetCalls } = stateHarness(NAMES);
 
 const rows = () => ([
   list("l1", { title: "Молоко" }),
@@ -81,10 +84,12 @@ test("an archived list is not scrolled to", () => {
 test("a scope switch narrows the result and starts the paging again", () => {
   const state = search("молоко", { page: 3 });
   assert.deepEqual(api.visibleChecklists().map((cl) => cl.id), ["l1", "l2"]);
+  setScroll(800);
   api.setSearchScope("lists");
   api.refreshSearch();
   assert.deepEqual(api.visibleChecklists().map((cl) => cl.id), ["l2"]);
   assert.equal(state.ui.page, 1, "the page the query was counted on is gone");
+  assert.equal(calls(), "toTop,commit", "the new result starts at the top");
 });
 
 test("leaving the search returns the scope switches to their default", () => {
