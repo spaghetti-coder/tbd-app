@@ -44,7 +44,6 @@ export const searchStub = (answers = {}) => ({
 export const storeStub = (marks = [], calls = marks) => ({
   markDirty: (kind, id) => marks.push(`markDirty:${kind}:${id}`),
   markGone: (kind, id) => marks.push(`markGone:${kind}:${id}`),
-  markOrder: (listId) => marks.push(`markOrder:${listId}`),
   markUi: () => marks.push("markUi"),
   queueSave: () => calls.push("queueSave"),
   flushSave: () => calls.push("flushSave"),

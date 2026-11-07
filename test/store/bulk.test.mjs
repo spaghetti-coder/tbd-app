@@ -30,7 +30,7 @@ test("deleteMany removes a checklist with its items and ends the selection", () 
   api.deleteMany("list", ["c1"]);
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["p"], "the items of a deleted checklist go with it");
-  assert.equal(marks(), "markGone:item:a,markGone:item:b,markGone:list:c1,markOrder:lists",
+  assert.equal(marks(), "markGone:item:a,markGone:item:b,markGone:list:c1",
     "the deleted list names every row it takes with it, while state still holds them");
   assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
 });

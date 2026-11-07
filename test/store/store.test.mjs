@@ -14,17 +14,17 @@ test("a save with nothing dirty leaves the store alone", async () => {
   assert.deepEqual(echo.posts, [], "and no other tab is told to reload");
 });
 
-test("marks go out as rows, order docs and the ui doc with only the query in it", async () => {
+test("a save carries the marked rows, the order docs the state implies, and a ui doc with only the query", async () => {
   const h = storeHarness();
   const state = h.state([list("c1", { title: "l" })], [item("i1", "c1")],
     { search: { text: "milk", lists: false, items: true } });
   h.store.markDirty("item", "i1");
-  h.store.markOrder("c1");
   h.store.markUi();
   await h.store.flushSave();
   const [batch] = h.storage.batches;
   assert.deepEqual(ids(batch.items), ["i1"]);
   assert.deepEqual(plain(batch.docs), [
+    { key: "order:lists", value: ["c1"] },
     { key: "order:c1", value: ["i1"] },
     { key: "ui", value: { ...state.ui, search: { text: "milk" } } },
   ]);
@@ -69,13 +69,14 @@ test("one write runs at a time, and an edit made during it goes out as soon as i
   const h = storeHarness();
   h.state([list("c1")], [item("i1", "c1")]);
   h.storage.hold(true);
-  h.store.markOrder("lists");
   const first = h.store.flushSave();
   h.store.markDirty("item", "i1");
   const second = h.store.flushSave();
   assert.equal(h.storage.batches.length, 1, "the second save waits for the open transaction");
-  assert.deepEqual(plain(h.storage.batches[0].docs), [{ key: "order:lists", value: ["c1"] }],
-    "the open transaction took the marks it started with");
+  assert.deepEqual(plain(h.storage.batches[0].docs), [
+    { key: "order:lists", value: ["c1"] },
+    { key: "order:c1", value: ["i1"] },
+  ], "the open transaction took the order it started with");
 
   h.storage.release();
   await first;
@@ -115,7 +116,6 @@ test("a gone list takes its order doc with it", async () => {
   h.state([list("c1")], [item("i1", "c1")]);
   h.store.markGone("item", "i1");
   h.store.markGone("list", "c1");
-  h.store.markOrder("lists");
   await h.store.flushSave();
   const [batch] = h.storage.batches;
   assert.deepEqual(plain([batch.goneChecklists, batch.goneItems, batch.goneDocs]),

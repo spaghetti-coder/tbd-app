@@ -4,8 +4,9 @@ import { sliceVm } from "./html-source.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
-  "createStore", "writes", "orderKey", "orderValue", "clamp", "UI_KEY", "PAGE_SIZES", "defaults",
-  "normalizeSearch", "validBulk", "normalize", "applyOrder", "byOrder",
+  "createStore", "writes", "orderKey", "orderSnapshot", "orderChanges", "sameIds",
+  "clamp", "UI_KEY", "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize",
+  "applyOrder", "byOrder",
 ];
 
 // Reads come back sorted by key, the way getAll answers: no row carries an ordinal of its own.

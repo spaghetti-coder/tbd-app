@@ -5,7 +5,7 @@ import test from "node:test";
 import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, store, marks } = stateHarness([
+const { api, store } = stateHarness([
   "clamp",
   "moveGroup",
   "refIndex",
@@ -99,7 +99,6 @@ test("moveItemsTo keeps a bulk group together and in order", () => {
   assert.deepEqual(ids(state.items), ["a", "c", "b", "d", "e"]);
   api.moveItemsTo(["c", "a"], "bottom");
   assert.deepEqual(ids(state.items), ["b", "d", "a", "c", "e"]);
-  assert.equal(marks(), "markOrder:c1,markOrder:c1", "a move marks the order doc, not the rows it moved");
 });
 
 test("moveItemsTo with a lone item just leaves it where it is", () => {
