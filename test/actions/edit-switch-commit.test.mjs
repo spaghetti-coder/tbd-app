@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
+import { ids, item, list, plain, storeStub } from "../../testkit/fixtures.mjs";
 import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
@@ -43,8 +43,7 @@ function harness({ editing = null, ...shape } = {}) {
     renders: 0,
     blurSuppress: false,
     uid: () => "i2",
-    markDirty: () => {},
-    markOrder: () => {},
+    store: storeStub(),
     joinIndex: (all) => all.length,
     jumpTo: () => {},
     clearSearch: () => {},
@@ -190,12 +189,9 @@ function realPath(editing, draft) {
   shape.itemInput.value = draft;
   const ctx = {
     state: { checklists: shape.lists, items: shape.items, ui: { editing } },
-    markDirty: () => {},
-    markGone: () => {},
-    markOrder: () => {},
+    store: storeStub(),
     pruneSelection: () => {},
     refreshSearch: () => {},
-    flushSave: () => {},
     repaintRow: () => {},
     commit: () => {},
   };
@@ -219,7 +215,7 @@ test("the real save drops a nameless row and opens no editor on it", () => {
 
 /* ---------- what a save writes, rolls back or drops ---------- */
 
-const { api, store, foundOf, calls, resetCalls } = stateHarness([
+const { api, store, foundOf, calls, resetCalls, marks } = stateHarness([
   ...SEARCH,
   "commitText",
   "cancelEdit",
@@ -237,6 +233,7 @@ test("a renamed entity is saved and only its row is repainted", () => {
   assert.equal(state.checklists[0].title, "Groceries");
   assert.equal(state.ui.editing, null);
   assert.equal(calls(), "flushSave,repaintRow:list:c1");
+  assert.equal(marks(), "markDirty:list:c1", "the renamed row is marked for saving");
 
   resetCalls();
   api.commitText("item", "i1", "Milk");

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
+import { storeStub } from "../../testkit/fixtures.mjs";
 
 function harness({ checklists = [], items = [], editing, found = null } = {}) {
   const calls = [];
@@ -12,8 +13,7 @@ function harness({ checklists = [], items = [], editing, found = null } = {}) {
     found,
     findList: find(checklists),
     findItem: find(items),
-    markDirty: (kind, id) => calls.push(`markDirty:${kind}:${id}`),
-    queueSave: () => calls.push("queueSave"),
+    store: storeStub(calls),
     repaintRow: (kind, id) => calls.push(`repaintRow:${kind}:${id}`),
     togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
     startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),

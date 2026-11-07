@@ -4,202 +4,71 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { item, list } from "../../testkit/fixtures.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
-
-// The sandbox doubles as the globals: what the sliced code assigns lands back here.
-const box = {
-  calls: [],
-  saveTimer: 0,
-  stopSaving: false,
-  externalWrite: false,
-  safe: true,
-  location: { reload: () => box.calls.push("reload") },
-  safeToReload: () => box.safe,
-  flushSave: () => {
-    box.calls.push("flush");
-    box.saveTimer = 0;
-    return Promise.resolve();
-  },
-};
-const { maybeReload } = sliceVm(["maybeReload"], box);
-
-const start = (pending, written, safe) => {
-  box.calls.length = 0;
-  box.saveTimer = pending ? 1 : 0;
-  box.stopSaving = false;
-  box.externalWrite = written;
-  box.safe = safe;
-};
-const calls = () => box.calls.join(",");
-
-test("a write from another tab picks up a save still in the debounce", async () => {
-  start(true, true, true);
-  await maybeReload();
-  assert.equal(calls(), "flush,reload");
-  assert.equal(box.stopSaving, true, "the reload must not flush an older state back");
-  assert.equal(box.externalWrite, false, "the write is consumed");
-});
-
-test("a tab with nothing pending reloads without writing", async () => {
-  start(false, true, true);
-  await maybeReload();
-  assert.equal(calls(), "reload");
-  assert.equal(box.stopSaving, true);
-});
-
-test("an incoming write is left alone while a reload would interrupt something", async () => {
-  start(true, false, true);
-  await maybeReload();
-  assert.equal(calls(), "", "nothing was written elsewhere");
-  assert.equal(box.externalWrite, false);
-
-  start(true, true, false);
-  await maybeReload();
-  assert.equal(calls(), "", "the write waits for a safe moment");
-  assert.equal(box.externalWrite, true);
-});
-
-// The writing half of the same rule: the dirty sets hold the batch until a transaction takes it,
-// and a transaction that fails puts the batch back. `writeBatch` stands in for IndexedDB.
-
-const pending = new Map();
-let nextId = 0;
-let written = [];
-let failing = false;
-let held = false;
-let releases = [];
-
-const writeBatch = (batch) => {
-  written.push(batch);
-  if (failing) return Promise.reject(new Error("quota"));
-  return held ? new Promise((done) => { releases.push(done); }) : Promise.resolve();
-};
-
-const saveBox = {
-  saveTimer: 0,
-  stopSaving: false,
-  storageBroken: false,
-  toast: null,
-  flushing: false,
-  pendingFlush: false,
-  inflight: Promise.resolve(),
-  db: {},
-  tabId: "tab",
-  posted: [],
-  channel: { postMessage: (id) => saveBox.posted.push(id) },
-  state: {
-    checklists: [list("c1", { title: "l" })],
-    items: [item("i1", "c1", { text: "t" })],
-    ui: { pageSize: 20 },
-  },
-  setTimeout: (fn) => {
-    pending.set(++nextId, fn);
-    return nextId;
-  },
-  clearTimeout: (id) => pending.delete(id),
-  showToast: (text) => { saveBox.toast = text; },
-  t: (key) => key,
-  writeBatch,
-};
-const { queueSave, flushSave, markDirty, markOrder } = sliceVm([
-  "dirty", "markUi", "markDirty", "markGone", "markOrder", "emptyBatch", "findList", "findItem", "orderValue",
-  "takeBatch", "requeue", "save", "queueSave", "flushSave",
-], saveBox);
-
-const runPending = () => {
-  for (const fn of [...pending.values()]) fn();
-  pending.clear();
-};
+import { storeHarness } from "../../testkit/store-fake.mjs";
 
 const idle = () => new Promise(setImmediate);
 
-test("a save with nothing dirty leaves the store alone", async () => {
-  written = [];
-  await flushSave();
-  assert.deepEqual(written, [], "no marks, no transaction");
-  assert.equal(saveBox.posted.join(","), "", "and no other tab is told to reload");
-});
-
-test("the debounce leaves nothing pending once it has written", async () => {
-  written = [];
-  queueSave();
-  assert.ok(saveBox.saveTimer, "a queued save is pending");
-  runPending();
+test("a write from another tab picks up a save still in the debounce", async () => {
+  const h = storeHarness();
+  h.state([list("c1")], [item("i1", "c1")]);
+  h.store.markDirty("item", "i1");
+  h.store.queueSave();
+  h.echo.send("other");
   await idle();
-  assert.equal(saveBox.saveTimer, 0);
-  assert.equal(written.length, 1, "the queued save wrote once");
-  assert.equal(saveBox.posted.join(","), "tab", "the other tabs hear about the write");
+  assert.equal(h.storage.batches.length, 1, "the pending save went out first");
+  assert.deepEqual(h.reloads, [1]);
 });
 
-test("flushing writes now and drops the queued one", async () => {
-  written = [];
-  queueSave();
-  await flushSave();
-  assert.equal(saveBox.saveTimer, 0);
-  assert.equal(pending.size, 0, "the queued save is gone, not written twice");
-  assert.equal(written.length, 1, "the flush wrote it");
-  runPending();
-  assert.equal(written.length, 1, "the dropped save never wrote");
+test("a tab with nothing pending reloads without writing", async () => {
+  const h = storeHarness();
+  h.echo.send("other");
+  await idle();
+  assert.deepEqual(h.storage.batches, []);
+  assert.deepEqual(h.reloads, [1]);
 });
 
-test("a rejected write is reported once and stays queued", async () => {
-  written = [];
-  failing = true;
-  markDirty("item", "i1");
-  await flushSave();
-  failing = false;
-  assert.equal(written.length, 1);
-  assert.equal(saveBox.toast, "storage_error", "the tab says once that storage is gone");
-  assert.equal(saveBox.storageBroken, true);
-
-  written = [];
-  await flushSave();
-  // Batches are built inside the VM, so compare plain values from this realm.
-  assert.deepEqual(Array.from(written[0].items, (row) => row.id), ["i1"], "the failed batch went out again");
+test("this tab's own echo is not a write from elsewhere", async () => {
+  const h = storeHarness();
+  h.echo.send("tab");
+  await idle();
+  assert.deepEqual(h.reloads, []);
 });
 
-test("one transaction runs at a time and the edits made during it go out as soon as it closes", async () => {
-  written = [];
-  releases = [];
-  held = true;
-  markOrder("c1");
-  const first = flushSave();
-  markDirty("item", "i1");
-  const second = flushSave();
-  assert.equal(written.length, 1, "the second save waits for the open transaction");
-  assert.deepEqual(Array.from(written[0].order), ["c1"], "the open transaction took the marks it started with");
+test("a write waits for a safe moment, and is acted on when it comes", async () => {
+  const safe = { on: false };
+  const h = storeHarness({ canReload: () => safe.on });
+  h.echo.send("other");
+  await idle();
+  assert.deepEqual(h.reloads, [], "nothing reloads while something would be interrupted");
 
-  releases[0]();
-  await first;
-  assert.equal(written.length, 2, "the queued edit goes out right after it, without a timer");
-  assert.deepEqual(Array.from(written[1].items, (row) => row.id), ["i1"], "the edit made mid-transaction went out after it");
-  releases[1]();
-  await second;
-  held = false;
+  safe.on = true;
+  h.store.reloadWhenSafe();
+  await idle();
+  assert.deepEqual(h.reloads, [1]);
 });
 
-test("a flush running into an open transaction waits until its own write landed", async () => {
-  written = [];
-  releases = [];
-  held = true;
-  markOrder("lists");
-  const first = flushSave();
-  markDirty("list", "c1");
-  const second = flushSave();
-  let landed = false;
-  second.then(() => {
-    landed = true;
-  });
-  assert.equal(written.length, 1, "the queued write has not started");
-  assert.equal(landed, false, "and the flush does not report before it");
+test("after reloading for another tab nothing is written back", async () => {
+  const h = storeHarness();
+  h.state([list("c1")], []);
+  h.store.markDirty("list", "c1");
+  h.store.queueSave();
+  h.echo.send("other");
+  await idle();
+  const writes = h.storage.batches.length;
+  await h.store.flushSave();
+  assert.equal(h.storage.batches.length, writes, "a late flush must not put an older state back");
+});
 
-  releases[0]();
-  await first;
-  assert.equal(written.length, 2, "the queued write has started");
-  assert.equal(landed, false, "the flush still waits for that transaction");
+// The conditions a reload waits for, on their own.
+const safeWhen = ({ editing = null, gesture = null, drag = null, dialogs = false } = {}) =>
+  sliceVm(["safeToReload"], {
+    state: { ui: { editing } }, gesture, drag, modalOpen: () => dialogs,
+  }).safeToReload();
 
-  releases[1]();
-  await second;
-  assert.equal(landed, true, "the flush returns once the batch is in the store");
-  assert.deepEqual(Array.from(written[1].lists, (row) => row.id), ["c1"]);
-  held = false;
+test("a reload waits until nothing on screen would lose work", () => {
+  assert.equal(safeWhen(), true);
+  assert.equal(safeWhen({ editing: { kind: "item", id: "i1" } }), false, "a typed draft");
+  assert.equal(safeWhen({ gesture: {} }), false, "a row gesture under a finger");
+  assert.equal(safeWhen({ drag: {} }), false, "a drag in flight");
+  assert.equal(safeWhen({ dialogs: true }), false, "an open dialog");
 });

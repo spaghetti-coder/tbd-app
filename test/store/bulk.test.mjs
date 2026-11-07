@@ -6,7 +6,7 @@ import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { SEARCH } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { api, store } = stateHarness([
+const { api, store, marks } = stateHarness([
   ...SEARCH,
   "setBulk",
   "startBulk",
@@ -32,6 +32,8 @@ test("deleteMany removes a checklist with its items and ends the selection", () 
   api.deleteMany("list", ["c1"]);
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["p"], "the items of a deleted checklist go with it");
+  assert.equal(marks(), "markGone:item:a,markGone:item:b,markGone:list:c1,markOrder:lists",
+    "the deleted list names every row it takes with it, while state still holds them");
   assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
 });
 
@@ -53,6 +55,7 @@ test("archiveMany marks lists as list-archived and items as user-archived", () =
   assert.equal(api.findItem("b").archivedBy, "list");
   assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
   state.ui.bulk = { kind: "item", ids: ["b", "kept"] };
+  assert.equal(marks(), "markDirty:list:c1,markDirty:item:a,markDirty:list:c2,markDirty:item:b", "every archived row is marked");
   api.archiveMany("item", ["b", "kept"]);
   assert.equal(api.findItem("b").archived, true);
   assert.equal(api.findItem("b").archivedBy, "user");

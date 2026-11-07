@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { item, list, plain } from "../../testkit/fixtures.mjs";
+import { item, list, plain, storeStub } from "../../testkit/fixtures.mjs";
 import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
@@ -122,8 +122,7 @@ const created = {
   },
   uid: () => "n1",
   flushPendingEdit: () => {},
-  markDirty: () => {},
-  markOrder: () => {},
+  store: storeStub(),
   jumpTo: () => {},
   commit: () => {},
 };

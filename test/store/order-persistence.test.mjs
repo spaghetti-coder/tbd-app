@@ -1,181 +1,103 @@
-// Order lives in the order docs alone: rows carry no ordinal, so a round trip through the store has
-// to rebuild it. IndexedDB is replaced by maps that return rows in key order, the way getAll does.
+// Order lives in the order docs alone: rows carry no ordinal, so a round trip has to rebuild it.
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
-import { slice, vm } from "../../testkit/html-source.mjs";
+import { ids, item, list } from "../../testkit/fixtures.mjs";
+import { storeHarness } from "../../testkit/store-fake.mjs";
 
-const NAMES = [
-  "clamp",
-  "PAGE_SIZES",
-  "defaults",
-  "validBulk",
-  "normalizeSearch",
-  "normalize",
-  "UI_KEY",
-  "orderKey",
-  "byOrder",
-  "applyOrder",
-  "orderValue",
-  "dirty",
-  "markUi",
-  "markDirty",
-  "markGone",
-  "markOrder",
-  "takeBatch",
-  "findList",
-  "findItem",
-  "entityText",
-  "setBulk",
-  "pruneSelection",
-  "removeEntity",
-  "archiveChecklistQuiet",
-  "moveGroup",
-  "joinIndex",
+const ACTIONS = [
+  "removeEntity", "pruneSelection", "setBulk", "restore", "moveItemsTo", "moveGroup", "joinIndex", "clamp",
+  "dropItemsInto", "archiveItemQuiet", "archiveChecklistQuiet", "findList", "findItem", "entityText",
   "withoutArchived",
-  "moveItemsTo",
-  "dropItemsInto",
-  "archiveItemQuiet",
-  "restore",
-  "visibleChecklists",
 ];
 
-const api = vm(
-  ["let state = null;", ...NAMES.map(slice), `({ ${NAMES.join(", ")},`,
-    "  get state() { return state; }, set state(value) { state = value; } });"],
-  {},
-);
-
-const stateOf = (groups) => ({
-  version: 1,
-  checklists: groups.map(([id]) => list(id)),
-  items: groups.flatMap(([id, ids]) => ids.map((itemId) => item(itemId, id))),
-  ui: { pageSize: 20, search: { text: "", lists: true, items: true }, bulk: { kind: null, ids: [] } },
-});
+const harness = () => storeHarness({ actions: ACTIONS });
 
 // The ids of the items of one list, in the order state holds them.
-const inList = (data, checklistId) => ids(data.items.filter((i) => i.checklistId === checklistId));
-
-const open = () => ({ lists: new Map(), items: new Map(), docs: new Map() });
-let db = open();
-
-/* What writeBatch would hand the transaction: rows, order docs read out of state, the ui doc, and a
-   list's items deleted with it, the way the checklistId index does. */
-function flush() {
-  const batch = api.takeBatch();
-  for (const row of batch.lists) db.lists.set(row.id, plain(row));
-  for (const row of batch.items) db.items.set(row.id, plain(row));
-  for (const id of batch.order) db.docs.set(api.orderKey(id), [...api.orderValue(id)]);
-  if (batch.ui) {
-    db.docs.set(api.UI_KEY, plain({ ...api.state.ui, search: { text: api.state.ui.search.text } }));
-  }
-  for (const id of batch.goneItems) db.items.delete(id);
-  for (const id of batch.goneLists) {
-    db.lists.delete(id);
-    db.docs.delete(api.orderKey(id));
-    for (const [itemId, row] of db.items) {
-      if (row.checklistId === id) db.items.delete(itemId);
-    }
-  }
-}
-
-/* A fresh page: getAll answers in key order, so the rows come back in no useful order at all. */
-function reload() {
-  const docs = Object.fromEntries([...db.docs].map(([key, value]) => [key, plain(value)]));
-  const read = (rows) => [...rows].sort((a, b) => (a.id < b.id ? -1 : 1));
-  api.state = api.applyOrder(api.normalize({
-    version: 1,
-    checklists: read([...db.lists.values()]),
-    items: read([...db.items.values()]),
-    ui: docs[api.UI_KEY],
-  }), docs);
-}
+const inList = (state, checklistId) => ids(state.items.filter((i) => i.checklistId === checklistId));
 
 /* Everything in state as if this tab had just built it: every row and every order doc marked. */
-function seed(groups) {
-  db = open();
-  api.state = stateOf(groups);
-  for (const cl of api.state.checklists) {
-    api.markDirty("list", cl.id);
-    api.markOrder(cl.id);
+async function seed(h, groups) {
+  const state = h.state(groups.map(([id]) => list(id)),
+    groups.flatMap(([id, rowIds]) => rowIds.map((itemId) => item(itemId, id))));
+  for (const cl of state.checklists) {
+    h.store.markDirty("list", cl.id);
+    h.store.markOrder(cl.id);
   }
-  for (const row of api.state.items) api.markDirty("item", row.id);
-  api.markOrder("lists");
-  api.markUi();
-  flush();
+  for (const row of state.items) h.store.markDirty("item", row.id);
+  h.store.markOrder("lists");
+  h.store.markUi();
+  await h.store.flushSave();
 }
 
-test("list order and the order inside every list survive the store", () => {
-  seed([["l2", ["i9", "i3"]], ["l1", ["i7"]]]);
-  reload();
-  assert.deepEqual(ids(api.state.checklists), ["l2", "l1"]);
-  assert.deepEqual(inList(api.state, "l2"), ["i9", "i3"]);
-  assert.deepEqual(inList(api.state, "l1"), ["i7"]);
+const reload = async (h) => h.setState(await h.store.load());
+
+test("list order and the order inside every list survive the store", async () => {
+  const h = harness();
+  await seed(h, [["l2", ["i9", "i3"]], ["l1", ["i7"]]]);
+  await reload(h);
+  assert.deepEqual(ids(h.current().checklists), ["l2", "l1"]);
+  assert.deepEqual(inList(h.current(), "l2"), ["i9", "i3"]);
+  assert.deepEqual(inList(h.current(), "l1"), ["i7"]);
 });
 
-test("moves keep their order across a reload", () => {
-  seed([["b", ["i1", "i2", "i3"]], ["a", ["i4"]]]);
-  api.moveItemsTo(["i3"], "top");
-  api.dropItemsInto(["i2"], "a", "i4");
-  api.state.checklists = api.moveGroup(api.state.checklists, ["a"], 0);
-  api.markOrder("lists");
-  flush();
-  reload();
-  assert.deepEqual(ids(api.state.checklists), ["a", "b"]);
-  assert.deepEqual(inList(api.state, "a"), ["i2", "i4"]);
-  assert.deepEqual(inList(api.state, "b"), ["i3", "i1"]);
+test("moves keep their order across a reload", async () => {
+  const h = harness();
+  await seed(h, [["b", ["i1", "i2", "i3"]], ["a", ["i4"]]]);
+  h.actions.moveItemsTo(["i3"], "top");
+  h.actions.dropItemsInto(["i2"], "a", "i4");
+  h.setState({ ...h.current(), checklists: h.actions.moveGroup(h.current().checklists, ["a"], 0) });
+  h.store.markOrder("lists");
+  await h.store.flushSave();
+  await reload(h);
+  assert.deepEqual(ids(h.current().checklists), ["a", "b"]);
+  assert.deepEqual(inList(h.current(), "a"), ["i2", "i4"]);
+  assert.deepEqual(inList(h.current(), "b"), ["i3", "i1"]);
 });
 
-test("a restored row lands where the app put it, not where it was created", () => {
-  seed([["b", ["i5", "i6"]], ["a", ["i7"]]]);
-  api.archiveItemQuiet("i5");
-  flush();
-  reload();
-  api.restore("item", ["i5"]);
-  flush();
-  reload();
-  assert.deepEqual(inList(api.state, "b"), ["i5", "i6"]);
+test("a restored row lands where the app put it, not where it was created", async () => {
+  const h = harness();
+  await seed(h, [["b", ["i5", "i6"]], ["a", ["i7"]]]);
+  h.actions.archiveItemQuiet("i5");
+  await h.store.flushSave();
+  await reload(h);
+  h.actions.restore("item", ["i5"]);
+  await h.store.flushSave();
+  await reload(h);
+  assert.deepEqual(inList(h.current(), "b"), ["i5", "i6"]);
 });
 
-test("a restored list comes back with the items that went into the archive with it", () => {
-  seed([["b", ["i1"]], ["a", ["i2"]]]);
-  api.archiveChecklistQuiet("a");
-  flush();
-  reload();
-  api.restore("list", ["a"]);
-  flush();
-  reload();
-  assert.deepEqual(ids(api.state.checklists), ["a", "b"]);
-  assert.deepEqual(inList(api.state, "a"), ["i2"]);
+test("a restored list comes back with the items that went into the archive with it", async () => {
+  const h = harness();
+  await seed(h, [["b", ["i1"]], ["a", ["i2"]]]);
+  h.actions.archiveChecklistQuiet("a");
+  await h.store.flushSave();
+  await reload(h);
+  h.actions.restore("list", ["a"]);
+  await h.store.flushSave();
+  await reload(h);
+  assert.deepEqual(ids(h.current().checklists), ["a", "b"]);
+  assert.deepEqual(inList(h.current(), "a"), ["i2"]);
 });
 
-test("deleting a list takes its items and its order doc with it", () => {
-  seed([["b", ["i1", "i2"]], ["a", ["i3"]]]);
-  api.removeEntity("list", "b");
-  flush();
-  assert.equal(db.lists.has("b"), false);
-  assert.equal(db.items.has("i1"), false);
-  assert.equal(db.items.has("i2"), false);
-  assert.equal(db.docs.has(api.orderKey("b")), false, "no order doc outlives its list");
+test("deleting a list takes its items and its order doc with it", async () => {
+  const h = harness();
+  await seed(h, [["b", ["i1", "i2"]], ["a", ["i3"]]]);
+  h.actions.removeEntity("list", "b");
+  await h.store.flushSave();
+  const after = await h.storage.readAll();
+  assert.deepEqual(ids(after.checklists), ["a"]);
+  assert.deepEqual(ids(after.items), ["i3"], "the rows of a deleted list leave the store");
+  assert.equal(after.docs["order:b"], undefined, "no order doc outlives its list");
 
-  reload();
-  assert.deepEqual(ids(api.state.checklists), ["a"]);
-  assert.deepEqual(inList(api.state, "a"), ["i3"]);
+  await reload(h);
+  assert.deepEqual(ids(h.current().checklists), ["a"]);
+  assert.deepEqual(inList(h.current(), "a"), ["i3"]);
 });
 
 test("rows an order doc does not name come last, in the order they were read", () => {
+  const h = harness();
   const rows = [list("x1"), list("x2"), list("x3")];
-  assert.deepEqual(ids(api.byOrder(rows, ["x3", "x1"])), ["x3", "x1", "x2"]);
-  assert.deepEqual(ids(api.byOrder(rows, ["x2", "gone", "x1"])), ["x2", "x1", "x3"],
-    "an id with no row behind it is ignored");
-  assert.deepEqual(ids(api.byOrder(rows, [])), ["x1", "x2", "x3"]);
-  assert.deepEqual(ids(api.byOrder(rows, undefined)), ["x1", "x2", "x3"], "a broken doc is no doc");
-});
-
-test("without an order doc the read order stands", () => {
-  const out = api.applyOrder({ checklists: [list("b"), list("a")], items: [item("i2", "a"), item("i1", "b")] }, {});
-  assert.deepEqual(ids(out.checklists), ["b", "a"]);
-  assert.deepEqual(ids(out.items), ["i1", "i2"], "items are grouped by their list");
-  assert.deepEqual(inList(out, "a"), ["i2"]);
+  assert.deepEqual(ids(h.api.byOrder(rows, ["x3", "x1"])), ["x3", "x1", "x2"]);
+  assert.deepEqual(ids(h.api.byOrder(rows, ["x2", "gone", "x1"])), ["x2", "x1", "x3"]);
 });

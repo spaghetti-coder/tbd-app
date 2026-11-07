@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { list } from "../../testkit/fixtures.mjs";
+import { list, storeStub } from "../../testkit/fixtures.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
@@ -151,7 +151,7 @@ function rowHarness(found) {
     rowById: (kind, id) => (kind === "item" && id === "i1" ? card.children[0] : null),
     render: () => rebuilt.push("render"),
     renderPanel: () => {},
-    maybeReload: () => {},
+    store: storeStub(),
   };
   return { card, itemRow: card.children[0], painted, rebuilt, ...sliceVm(["paintRow", "repaintRow"], env) };
 }
