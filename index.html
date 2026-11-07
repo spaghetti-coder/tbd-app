@@ -2844,98 +2844,135 @@ function withoutArchived(items, checklistId) {
 /* Chars before a match that stays visible when the line is shifted to it. */
 const HIT_LEAD = 8;
 
-/* Result of the current query, rebuilt once per render: null when the search applies nothing. */
-let found = null;
 /* Phone: the field lives in a row of its own, opened by the search button. */
 let searchPanel = false;
 let focusSearch = false;
 
-/* Case- and accent-insensitive fold. Match offsets are reported against the original text, so it
-   keeps a map back: NFD and dropping marks change the length. */
-const folded = new Map();
+/* What the current query lets through and what it lights up. refresh() rebuilds the answers once per
+   render, before any of them is read; every other call reads the last refresh, so a caller never has
+   to know how a result is shaped. */
+function createSearch(getState) {
+  /* Case- and accent-insensitive fold. Match offsets are reported against the original text, so it
+     keeps a map back: NFD and dropping marks change the length. */
+  const folded = new Map();
 
-function fold(text) {
-  const cached = folded.get(text);
-  if (cached) return cached;
-  let s = "";
-  const map = [];
-  for (let i = 0; i < text.length; i++) {
-    for (const c of text[i].normalize("NFD").toLowerCase()) {
-      if (/\p{M}/u.test(c)) continue;
-      s += c;
-      map.push(i);
+  function fold(text) {
+    const cached = folded.get(text);
+    if (cached) return cached;
+    let s = "";
+    const map = [];
+    for (let i = 0; i < text.length; i++) {
+      for (const c of text[i].normalize("NFD").toLowerCase()) {
+        if (/\p{M}/u.test(c)) continue;
+        s += c;
+        map.push(i);
+      }
     }
+    const out = { s, map };
+    // shortcut: a full clear past 50k texts; upgrade to eviction by age if clears ever show up.
+    if (folded.size > 50000) folded.clear();
+    folded.set(text, out);
+    return out;
   }
-  const out = { s, map };
-  // shortcut: a full clear past 50k texts; upgrade to eviction by age if clears ever show up.
-  if (folded.size > 50000) folded.clear();
-  folded.set(text, out);
-  return out;
-}
 
-/* A token of only combining marks folds away to nothing: it must not stay in the query. */
-function searchTokens(query) {
-  return query.trim().toLowerCase().split(/\s+/).map((word) => fold(word).s).filter(Boolean);
-}
+  /* A token of only combining marks folds away to nothing: it must not stay in the query. */
+  function searchTokens(query) {
+    return query.trim().toLowerCase().split(/\s+/).map((word) => fold(word).s).filter(Boolean);
+  }
 
-/* Every token has to land inside this one text, in any order, at any offset; null = out. */
-function matchRanges(text, tokens) {
-  if (!tokens.length) return null;
-  const { s, map } = fold(text);
-  const hits = [];
-  for (const token of tokens) {
-    let at = s.indexOf(token);
-    if (at < 0) return null;
-    for (; at >= 0; at = s.indexOf(token, at + 1)) {
-      hits.push([map[at], map[at + token.length - 1] + 1]);
+  /* Whether every token lands in this text, in any order and at any offset; null = out. */
+  function matchedFold(text, tokens) {
+    const hit = fold(text);
+    for (const token of tokens) {
+      if (hit.s.indexOf(token) < 0) return null;
     }
+    return hit;
   }
-  const merged = [];
-  for (const range of hits.sort((a, b) => a[0] - b[0])) {
-    const last = merged[merged.length - 1];
-    if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
-    else merged.push(range);
-  }
-  return merged;
-}
 
-/* id → match ranges, for every live row whose text holds all the tokens. */
-function matchedRows(rows, textOf, tokens) {
-  const out = new Map();
-  for (const row of rows) {
-    if (row.archived) continue;
-    const ranges = matchRanges(textOf(row), tokens);
-    if (ranges) out.set(row.id, ranges);
+  /* Every occurrence of every token, merged. Costly per row, so only rows being painted ask for it. */
+  function mergeRanges({ s, map }, tokens) {
+    const hits = [];
+    for (const token of tokens) {
+      for (let at = s.indexOf(token); at >= 0; at = s.indexOf(token, at + 1)) {
+        hits.push([map[at], map[at + token.length - 1] + 1]);
+      }
+    }
+    const merged = [];
+    for (const range of hits.sort((a, b) => a[0] - b[0])) {
+      const last = merged[merged.length - 1];
+      if (last && range[0] <= last[1]) last[1] = Math.max(last[1], range[1]);
+      else merged.push(range);
+    }
+    return merged;
   }
-  return out;
-}
 
-function buildSearch() {
-  const s = state.ui.search;
-  const tokens = searchTokens(s.text);
-  if (!tokens.length || !(s.lists || s.items)) return null;
-  const titles = matchedRows(state.checklists, (cl) => cl.title, tokens);
-  const items = matchedRows(state.items, (item) => item.text, tokens);
-  const listsByItem = new Set(state.items.filter((i) => items.has(i.id)).map((i) => i.checklistId));
+  /* id → the folded text, for every live row whose text holds all the tokens. */
+  function matchedRows(rows, textOf, tokens) {
+    const out = new Map();
+    for (const row of rows) {
+      if (row.archived) continue;
+      const hit = matchedFold(textOf(row), tokens);
+      if (hit) out.set(row.id, hit);
+    }
+    return out;
+  }
+
+  /* Items carry a second answer: which lists hold a hit. One pass gets both; a second one is a
+     quarter of the rebuild. */
+  function matchedItems(rows, tokens) {
+    const items = new Map();
+    const lists = new Set();
+    for (const item of rows) {
+      if (item.archived) continue;
+      const hit = matchedFold(item.text, tokens);
+      if (!hit) continue;
+      items.set(item.id, hit);
+      lists.add(item.checklistId);
+    }
+    return { items, lists };
+  }
+
+  function rebuild() {
+    const st = getState();
+    const s = st.ui.search;
+    const tokens = searchTokens(s.text);
+    if (!tokens.length || !(s.lists || s.items)) return null;
+    const titles = matchedRows(st.checklists, (cl) => cl.title, tokens);
+    const { items, lists: listsByItem } = matchedItems(st.items, tokens);
+    return {
+      tokens,
+      byItems: s.items,
+      // Scopes decide what counts, and only what counts gets highlighted.
+      visible: new Set([...(s.lists ? titles.keys() : []), ...(s.items ? listsByItem : [])]),
+      expand: s.items ? listsByItem : new Set(),
+      titles: s.lists ? titles : new Map(),
+      items: s.items ? items : new Map(),
+      lit: new Map(),
+      any: titles.size > 0 || listsByItem.size > 0,
+    };
+  }
+
+  let result = null;
+
   return {
-    byItems: s.items,
-    // Scopes decide what counts, and only what counts gets highlighted.
-    visible: new Set([...(s.lists ? titles.keys() : []), ...(s.items ? listsByItem : [])]),
-    expand: s.items ? listsByItem : new Set(),
-    titles: s.lists ? titles : new Map(),
-    items: s.items ? items : new Map(),
-    any: titles.size > 0 || listsByItem.size > 0,
+    refresh() { result = rebuild(); },
+    get active() { return result !== null; },
+    get any() { return result !== null && result.any; },
+    allowsList: (id) => result === null || result.visible.has(id),
+    allowsItem: (id) => result === null || !result.byItems || result.items.has(id),
+    expands: (id) => result !== null && result.expand.has(id),
+    // Ranges go with the row they light up: a row that is not in the result has none.
+    rangesFor(id) {
+      if (result === null) return null;
+      const hit = result.items.get(id) ?? result.titles.get(id);
+      if (!hit) return null;
+      if (!result.lit.has(id)) result.lit.set(id, mergeRanges(hit, result.tokens));
+      return result.lit.get(id);
+    },
   };
 }
 
-function refreshSearch() {
-  found = buildSearch();
-}
-
-function hitRanges(id) {
-  if (!found) return null;
-  return found.items.get(id) ?? found.titles.get(id) ?? null;
-}
+const search = createSearch(() => state);
 
 /* Matches become <mark>; from > 0 shifts the line to a match that fell past the ellipsis. */
 function paintText(node, text, ranges, from = 0) {
@@ -2959,11 +2996,11 @@ function paintText(node, text, ranges, from = 0) {
 /* Rows are laid out by now, so a match past the visible edge is measurable: re-paint the line from
    just before the match and let the ellipsis cut the tail. */
 function fitMatches() {
-  if (!found) return;
+  if (!search.active) return;
   for (const mark of document.querySelectorAll("#lists .card__title mark, #lists .item__text mark")) {
     const label = mark.parentElement;
     if (mark.getBoundingClientRect().right <= label.getBoundingClientRect().right) continue;
-    const ranges = hitRanges(label.closest("[data-id]").dataset.id);
+    const ranges = search.rangesFor(label.closest("[data-id]").dataset.id);
     paintText(label, label.textContent, ranges, Math.max(1, ranges[0][0] - HIT_LEAD));
   }
 }
@@ -2972,7 +3009,7 @@ function fitMatches() {
 function clearSearch() {
   state.ui.search = { text: "", lists: true, items: true };
   searchPanel = false;
-  refreshSearch();
+  search.refresh();
 }
 
 function setSearchScope(key) {
@@ -3036,7 +3073,7 @@ function scopeChip(id, key, on) {
 }
 
 function visibleChecklists() {
-  return state.checklists.filter((c) => !c.archived && (!found || found.visible.has(c.id)));
+  return state.checklists.filter((c) => !c.archived && search.allowsList(c.id));
 }
 
 function pageCount(total) {
@@ -3159,7 +3196,7 @@ function commitText(kind, id, raw) {
   state.ui.editing = null;
   store.markDirty(kind, id);
   // A running search counts the saved text, not the one its result was built on.
-  refreshSearch();
+  search.refresh();
   // Repaint one row: rebuilding would destroy the button that just took focus away, and its click with it.
   store.flushSave();
   repaintRow(kind, id);
@@ -3392,7 +3429,7 @@ function restoreFocus() {
 
 function render() {
   captureFocus();
-  refreshSearch();
+  search.refresh();
   renderChrome();
   renderLists();
   renderPager();
@@ -3455,10 +3492,10 @@ function renderEmpty(shown) {
   empty.replaceChildren();
   if (shown > 0) return;
   // "Nothing found" only makes sense over lists that exist; without any, the screen is just empty.
-  const searched = Boolean(found) && state.checklists.some((cl) => !cl.archived);
+  const searched = search.active && state.checklists.some((cl) => !cl.archived);
   empty.append(el("span", "", searched ? t("empty_search") : t("empty")));
   // Nothing in the chosen scope, something in the wider one: say so instead of looking broken.
-  if (searched && found.any) {
+  if (searched && search.any) {
     const button = el("button", "btn btn--pill", t("search_everywhere"));
     button.addEventListener("click", () => {
       state.ui.search.lists = true;
@@ -3476,7 +3513,7 @@ function isMuted(items) {
 
 function paintChecklist(node, cl) {
   const all = withoutArchived(state.items, cl.id);
-  const open = Boolean(cl.expanded) || Boolean(found && found.expand.has(cl.id));
+  const open = Boolean(cl.expanded) || search.expands(cl.id);
   node.dataset.kind = "list";
   node.dataset.id = cl.id;
   node.classList.toggle("is-open", open);
@@ -3485,7 +3522,7 @@ function paintChecklist(node, cl) {
   const body = node.querySelector(".card__body");
   body.hidden = !open;
   if (!open) return;
-  const items = found && found.byItems ? all.filter((item) => found.items.has(item.id)) : all;
+  const items = all.filter((item) => search.allowsItem(item.id));
   const hint = body.querySelector(".card__empty");
   hint.hidden = items.length > 0;
   hint.textContent = items.length === 0 && all.length > 0 ? t("empty_items_match") : t("empty_items");
@@ -3511,15 +3548,15 @@ function paintHead(node, cl, open) {
   toggle.setAttribute("aria-expanded", open ? "true" : "false");
   toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
   // Opened by the search rather than by the user: collapsing it would hide the match they looked for.
-  toggle.disabled = Boolean(found && found.expand.has(cl.id));
+  toggle.disabled = search.expands(cl.id);
   const add = node.querySelector(".act--add");
   labelNode(add, "add_item");
   add.hidden = !open;
   labelNode(node.querySelector(".act--edit"), "a_edit");
   labelNode(node.querySelector(".act--menu"), "a_menu");
-  paintText(node.querySelector(".card__title"), cl.title || t("new_list_ph"), hitRanges(cl.id));
+  paintText(node.querySelector(".card__title"), cl.title || t("new_list_ph"), search.rangesFor(cl.id));
   const jump = node.querySelector(".act--goto");
-  jump.hidden = !(found && found.titles.has(cl.id));
+  jump.hidden = search.rangesFor(cl.id) === null;
   labelNode(jump, "a_goto");
   const bulk = state.ui.bulk;
   showPick(node.querySelector(".mark--toggle"), node.querySelector(".mark--bulk"),
@@ -3586,12 +3623,12 @@ function paintItem(node, item) {
   node.dataset.kind = "item";
   node.dataset.id = item.id;
   node.classList.toggle("is-done", item.done);
-  paintText(node.querySelector(".item__text"), item.text || t("new_item_ph"), hitRanges(item.id));
+  paintText(node.querySelector(".item__text"), item.text || t("new_item_ph"), search.rangesFor(item.id));
   const check = node.querySelector(".mark--check");
   checkBox(check, item.done, item.text || t("new_item_ph"));
   labelNode(node.querySelector(".act--menu"), "a_menu");
   const jump = node.querySelector(".act--goto");
-  jump.hidden = !(found && found.items.has(item.id));
+  jump.hidden = search.rangesFor(item.id) === null;
   labelNode(jump, "a_goto");
   const bulk = state.ui.bulk;
   showPick(check, node.querySelector(".mark--bulk"),
@@ -3693,7 +3730,7 @@ function repaintRow(kind, id) {
 function paintRow(row, kind, id) {
   if (kind === "list") {
     const cl = findList(id);
-    if (!cl || (found && !found.visible.has(id))) return false;
+    if (!cl || !search.allowsList(id)) return false;
     paintChecklist(row, cl);
     return true;
   }
@@ -3704,7 +3741,7 @@ function paintRow(row, kind, id) {
     return false;
   }
   // A row the item query dropped has to leave the screen; only a rebuild takes it out.
-  if (found && found.byItems && !found.items.has(id)) {
+  if (!search.allowsItem(id)) {
     return false;
   }
   paintItem(row, item);
@@ -4896,7 +4933,7 @@ function expandForDrop(id) {
 function startDrag() {
   const hit = gesture;
   // The order on screen is a search result, not the real order: nothing to drag there.
-  if (!hit || found) return;
+  if (!hit || search.active) return;
   hit.mode = "drag";
   const bulk = state.ui.bulk;
   const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
@@ -5326,7 +5363,7 @@ const ROW_ACTS = {
   // While a search holds a list open, its toggle is off: the title must not disagree with the
   // disabled chevron and change the saved state unseen.
   toggle: (kind, id) => {
-    if (!(found && found.expand.has(id))) {
+    if (!search.expands(id)) {
       flipFlag("list", id, "expanded");
     }
   },

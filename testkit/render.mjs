@@ -1,5 +1,6 @@
 // paintChecklist over a real fakeNode graph: one card, its item host and the empty hint.
 import { fakeNode } from "./fake-dom.mjs";
+import { searchStub } from "./fixtures.mjs";
 import { sliceVm } from "./html-source.mjs";
 
 export const rowNode = (id) => fakeNode({ classes: ["item"], id });
@@ -17,7 +18,7 @@ export function paintHarness(rows = []) {
   ] });
   const env = {
     state,
-    found: null,
+    search: searchStub(),
     t: (key) => key,
     isMuted: () => false,
     paintHead: (node, cl, open) => {

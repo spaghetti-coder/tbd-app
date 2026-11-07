@@ -1,22 +1,32 @@
 // Painting a search result: only the matching items survive in the body, the card opens without
 // touching what the user left it as, and a match past the ellipsis pulls the line to it.
+// The search itself answers through its interface; the module is tested in test/store/search.test.mjs.
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { list, storeStub } from "../../testkit/fixtures.mjs";
+import { list, searchStub, storeStub } from "../../testkit/fixtures.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
 
 const itemRow = (id) => ({ id, checklistId: "L1" });
-const byId = (id, ranges = [[0, 1]]) => new Map([[id, ranges]]);
-const NONE = { byItems: true, expand: new Set(), visible: new Set(), items: new Map(), titles: new Map() };
-const HIT = (id) => ({ byItems: true, expand: new Set(["L1"]), visible: new Set(["L1"]), items: byId(id), titles: new Map() });
+
+// A search that filters everything out, and one that holds a single item.
+const NONE = searchStub({ active: true, allowsList: () => false, allowsItem: () => false });
+const HIT = (id) => searchStub({
+  active: true,
+  allowsList: (id) => id === "L1",
+  allowsItem: (row) => row === id,
+  expands: () => true,
+  matched: (kind, row) => kind === "item" && row === id,
+});
+// A search over names only: every item of a list that is in stays inside.
+const BY_NAME = searchStub({ active: true, allowsList: () => true });
 
 test("only the matching items stay in the body of a searched list", () => {
   const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
   state.items = [itemRow("i1"), itemRow("i2")];
-  env.found = HIT("i1");
+  env.search = HIT("i1");
   paintChecklist(card, list("L1", { expanded: false }));
   assert.equal(idsOf(host), "i1");
 });
@@ -25,13 +35,13 @@ test("a searched list opens without touching what the user left it as", () => {
   const { state, env, card, paintChecklist } = paintHarness([]);
   state.items = [itemRow("i1")];
   const cl = list("L1", { expanded: false });
-  env.found = HIT("i1");
+  env.search = HIT("i1");
   paintChecklist(card, cl);
   assert.equal(card.open, true, "open for the search");
   assert.equal(card.querySelector(".card__body").hidden, false);
   assert.equal(cl.expanded, false, "the saved state is untouched");
 
-  env.found = NONE;
+  env.search = NONE;
   paintChecklist(card, cl);
   assert.equal(card.open, false, "left as the user had it");
   assert.equal(card.querySelector(".card__body").hidden, true);
@@ -40,21 +50,21 @@ test("a searched list opens without touching what the user left it as", () => {
 test("lists-only search keeps every item inside", () => {
   const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
   state.items = [itemRow("i1"), itemRow("i2")];
-  env.found = { byItems: false, expand: new Set(), items: new Map(), titles: byId("L1") };
+  env.search = BY_NAME;
   paintChecklist(card, list("L1", { expanded: true }));
   assert.equal(idsOf(host), "i1,i2");
 });
 
 test("an empty body says what is empty", () => {
   const some = paintHarness([]);
-  some.env.found = NONE;
+  some.env.search = NONE;
   some.state.items = [itemRow("i1")];
   some.paintChecklist(some.card, list("L1", { expanded: true }));
   assert.equal(some.hint.hidden, false);
   assert.equal(some.hint.textContent, "empty_items_match", "items exist, none of them matches");
 
   const none = paintHarness([]);
-  none.env.found = NONE;
+  none.env.search = NONE;
   none.paintChecklist(none.card, list("L1", { expanded: true }));
   assert.equal(none.hint.textContent, "empty_items", "the list itself is empty");
 });
@@ -88,10 +98,10 @@ const paintEnv = {
     },
   },
   el: (tag, className, value) => ({ tag, className, text: value }),
-  found: null,
+  search: searchStub(),
 };
 
-const { paintText, fitMatches } = sliceVm(["HIT_LEAD", "hitRanges", "paintText", "fitMatches"], paintEnv);
+const { paintText, fitMatches } = sliceVm(["HIT_LEAD", "paintText", "fitMatches"], paintEnv);
 
 test("text without a match stays a single string", () => {
   const node = label("i1", 0);
@@ -112,7 +122,7 @@ test("a match past the visible edge pulls the line to it", () => {
   const node = label("i9", 100, 300);
   node.textContent = text(60);
   nodes.m = node.children[0];
-  paintEnv.found = { items: byId("i9", [[40, 42]]), titles: new Map() };
+  paintEnv.search = searchStub({ active: true, rangesFor: (id) => (id === "i9" ? [[40, 42]] : null) });
   fitMatches();
   assert.equal(node.children[0].text, "…", "what fell off is behind an ellipsis");
   assert.equal(node.children[1].text, text(8), "the line starts eight chars before the match");
@@ -124,15 +134,25 @@ test("a match that is already visible is left alone", () => {
   const node = label("i9", 100, 60);
   node.textContent = text(60);
   nodes.m = node.children[0];
-  paintEnv.found = { items: byId("i9", [[40, 42]]), titles: new Map() };
+  paintEnv.search = searchStub({ active: true, rangesFor: (id) => (id === "i9" ? [[40, 42]] : null) });
   fitMatches();
   assert.equal(node.children.length, 1, "re-painted only when it had to be");
   delete nodes.m;
 });
 
+test("with no search there is nothing to fit", () => {
+  const node = label("i9", 100, 300);
+  node.textContent = text(60);
+  nodes.m = node.children[0];
+  paintEnv.search = searchStub();
+  fitMatches();
+  assert.equal(node.children.length, 1, "the painted line is left as it was");
+  delete nodes.m;
+});
+
 /* ---------- one row under a running search ---------- */
 
-function rowHarness(found) {
+function rowHarness(search) {
   const hit = { id: "i1", checklistId: "L1", text: "молоко" };
   const card = fakeNode({ classes: ["card"], kind: "list", id: "L1", children: [
     fakeNode({ classes: ["item"], kind: "item", id: "i1" }),
@@ -141,7 +161,7 @@ function rowHarness(found) {
   const rebuilt = [];
   const env = {
     state: { items: [hit] },
-    found,
+    search,
     findList: (id) => (id === "L1" ? { id: "L1", expanded: true } : null),
     findItem: (id) => (id === "i1" ? hit : null),
     isMuted: () => false,
@@ -169,13 +189,13 @@ test("a row the item search dropped needs a rebuild", () => {
 });
 
 test("a search over lists alone never drops an item row", () => {
-  const { itemRow, painted, paintRow } = rowHarness({ ...NONE, byItems: false });
+  const { itemRow, painted, paintRow } = rowHarness(BY_NAME);
   assert.equal(paintRow(itemRow, "item", "i1"), true);
   assert.deepEqual(painted, ["item:i1"]);
 });
 
 test("a list the search dropped needs a rebuild", () => {
-  const kept = rowHarness({ ...NONE, visible: new Set(["L1"]) });
+  const kept = rowHarness(searchStub({ active: true }));
   assert.equal(kept.paintRow(kept.card, "list", "L1"), true);
   assert.deepEqual(kept.painted, ["list:L1"]);
 

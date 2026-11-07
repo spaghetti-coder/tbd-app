@@ -12,11 +12,6 @@ export const vm = (lines, globals = {}) => runInContext(lines.join("\n"), create
 export const sliceVm = (names, globals = {}) =>
   vm([...names.map(slice), `({ ${names.join(", ")} })`], globals);
 
-// The whole search chain: anything that rebuilds a result needs all of it, `refreshSearch` down.
-export const SEARCH = [
-  "folded", "fold", "searchTokens", "matchRanges", "matchedRows", "buildSearch", "refreshSearch",
-];
-
 export const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 // shortcut: top-level declarations only; walk nested scopes if a tested helper ever moves into a block.

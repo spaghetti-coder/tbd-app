@@ -3,11 +3,14 @@
 import { sliceVm } from "./html-source.mjs";
 import { storeStub } from "./fixtures.mjs";
 
+// The real search module over a state a hand-built sandbox owns.
+export const searchOver = (getState) => sliceVm(["createSearch"], {}).createSearch(getState);
+
 export function stateHarness(names) {
-  // The globals the sliced functions reach for; assigning one (found, scrollTarget) writes back here.
+  // The globals the sliced functions reach for; assigning one (search, scrollTarget) writes back here.
   const sandbox = {
     state: null,
-    found: null,
+    search: null,
     scrollTarget: null,
     lastToast: null,
     calls: [],
@@ -23,11 +26,13 @@ export function stateHarness(names) {
     t: (key) => key,
   };
   sandbox.store = storeStub(sandbox.marked, sandbox.calls);
-  const api = sliceVm(["PAGE_SIZES", ...names], sandbox);
+  const api = sliceVm(["PAGE_SIZES", "createSearch", ...names], sandbox);
+  // The real search module over the same state the actions write, so a test refreshes and asks it.
+  sandbox.search = api.createSearch(() => sandbox.state);
 
   return {
     api,
-    foundOf: () => sandbox.found,
+    search: sandbox.search,
     scrollTargetOf: () => sandbox.scrollTarget,
     resetScroll: () => { sandbox.scrollTarget = null; },
     setScroll: (y) => { sandbox.scrollY = y; },
@@ -37,6 +42,7 @@ export function stateHarness(names) {
     resetCalls: () => {
       sandbox.calls.length = 0;
     },
+    // The search is rebuilt with it: a stored state never answers from the previous test's query.
     store: (checklists, items, ui) => {
       sandbox.calls.length = 0;
       sandbox.marked.length = 0;
@@ -52,6 +58,7 @@ export function stateHarness(names) {
           ...ui,
         },
       };
+      sandbox.search.refresh();
       return sandbox.state;
     },
   };

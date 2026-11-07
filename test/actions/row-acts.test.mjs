@@ -3,14 +3,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
-import { storeStub } from "../../testkit/fixtures.mjs";
+import { searchStub, storeStub } from "../../testkit/fixtures.mjs";
 
-function harness({ checklists = [], items = [], editing, found = null } = {}) {
+function harness({ checklists = [], items = [], editing, search = searchStub() } = {}) {
   const calls = [];
   const find = (rows) => (id) => rows.find((row) => row.id === id);
   const { onRowAct } = sliceVm(["flipFlag", "ROW_ACTS", "onRowAct"], {
     state: { ui: { editing } },
-    found,
+    search,
     findList: find(checklists),
     findItem: find(items),
     store: storeStub(calls),
@@ -39,7 +39,7 @@ test("toggle flips a checklist and repaints its row", () => {
 
 test("a list the search holds open is not toggled", () => {
   const cl = { id: "c1", expanded: false };
-  const { calls, onRowAct, row } = harness({ checklists: [cl], found: { expand: new Set(["c1"]) } });
+  const { calls, onRowAct, row } = harness({ checklists: [cl], search: searchStub({ expands: (id) => id === "c1" }) });
   onRowAct("toggle", "list", "c1", row, TRIGGER);
   assert.equal(cl.expanded, false, "the saved state stays as the user left it");
   assert.deepEqual(calls, []);

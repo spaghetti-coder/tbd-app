@@ -1,113 +1,135 @@
-// Query folding and the scope matrix: what the search lets through, and what it lights up.
+// The search module through its interface: what a query lets through, what it opens, what it lights up.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { item, list, plain } from "../../testkit/fixtures.mjs";
-import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
+import { slice, sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
-const { fold, searchTokens, matchRanges } = sliceVm(["folded", "fold", "searchTokens", "matchRanges"]);
+const { createSearch } = sliceVm(["createSearch"]);
 
-const hits = (text, query) => plain(matchRanges(text, searchTokens(query)));
+// The real module over a board; refresh once, then ask it the way render does.
+function searched(checklists, items, ui = {}) {
+  const state = { checklists, items, ui: { search: { text: "", lists: true, items: true }, ...ui } };
+  const search = createSearch(() => state);
+  search.refresh();
+  return search;
+}
 
-test("fold ignores case and diacritics and keeps its offsets mapped to the original", () => {
-  assert.equal(fold("français").s, "francais");
-  assert.deepEqual(plain(fold("français").map), [0, 1, 2, 3, 4, 5, 6, 7]);
-  assert.equal(fold("É").s, "e");
-  assert.deepEqual(plain(fold("É").map), [0]);
+const board = (ui) => searched([
+  list("l1", { title: "Молоко" }),
+  list("l2", { title: "Работа" }),
+  list("l3", { title: "Пустое" }),
+  list("l4", { title: "Архив", archived: true }),
+], [
+  item("i1", "l2", { text: "молоко из магазина" }),
+  item("i2", "l3", { text: "что-то" }),
+  item("i3", "l2", { text: "ни о чём" }),
+], ui);
+
+const ask = (search) => ({
+  active: search.active,
+  any: search.any,
+  lists: ["l1", "l2", "l3", "l4"].filter((id) => search.allowsList(id)),
+  items: ["i1", "i2", "i3"].filter((id) => search.allowsItem(id)),
+  expanded: ["l1", "l2", "l3"].filter((id) => search.expands(id)),
 });
 
-// [text, query, expected ranges] - a piece may sit anywhere, in any order and at any distance.
-test("every query piece has to be found, and the hits merge", () => {
-  const rows = [
-    ["стояла курица", "ку", [[7, 9]]],
-    ["моя покупка", "ку", [[6, 8]]],
-    ["колесо", "с", [[4, 5]]],
-    ["колесо", "ку", null, "the piece is missing"],
-    ["сегодня", "е я", [[1, 2], [6, 7]]],
-    ["пошел в пизду", "по з", [[0, 2], [10, 11]]],
-    ["купить сегодня молоко", "купи ко", [[0, 4], [19, 21]]],
-    ["banana", "an a", [[1, 6]], "overlapping hits merge into one range"],
-    ["français", "FRANCAIS", [[0, 8]], "case and diacritics are irrelevant on both sides"],
-    ["français", "çais", [[4, 8]]],
-    ["купить сегодня молоко", "купи нет", null, "one missing piece is enough"],
-    ["", "что", null, "nothing to search in"],
-  ];
-  for (const [text, query, want, note] of rows) {
-    assert.deepEqual(hits(text, query), want, `"${query}" in "${text}": ${note ?? "ok"}`);
-  }
+test("no query, no scope: the search filters nothing and opens nothing", () => {
+  assert.deepEqual(ask(board()), {
+    active: false, any: false, lists: ["l1", "l2", "l3", "l4"], items: ["i1", "i2", "i3"], expanded: [],
+  });
+  assert.equal(searched([], [], { search: { text: "\u0301", lists: true, items: true } }).active, false);
+  assert.equal(board({ search: { text: "\u0301", lists: true, items: true } }).active, false,
+    "a stored mark-only query must not hang the first render either");
 });
-
-test("a query of bare combining marks leaves no token and matches nothing", () => {
-  assert.deepEqual(plain(searchTokens("\u0301 \u0302 x")), ["x"]);
-  assert.equal(hits("колесо", "\u0301"), null, "and does not loop over an empty token");
-});
-
-/* ---------- which rows a query lets through ---------- */
-
-const { api, store } = stateHarness([...SEARCH, "normalizeSearch", "defaults"]);
-
-const board = (ui) => {
-  store([
-    list("l1", { title: "Молоко" }),
-    list("l2", { title: "Работа" }),
-    list("l3", { title: "Пустое" }),
-    list("l4", { title: "Архив", archived: true }),
-  ], [
-    item("i1", "l2", { text: "молоко из магазина" }),
-    item("i2", "l3", { text: "что-то" }),
-    item("i3", "l2", { text: "ни о чём" }),
-  ], ui);
-  return api.buildSearch();
-};
 
 test("both scopes: a list is in by its name or by any of its items", () => {
   const found = board({ search: { text: "молоко", lists: true, items: true } });
-  assert.deepEqual([...found.visible].sort(), ["l1", "l2"]);
-  assert.deepEqual([...found.expand], ["l2"]);
-  assert.deepEqual([...found.titles.keys()], ["l1"]);
-  assert.deepEqual([...found.items.keys()], ["i1"]);
-  assert.equal(found.byItems, true);
-  assert.equal(found.any, true);
+  assert.deepEqual(ask(found), {
+    active: true, any: true, lists: ["l1", "l2"], items: ["i1"], expanded: ["l2"],
+  });
+  assert.deepEqual(plain(found.rangesFor("l1")), [[0, 6]], "in by its own name, and lit");
+  assert.equal(found.rangesFor("l2"), null, "in only through an item, so its name stays unlit");
+  assert.deepEqual(plain(found.rangesFor("i1")), [[0, 6]]);
+  assert.equal(found.rangesFor("i2"), null);
 });
 
 test("lists only: an item match stops counting, and nothing gets expanded", () => {
   const found = board({ search: { text: "молоко", lists: true, items: false } });
-  assert.deepEqual([...found.visible], ["l1"]);
-  assert.equal(found.expand.size, 0);
-  assert.equal(found.items.size, 0);
-  assert.equal(found.byItems, false);
-  assert.equal(found.any, true);
+  assert.deepEqual(ask(found), {
+    active: true, any: true, lists: ["l1"], items: ["i1", "i2", "i3"], expanded: [],
+  });
+  assert.deepEqual(plain(found.rangesFor("l1")), [[0, 6]], "a name in scope is lit");
+  assert.equal(found.rangesFor("i1"), null, "an item that does not count is not lit either");
 });
 
-test("items only: the list name no longer saves it, a match expands it", () => {
+test("items only: the list name no longer saves it, a match opens it", () => {
   const found = board({ search: { text: "молоко", lists: false, items: true } });
-  assert.deepEqual([...found.visible], ["l2"]);
-  assert.deepEqual([...found.expand], ["l2"]);
-  assert.equal(found.titles.size, 0);
-  assert.equal(found.any, true);
+  assert.deepEqual(ask(found), {
+    active: true, any: true, lists: ["l2"], items: ["i1"], expanded: ["l2"],
+  });
+  assert.equal(found.rangesFor("l1"), null, "a name out of scope is not lit either");
 });
 
-test("an empty scope and an empty query apply no filter at all", () => {
-  assert.equal(board({ search: { text: "молоко", lists: false, items: false } }), null);
-  assert.equal(board({ search: { text: "   ", lists: true, items: true } }), null);
-  assert.equal(board({ search: { text: "\u0301", lists: true, items: true } }), null,
-    "a stored mark-only query must not hang the first render either");
+test("both switches off stops filtering without erasing the query", () => {
+  assert.equal(board({ search: { text: "молоко", lists: false, items: false } }).active, false);
 });
 
 test("archived rows are not searched, but a narrow miss still reports the wider one", () => {
-  const narrow = board({ search: { text: "работа", lists: false, items: true } });
-  assert.equal(narrow.visible.size, 0);
-  assert.equal(narrow.any, true, "the name is there, just not in this scope");
+  assert.equal(board({ search: { text: "Архив", lists: true, items: true } }).any, false);
 
-  assert.equal(board({ search: { text: "Архив", lists: true, items: true } }).any, false, "archived");
+  const narrow = board({ search: { text: "работа", lists: false, items: true } });
+  assert.deepEqual(ask(narrow).lists, [], "the name is out of this scope");
+  assert.equal(narrow.any, true, "but it is there, so the screen can offer the wider search");
 
   const wide = board({ search: { text: "магазин", lists: true, items: true } });
-  assert.deepEqual([...wide.visible], ["l2"]);
-  assert.deepEqual([...wide.expand], ["l2"]);
+  assert.deepEqual(ask(wide), { active: true, any: true, lists: ["l2"], items: ["i1"], expanded: ["l2"] });
+});
+
+/* ---------- what gets lit up ---------- */
+
+// [query, text, expected ranges] - a piece may sit anywhere, in any order and at any distance.
+test("every query piece has to be found, and the hits merge", () => {
+  const rows = [
+    ["ку", "стояла курица", [[7, 9]]],
+    ["ку", "моя покупка", [[6, 8]]],
+    ["с", "колесо", [[4, 5]]],
+    ["ку", "колесо", null, "the piece is missing"],
+    ["е я", "сегодня", [[1, 2], [6, 7]]],
+    ["по з", "пошел в пизду", [[0, 2], [10, 11]]],
+    ["купи ко", "купить сегодня молоко", [[0, 4], [19, 21]]],
+    ["an a", "banana", [[1, 6]], "overlapping hits merge into one range"],
+    ["FRANCAIS", "français", [[0, 8]], "case and diacritics are irrelevant on both sides"],
+    ["çais", "français", [[4, 8]], "and the offsets are of the original text"],
+    ["купи нет", "купить сегодня молоко", null, "one missing piece is enough"],
+    ["что", "", null, "nothing to search in"],
+  ];
+  for (const [query, text, want, note] of rows) {
+    const found = searched([list("l1", { title: text })], [], { search: { text: query, lists: true, items: true } });
+    assert.deepEqual(plain(found.rangesFor("l1")), want, `"${query}" in "${text}": ${note ?? "ok"}`);
+  }
+});
+
+test("a query of bare combining marks leaves no token and matches nothing", () => {
+  const marks = searched([list("l1", { title: "колесо" })], [item("i1", "l1", { text: "колесо" })],
+    { search: { text: "\u0301 \u0302 x", lists: true, items: true } });
+  assert.equal(marks.active, true, "the marks drop out and the token that is left still counts");
+  assert.equal(marks.rangesFor("l1"), null);
+});
+
+/* ---------- how the app wires it ---------- */
+
+// Every painter reads the last refresh, so the only place the result is built has to build it first.
+test("render rebuilds the answer before it paints anything", () => {
+  const body = slice("render");
+  assert.ok(body.includes("search.refresh()"), "render refreshes the search");
+  assert.ok(body.indexOf("search.refresh()") < body.indexOf("renderChrome()"), "before the painters read it");
 });
 
 /* ---------- what storage is allowed to say ---------- */
+
+const { api } = stateHarness(["normalizeSearch", "defaults"]);
 
 test("a stored search keeps text and switches, anything else falls back", () => {
   assert.deepEqual(plain(api.normalizeSearch({ text: "ку", lists: false, items: true })),

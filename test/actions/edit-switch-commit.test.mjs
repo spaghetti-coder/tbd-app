@@ -2,8 +2,8 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ids, item, list, plain, storeStub } from "../../testkit/fixtures.mjs";
-import { SEARCH, sliceVm } from "../../testkit/html-source.mjs";
+import { ids, item, list, plain, searchStub, storeStub } from "../../testkit/fixtures.mjs";
+import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
@@ -191,7 +191,7 @@ function realPath(editing, draft) {
     state: { checklists: shape.lists, items: shape.items, ui: { editing } },
     store: storeStub(),
     pruneSelection: () => {},
-    refreshSearch: () => {},
+    search: searchStub(),
     repaintRow: () => {},
     commit: () => {},
   };
@@ -215,8 +215,7 @@ test("the real save drops a nameless row and opens no editor on it", () => {
 
 /* ---------- what a save writes, rolls back or drops ---------- */
 
-const { api, store, foundOf, calls, resetCalls, marks } = stateHarness([
-  ...SEARCH,
+const { api, store, search, calls, resetCalls, marks } = stateHarness([
   "commitText",
   "cancelEdit",
   "entityText",
@@ -248,24 +247,21 @@ const QUERY = { search: { text: "молоко", lists: true, items: true } };
 
 test("a save inside a search recounts the result", () => {
   store([list("c1", { title: "молоко" })], [item("i1", "c1", { text: "молоко" })], QUERY);
-  api.refreshSearch();
-  assert.deepEqual([...foundOf().items.keys()], ["i1"]);
+  assert.deepEqual(plain(search.rangesFor("i1")), [[0, 6]]);
   api.commitText("item", "i1", "хлеб");
-  assert.deepEqual([...foundOf().items.keys()], [], "the row is out of the result");
+  assert.equal(search.rangesFor("i1"), null, "the row is out of the result");
 });
 
 test("a saved name that leaves nothing matching drops its list as well", () => {
   store([list("c1", { title: "молоко" })], [], QUERY);
-  api.refreshSearch();
   api.commitText("list", "c1", "хлеб");
-  assert.deepEqual([...foundOf().visible], []);
+  assert.equal(search.allowsList("c1"), false);
 });
 
 test("a save that keeps the match moves the highlight to the new offsets", () => {
   store([list("c1", { title: "работа" })], [item("i1", "c1", { text: "молоко" })], QUERY);
-  api.refreshSearch();
   api.commitText("item", "i1", "купить молоко");
-  assert.deepEqual(plain(foundOf().items.get("i1")), [[7, 13]]);
+  assert.deepEqual(plain(search.rangesFor("i1")), [[7, 13]]);
 });
 
 test("committing an empty name rolls a named entity back", () => {

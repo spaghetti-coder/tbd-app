@@ -26,6 +26,20 @@ export const withEnv = (env, patch, fn) => {
   }
 };
 
+// The search interface answered by hand, for tests whose subject is a painter, not a query.
+// Inactive by default: the same as no search at all.
+export const searchStub = (answers = {}) => ({
+  refresh: () => {},
+  active: false,
+  any: false,
+  allowsList: () => true,
+  allowsItem: () => true,
+  expands: () => false,
+  matched: () => false,
+  rangesFor: () => null,
+  ...answers,
+});
+
 // Records every call and writes nothing, for hand-built sandboxes.
 export const storeStub = (marks = [], calls = marks) => ({
   markDirty: (kind, id) => marks.push(`markDirty:${kind}:${id}`),
