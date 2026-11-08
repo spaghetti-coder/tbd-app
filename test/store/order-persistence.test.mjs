@@ -6,9 +6,8 @@ import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { storeHarness } from "../../testkit/store-fake.mjs";
 
 const ACTIONS = [
-  "removeEntity", "pruneSelection", "setBulk", "restore", "moveItemsTo", "moveGroup", "joinIndex", "clamp",
-  "dropItemsInto", "archiveItemQuiet", "archiveChecklistQuiet", "findList", "findItem", "entityText",
-  "withoutArchived",
+  "removeEntity", "pruneSelection", "setBulk", "restore", "dropItemsInto", "archiveItemQuiet",
+  "archiveChecklistQuiet", "findList", "findItem", "entityText", "withoutArchived",
 ];
 
 const harness = () => storeHarness({ actions: ACTIONS });
@@ -40,9 +39,9 @@ test("list order and the order inside every list survive the store", async () =>
 test("moves keep their order across a reload", async () => {
   const h = harness();
   await seed(h, [["b", ["i1", "i2", "i3"]], ["a", ["i4"]]]);
-  h.actions.moveItemsTo(["i3"], "top");
+  h.order.place("item", ["i3"], "top");
   h.actions.dropItemsInto(["i2"], "a", "i4");
-  h.setState({ ...h.current(), checklists: h.actions.moveGroup(h.current().checklists, ["a"], 0) });
+  h.order.place("list", ["a"], "top");
   await h.store.flushSave();
   await reload(h);
   assert.deepEqual(ids(h.current().checklists), ["a", "b"]);
@@ -93,7 +92,7 @@ test("deleting a list takes its items and its order doc with it", async () => {
 test("a move within a list writes its order doc and no rows", async () => {
   const h = harness();
   await seed(h, [["c1", ["a", "b"]], ["c2", ["p"]]]);
-  h.actions.moveItemsTo(["b"], "top");
+  h.order.place("item", ["b"], "top");
   await h.store.flushSave();
   const batch = h.storage.batches.at(-1);
   assert.deepEqual(ids(batch.items), [], "no row changed, so no row goes out");
@@ -127,7 +126,7 @@ test("a row that only changed its text writes no order doc", async () => {
 test("a write that failed to land leaves the order still owed", async () => {
   const h = harness();
   await seed(h, [["c1", ["a", "b"]]]);
-  h.actions.moveItemsTo(["b"], "top");
+  h.order.place("item", ["b"], "top");
   h.storage.fail(true);
   await h.store.flushSave().catch(() => {});
   h.storage.fail(false);
@@ -140,9 +139,9 @@ test("a move made while a write is open still reaches the store", async () => {
   const h = harness();
   await seed(h, [["c1", ["a", "b", "c"]]]);
   h.storage.hold(true);
-  h.actions.moveItemsTo(["c"], "top");
+  h.order.place("item", ["c"], "top");
   const first = h.store.flushSave();
-  h.actions.moveItemsTo(["b"], "top");
+  h.order.place("item", ["b"], "top");
   const second = h.store.flushSave();
   h.storage.release();
   await first;
@@ -167,7 +166,7 @@ test("a list that lost its last item loses its order doc too", async () => {
 
 test("rows an order doc does not name come last, in the order they were read", () => {
   const h = harness();
-  const rows = [list("x1"), list("x2"), list("x3")];
-  assert.deepEqual(ids(h.api.byOrder(rows, ["x3", "x1"])), ["x3", "x1", "x2"]);
-  assert.deepEqual(ids(h.api.byOrder(rows, ["x2", "gone", "x1"])), ["x2", "x1", "x3"]);
+  const data = () => ({ checklists: [list("x1"), list("x2"), list("x3")], items: [] });
+  assert.deepEqual(ids(h.order.read(data(), { "order:lists": ["x3", "x1"] }).checklists), ["x3", "x1", "x2"]);
+  assert.deepEqual(ids(h.order.read(data(), { "order:lists": ["x2", "gone", "x1"] }).checklists), ["x2", "x1", "x3"]);
 });

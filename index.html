@@ -2314,9 +2314,6 @@ const DEMO_KEY = "varlog.tbd.stand";
 const UI_KEY = "ui";
 const STORES = ["checklists", "items", "doc"];
 
-/* One order doc per list, plus one for the lists themselves. */
-const orderKey = (listId) => `order:${listId}`;
-
 /* Decided before anything touches storage: a demo session never opens the real database. */
 function demoFlag() {
   try {
@@ -2558,7 +2555,7 @@ const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
 /* One transaction at a time. A row is marked when the row itself changed; order is read off state at
    save time. A list that dies marks its items gone with it, so a batch says on its own what it deletes. */
-function createStore({ storage, echo, getState, canReload, onError }) {
+function createStore({ storage, echo, order, getState, canReload, onError }) {
   const dirty = {
     lists: new Set(), items: new Set(), goneLists: new Set(), goneItems: new Set(), ui: false,
   };
@@ -2582,9 +2579,9 @@ function createStore({ storage, echo, getState, canReload, onError }) {
         await storage.seed(docs[UI_KEY]);
         ({ checklists, items, docs } = await storage.readAll());
       }
-      const data = applyOrder(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
+      const data = order.read(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
       // A tab that has just read the whole store knows exactly what is on disk.
-      written = orderSnapshot(data);
+      written = order.snapshot(data);
       return data;
     } catch {
       // Nothing can be written to a store that will not open: say it once and stay in memory.
@@ -2618,9 +2615,9 @@ function createStore({ storage, echo, getState, canReload, onError }) {
   function take() {
     const st = getState();
     // shortcut: the diff walks every row on every save (~5ms per 50k rows on desktop); gate it on a flag if it shows on a phone.
-    const order = orderChanges(st, written, dirty.goneLists);
+    const diff = order.changes(st, written, dirty.goneLists);
     const batch = {
-      lists: [], items: [], order: order.changed, goneOrder: order.cleared,
+      lists: [], items: [], order: diff.changed, goneOrder: diff.cleared,
       goneLists: [...dirty.goneLists], goneItems: [...dirty.goneItems], ui: dirty.ui,
     };
     for (const row of st.checklists) {
@@ -2742,7 +2739,7 @@ function createStore({ storage, echo, getState, canReload, onError }) {
 
 /* The batch carries the order to put on disk, so a record of a write is a record of what landed. */
 function writes(batch, state) {
-  const docs = batch.order.map(([id, ids]) => ({ key: orderKey(id), value: ids }));
+  const docs = batch.order.map(([id, ids]) => ({ key: order.key(id), value: ids }));
   if (batch.ui) {
     // The scope picks are a live choice, not a setting: only the query outlives the tab.
     docs.push({ key: UI_KEY, value: { ...state.ui, search: { text: state.ui.search.text } } });
@@ -2753,19 +2750,9 @@ function writes(batch, state) {
     docs,
     goneItems: batch.goneItems,
     goneChecklists: batch.goneLists,
-    goneDocs: [...batch.goneLists, ...batch.goneOrder].map((id) => orderKey(id)),
+    goneDocs: [...batch.goneLists, ...batch.goneOrder].map((id) => order.key(id)),
   };
 }
-
-const safeToReload = () => !state.ui.editing && !gesture && !drag && !modalOpen();
-
-const store = createStore({
-  storage: idbStorage(CHANNEL),
-  echo: tabEcho(CHANNEL),
-  getState: () => state,
-  canReload: safeToReload,
-  onError: () => showToast(t("storage_error")),
-});
 
 /* A change is one call: save it, paint it, offer the reload. A named row paints alone. */
 function commit(kind, id) {
@@ -2775,106 +2762,173 @@ function commit(kind, id) {
   store.reloadWhenSafe();
 }
 
-/* ---------- pure ordering helpers ---------- */
-
-/* Rows in the order doc's order; rows the doc does not name keep the order they came in. */
-function byOrder(rows, ids) {
-  const rest = new Map(rows.map((row) => [row.id, row]));
-  const out = [];
-  for (const id of Array.isArray(ids) ? ids : []) {
-    const row = rest.get(id);
-    if (row) {
-      out.push(row);
-      rest.delete(id);
-    }
-  }
-  return [...out, ...rest.values()];
-}
-
-/* Items are ordered inside their own list, lists in one doc of their own. */
-function applyOrder(data, docs) {
-  data.checklists = byOrder(data.checklists, docs[orderKey("lists")]);
-  const groups = new Map();
-  for (const item of data.items) {
-    const group = groups.get(item.checklistId) ?? [];
-    group.push(item);
-    groups.set(item.checklistId, group);
-  }
-  data.items = data.checklists.flatMap((cl) => byOrder(groups.get(cl.id) ?? [], docs[orderKey(cl.id)]));
-  return data;
-}
-
-/* The order of every doc state can speak of: each list that has rows, and the lists themselves. */
-function orderSnapshot(state) {
-  const live = new Map([["lists", state.checklists.map((c) => c.id)]]);
-  for (const item of state.items) {
-    const group = live.get(item.checklistId) ?? [];
-    group.push(item.id);
-    live.set(item.checklistId, group);
-  }
-  return live;
-}
-
-/* What to rewrite, as [id, order] pairs, and the docs whose list has no rows left to order. A list
-   that dies is cleared with its rows, not here. */
-function orderChanges(state, written, dyingLists) {
-  const live = orderSnapshot(state);
-  const changed = [];
-  for (const [id, ids] of live) {
-    const held = written.get(id);
-    // Never written and nothing to put in it is not a change.
-    if (held === undefined ? ids.length > 0 : !sameIds(held, ids)) {
-      changed.push([id, ids]);
-    }
-  }
-  const cleared = [...written.keys()].filter((id) => !live.has(id) && !dyingLists.has(id));
-  return { changed, cleared };
-}
-
-function sameIds(held, ids) {
-  return held.length === ids.length && held.every((id, at) => id === ids[at]);
-}
-
-/* Where the group lands among the rows that stay: at the marker, or after the row before it when
-   the marker sits at the end of a page — so a drop at the bottom of a page stays on that page. */
-function refIndex(list, ids, refId, prevId) {
-  const picked = new Set(ids);
-  const rest = list.filter((x) => !picked.has(x.id));
-  const at = rest.findIndex((x) => x.id === refId);
-  if (at !== -1) {
-    return at;
-  }
-  const prev = rest.findIndex((x) => x.id === prevId);
-  return prev === -1 ? rest.length : prev + 1;
-}
-
-function moveGroup(list, ids, index) {
-  const picked = new Set(ids);
-  const group = list.filter((x) => picked.has(x.id));
-  const rest = list.filter((x) => !picked.has(x.id));
-  rest.splice(clamp(index, 0, rest.length), 0, ...group);
-  return rest;
-}
-
-function joinIndex(rest, peers, last) {
-  if (!peers.length) {
-    return rest.length;
-  }
-  return last ? rest.indexOf(peers.at(-1)) + 1 : rest.indexOf(peers[0]);
-}
-
-/* True when moving this group to `where` would leave its visible siblings in the same order. */
-function atEdge(kind, ids, where) {
-  const peers = kind === "list"
-    ? visibleChecklists()
-    : withoutArchived(state.items, (findItem(ids[0]) ?? {}).checklistId);
-  const moved = moveGroup(peers, ids, where === "top" ? 0 : peers.length);
-  return moved.every((row, index) => row.id === peers[index].id);
-}
-
+/* Rows shown under a list: the list's own, archived aside. */
 function withoutArchived(items, checklistId) {
   return items.filter((i) => i.checklistId === checklistId && !i.archived);
 }
+
+/* ---------- order ---------- */
+
+/* Where a group of rows lands, and what that does to the page. Callers say where — an edge, a
+   neighbour, another list — never an index. An item's edges are the edges of its own list, archived
+   rows aside. A move needs no store mark: the order on disk is diffed off state at save time. */
+function createOrder(getState) {
+  /* One order doc per list, plus one for the lists themselves. */
+  const key = (listId) => `order:${listId}`;
+
+  /* Rows in the order doc's order; rows the doc does not name keep the order they came in. */
+  function byOrder(rows, ids) {
+    const rest = new Map(rows.map((row) => [row.id, row]));
+    const out = [];
+    for (const id of Array.isArray(ids) ? ids : []) {
+      const row = rest.get(id);
+      if (row) {
+        out.push(row);
+        rest.delete(id);
+      }
+    }
+    return [...out, ...rest.values()];
+  }
+
+  /* Items are ordered inside their own list, lists in one doc of their own. */
+  function read(data, docs) {
+    data.checklists = byOrder(data.checklists, docs[key("lists")]);
+    const groups = new Map();
+    for (const item of data.items) {
+      const group = groups.get(item.checklistId) ?? [];
+      group.push(item);
+      groups.set(item.checklistId, group);
+    }
+    data.items = data.checklists.flatMap((cl) => byOrder(groups.get(cl.id) ?? [], docs[key(cl.id)]));
+    return data;
+  }
+
+  /* The order of every doc state can speak of: each list that has rows, and the lists themselves. */
+  function snapshot(state) {
+    const live = new Map([["lists", state.checklists.map((c) => c.id)]]);
+    for (const item of state.items) {
+      const group = live.get(item.checklistId) ?? [];
+      group.push(item.id);
+      live.set(item.checklistId, group);
+    }
+    return live;
+  }
+
+  function sameIds(held, ids) {
+    return held.length === ids.length && held.every((id, at) => id === ids[at]);
+  }
+
+  /* What to rewrite, as [id, order] pairs, and the docs whose list has no rows left to order. A list
+     that dies is cleared with its rows, not here. */
+  function changes(state, written, dyingLists) {
+    const live = snapshot(state);
+    const changed = [];
+    for (const [id, ids] of live) {
+      const held = written.get(id);
+      // Never written and nothing to put in it is not a change.
+      if (held === undefined ? ids.length > 0 : !sameIds(held, ids)) {
+        changed.push([id, ids]);
+      }
+    }
+    const cleared = [...written.keys()].filter((id) => !live.has(id) && !dyingLists.has(id));
+    return { changed, cleared };
+  }
+
+  /* The rows that stay and the group, each in the order the source holds them. */
+  function split(rows, ids) {
+    const picked = new Set(ids);
+    return [rows.filter((row) => !picked.has(row.id)), rows.filter((row) => picked.has(row.id))];
+  }
+
+  /* Splice the group into `rest` as one piece, at an index clamped to what is there. */
+  function spliceInto(rest, group, index) {
+    rest.splice(clamp(index, 0, rest.length), 0, ...group);
+    return rest;
+  }
+
+  /* The index among the rows that stay. An edge is the edge of `peers`: for an item that is its own
+     list, so a lone row has nowhere to go and lands last — which is the end of its list too, since
+     rows are shown grouped by list. A `before` whose row is gone falls back to `after`. */
+  function landing(rest, peers, target) {
+    if (target === "top" || target === "bottom") {
+      const edge = peers.at(target === "top" ? 0 : -1);
+      if (!edge) return rest.length;
+      return target === "top" ? rest.indexOf(edge) : rest.indexOf(edge) + 1;
+    }
+    const at = rest.findIndex((row) => row.id === target.before);
+    if (at >= 0) return at;
+    const prev = rest.findIndex((row) => row.id === target.after);
+    return prev >= 0 ? prev + 1 : rest.length;
+  }
+
+  /* target: "top" | "bottom" | {before} | {after} | {into, before}, the last one items only.
+     A list moving to an edge is followed onto the page it lands on. */
+  function place(kind, ids, target) {
+    const st = getState();
+    if (!ids.length) return;
+    if (kind !== "item") {
+      const [rest, group] = split(st.checklists, ids);
+      st.checklists = spliceInto(rest, group, landing(rest, rest, target));
+      if (target === "top") st.ui.page = 1;
+      if (target === "bottom") st.ui.page = pageCount(visibleChecklists().length);
+      return;
+    }
+    placeItems(st, ids, target);
+  }
+
+  /* A group can span lists — a bulk restore does — so every list takes back its own rows at the same
+     place in its own group. */
+  function placeItems(st, ids, target) {
+    const picked = new Set(ids);
+    const groups = new Map();
+    for (const row of st.items) {
+      if (!picked.has(row.id)) continue;
+      const listId = target.into ?? row.checklistId;
+      if (target.into) row.checklistId = listId;
+      groups.set(listId, [...(groups.get(listId) ?? []), row]);
+    }
+    let next = st.items.filter((row) => !picked.has(row.id));
+    for (const [listId, group] of groups) {
+      next = spliceInto(next, group, landing(next, withoutArchived(next, listId), target));
+    }
+    st.items = next;
+  }
+
+  /* True when moving this group to `where` would leave its visible siblings in the same order. */
+  function atEdge(kind, ids, where) {
+    const st = getState();
+    const peers = kind === "list"
+      ? visibleChecklists()
+      : withoutArchived(st.items, (findItem(ids[0]) ?? {}).checklistId);
+    const [rest, group] = split(peers, ids);
+    const moved = spliceInto(rest, group, where === "top" ? 0 : rest.length);
+    return moved.every((row, index) => row.id === peers[index].id);
+  }
+
+  /* The page that shows this list; 0 when the list is not on screen. */
+  function pageFor(id) {
+    const all = visibleChecklists();
+    const index = all.findIndex((c) => c.id === id);
+    if (index < 0) return 0;
+    const st = getState();
+    return st.ui.pageSize === "all" ? st.ui.page : Math.floor(index / st.ui.pageSize) + 1;
+  }
+
+  return { key, read, snapshot, changes, place, atEdge, pageFor };
+}
+
+const order = createOrder(() => state);
+
+const safeToReload = () => !state.ui.editing && !gesture && !drag && !modalOpen();
+
+const store = createStore({
+  storage: idbStorage(CHANNEL),
+  echo: tabEcho(CHANNEL),
+  order,
+  getState: () => state,
+  canReload: safeToReload,
+  onError: () => showToast(t("storage_error")),
+});
 
 /* ---------- search ---------- */
 
@@ -3127,10 +3181,6 @@ function pagedChecklists() {
   return all.slice(start, start + size);
 }
 
-function indexOfVisible(id) {
-  return visibleChecklists().findIndex((c) => c.id === id);
-}
-
 function findList(id) {
   return state.checklists.find((c) => c.id === id);
 }
@@ -3181,8 +3231,8 @@ function addItem(checklistId) {
     archived: false,
     archivedBy: "user",
   };
-  const peers = state.items.filter((i) => i.checklistId === checklistId);
-  state.items.splice(joinIndex(state.items, peers, state.ui.newItem !== "top"), 0, item);
+  state.items.push(item);
+  order.place("item", [item.id], state.ui.newItem === "top" ? "top" : "bottom");
   store.markDirty("item", item.id);
   state.ui.editing = { kind: "item", id: item.id };
   scrollTarget = { kind: "item", id: item.id };
@@ -3294,33 +3344,14 @@ function deleteMany(kind, ids) {
 }
 
 function moveTo(kind, ids, where) {
-  if (!ids.length) return;
-  if (kind === "list") {
-    state.checklists = moveGroup(state.checklists, ids, where === "top" ? 0 : state.checklists.length);
-    const count = pageCount(visibleChecklists().length);
-    state.ui.page = where === "top" ? 1 : count;
-  } else {
-    moveItemsTo(ids, where);
-  }
+  order.place(kind, ids, where);
   commit();
 }
 
-function moveItemsTo(ids, where) {
-  const picked = new Set(ids);
-  const group = state.items.filter((i) => picked.has(i.id));
-  if (!group.length) return;
-  const rest = state.items.filter((i) => !picked.has(i.id));
-  const peers = rest.filter((i) => i.checklistId === group[0].checklistId);
-  state.items = moveGroup(state.items, ids, joinIndex(rest, peers, where !== "top"));
-}
-
 function jumpTo(id) {
-  const index = indexOfVisible(id);
-  if (index < 0) return;
-  const size = state.ui.pageSize;
-  if (size !== "all") {
-    state.ui.page = Math.floor(index / size) + 1;
-  }
+  const page = order.pageFor(id);
+  if (!page) return;
+  state.ui.page = page;
   scrollTarget = { kind: "list", id };
 }
 
@@ -3730,8 +3761,8 @@ function renderPanel() {
       ]));
       const mixed = spansLists(bulk);
       nodes.push(panelSeparator(), panelGroup("panel_group_move", [
-        panelButton("top", "a_top", "bulk-top", !any || mixed || atEdge(bulk.kind, bulk.ids, "top")),
-        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed || atEdge(bulk.kind, bulk.ids, "bottom")),
+        panelButton("top", "a_top", "bulk-top", !any || mixed || order.atEdge(bulk.kind, bulk.ids, "top")),
+        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed || order.atEdge(bulk.kind, bulk.ids, "bottom")),
       ]));
       nodes.push(panelSeparator(), panelButton("close", "a_cancel", "bulk-cancel", false));
     }
@@ -4078,8 +4109,8 @@ function openEntityMenu(kind, id, anchor) {
     menuItem("archive", t("a_archive"), askArchive),
     menuItem("trash", t("a_delete"), askDelete, true),
     menuSep(),
-    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top")), false, atEdge(kind, [id], "top")),
-    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom")), false, atEdge(kind, [id], "bottom")),
+    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top")), false, order.atEdge(kind, [id], "top")),
+    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom")), false, order.atEdge(kind, [id], "bottom")),
     menuSep(),
     menuItem("bulk", t("bulk"), run(() => startBulk(kind, id))),
   );
@@ -4314,7 +4345,7 @@ function restore(kind, ids) {
     row.archived = false;
     store.markDirty(kind, row.id);
   }
-  state[key] = moveGroup(state[key], ids, 0);
+  order.place(kind, ids, "top");
   if (kind !== "list") {
     return;
   }
@@ -4958,7 +4989,7 @@ function startDrag() {
   hit.mode = "drag";
   const bulk = state.ui.bulk;
   const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
-  // In state order, not tap order: this is the order moveGroup re-inserts, so the ghost matches the drop.
+  // In state order, not tap order: a group lands in the order the app holds it, so the ghost matches the drop.
   const picked = new Set(ids);
   const source = hit.kind === "list" ? state.checklists : state.items;
   const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
@@ -5047,17 +5078,10 @@ function siblingId(gap, dir) {
 }
 
 function dropItemsInto(ids, checklistId, refId) {
-  const picked = new Set(ids);
-  const group = state.items.filter((item) => picked.has(item.id));
-  const rest = state.items.filter((item) => !picked.has(item.id));
-  const live = rest.filter((item) => item.checklistId === checklistId && !item.archived);
-  const at = refId ? rest.findIndex((item) => item.id === refId) : -1;
-  const index = at === -1 ? joinIndex(rest, live, true) : at;
-  for (const item of group) {
-    item.checklistId = checklistId;
-    store.markDirty("item", item.id);
+  for (const id of ids) {
+    store.markDirty("item", id);
   }
-  state.items = moveGroup(state.items, ids, index);
+  order.place("item", ids, { into: checklistId, before: refId });
   const target = findList(checklistId);
   if (target) {
     target.expanded = true;
@@ -5093,7 +5117,7 @@ function endDrag(apply) {
     return;
   }
   if (kind === "list") {
-    state.checklists = moveGroup(state.checklists, ids, refIndex(state.checklists, ids, refId, prevId));
+    order.place("list", ids, { before: refId, after: prevId });
   } else if (current.collapsedId) {
     dropItemsInto(ids, current.collapsedId, null);
   } else if (checklistId) {

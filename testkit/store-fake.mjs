@@ -4,9 +4,8 @@ import { sliceVm } from "./html-source.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
-  "createStore", "writes", "orderKey", "orderSnapshot", "orderChanges", "sameIds",
-  "clamp", "UI_KEY", "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize",
-  "applyOrder", "byOrder",
+  "createStore", "createOrder", "writes", "clamp", "UI_KEY", "PAGE_SIZES", "defaults", "normalizeSearch",
+  "validBulk", "normalize", "withoutArchived", "findItem", "visibleChecklists", "pageCount",
 ];
 
 // Reads come back sorted by key, the way getAll answers: no row carries an ordinal of its own.
@@ -105,6 +104,12 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
   const reloads = [];
   const globals = {
     demo,
+    // The page maths inside the order module asks what is visible; here nothing is filtered.
+    search: { allowsList: () => true },
+    // Read through the harness' own state, so assign() reaches the sliced functions too.
+    get state() {
+      return state;
+    },
     uid: () => "tab",
     setTimeout: (fn) => clock.setTimeout(fn),
     clearTimeout: (id) => clock.clearTimeout(id),
@@ -112,11 +117,14 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
   };
   const api = sliceVm(STORE, globals);
   let state = api.defaults();
+  const order = api.createOrder(() => state);
+  // writes() reads the order docs' keys off the module, the way the app does.
+  globals.order = order;
   const store = api.createStore({
-    storage, echo, getState: () => state, canReload, onError: () => errors.push("storage_error"),
+    storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
   });
   // The app's action functions, marking through the store interface over the same state object.
-  const actBox = { ...globals, store };
+  const actBox = { ...globals, store, order };
   const act = sliceVm(actions, actBox);
   const assign = (value) => {
     state = value;
@@ -124,7 +132,7 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
     return value;
   };
   return {
-    store, storage, echo, clock, errors, reloads, api, actions: act,
+    store, storage, echo, clock, errors, reloads, api, order, actions: act,
     state: (checklists, items, ui) => assign({
       checklists, items, ui: { pageSize: 20, page: 1, search: { text: "" }, bulk: { kind: null, ids: [] }, ...ui },
     }),

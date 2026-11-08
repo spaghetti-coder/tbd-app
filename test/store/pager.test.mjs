@@ -64,7 +64,6 @@ const { api, store, scrollTargetOf } = stateHarness([
   "pagedChecklists",
   "jumpTo",
   "visibleChecklists",
-  "indexOfVisible",
   "clamp",
 ]);
 

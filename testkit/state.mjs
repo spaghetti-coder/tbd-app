@@ -6,6 +6,9 @@ import { storeStub } from "./fixtures.mjs";
 // The real search module over a state a hand-built sandbox owns.
 export const searchOver = (getState) => sliceVm(["createSearch"], {}).createSearch(getState);
 
+// What the order module reaches for; it runs for real over the same state the actions write.
+const ORDER = ["createOrder", "clamp", "withoutArchived", "findItem", "visibleChecklists", "pageCount"];
+
 export function stateHarness(names) {
   // The globals the sliced functions reach for; assigning one (search, scrollTarget) writes back here.
   const sandbox = {
@@ -25,13 +28,16 @@ export function stateHarness(names) {
     t: (key) => key,
   };
   sandbox.store = storeStub(sandbox.marked, sandbox.calls);
-  const api = sliceVm(["PAGE_SIZES", "createSearch", ...names], sandbox);
+  const base = ["PAGE_SIZES", "createSearch", ...ORDER];
+  const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
   // The real search module over the same state the actions write, so a test refreshes and asks it.
   sandbox.search = api.createSearch(() => sandbox.state);
+  sandbox.order = api.createOrder(() => sandbox.state);
 
   return {
     api,
     search: sandbox.search,
+    order: sandbox.order,
     scrollTargetOf: () => sandbox.scrollTarget,
     resetScroll: () => { sandbox.scrollTarget = null; },
     setScroll: (y) => { sandbox.scrollY = y; },

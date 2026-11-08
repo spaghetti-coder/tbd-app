@@ -44,7 +44,7 @@ function harness({ editing = null, ...shape } = {}) {
     blurSuppress: false,
     uid: () => "i2",
     store: storeStub(),
-    joinIndex: (all) => all.length,
+    order: { place: () => {} },
     jumpTo: () => {},
     clearSearch: () => {},
     commit: () => {

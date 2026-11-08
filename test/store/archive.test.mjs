@@ -11,8 +11,6 @@ const { api, store } = stateHarness([
   "withoutArchived",
   "findList",
   "findItem",
-  "moveGroup",
-  "clamp",
 ]);
 
 // An archived item, as the store keeps it.

@@ -16,7 +16,6 @@ const NAMES = [
   "toTop",
   "setSearchScope",
   "visibleChecklists",
-  "indexOfVisible",
   "jumpTo",
   "findList",
   "findItem",
