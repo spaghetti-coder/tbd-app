@@ -2767,9 +2767,11 @@ const store = createStore({
   onError: () => showToast(t("storage_error")),
 });
 
-function commit() {
+/* A change is one call: save it, paint it, offer the reload. A named row paints alone. */
+function commit(kind, id) {
   store.queueSave();
-  render();
+  if (kind) repaintRow(kind, id);
+  else render();
   store.reloadWhenSafe();
 }
 
@@ -3227,9 +3229,10 @@ function commitText(kind, id, raw) {
   store.markDirty(kind, id);
   // A running search counts the saved text, not the one its result was built on.
   search.refresh();
-  // Repaint one row: rebuilding would destroy the button that just took focus away, and its click with it.
+  // One row: rebuilding would destroy the button that just took focus away, and its click with it.
+  commit(kind, id);
+  // The flush trails the commit: it writes the rename now and eats the save commit queued.
   store.flushSave();
-  repaintRow(kind, id);
 }
 
 function cancelEdit() {
@@ -3376,8 +3379,7 @@ function togglePick(kind, id) {
   setBulk(kind, picked);
   // Inside a running selection only this row and the panel change; starting or ending one repaints every row.
   if (inBulk && state.ui.bulk.kind === kind) {
-    store.queueSave();
-    repaintRow(kind, id);
+    commit(kind, id);
   } else {
     commit();
   }
@@ -3748,7 +3750,6 @@ function repaintRow(kind, id) {
     return;
   }
   renderPanel();
-  store.reloadWhenSafe();
 }
 
 /* Repaint one row in place: no node is destroyed, so focus, scroll and animations survive.
@@ -4938,8 +4939,7 @@ function expandForDrop(id) {
   clearCollapsedTarget();
   cl.expanded = true;
   store.markDirty("list", id);
-  store.queueSave();
-  repaintRow("list", id);
+  commit("list", id);
   const body = rowById("list", id)?.querySelector(".items");
   // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
   if (!body) {
@@ -5372,8 +5372,7 @@ function flipFlag(kind, id, prop) {
   }
   entity[prop] = !entity[prop];
   store.markDirty(kind, id);
-  store.queueSave();
-  repaintRow(kind, id);
+  commit(kind, id);
 }
 
 const ROW_ACTS = {

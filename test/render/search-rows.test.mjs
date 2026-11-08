@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { list, searchStub, storeStub } from "../../testkit/fixtures.mjs";
+import { list, searchStub } from "../../testkit/fixtures.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
@@ -171,7 +171,6 @@ function rowHarness(search) {
     rowById: (kind, id) => (kind === "item" && id === "i1" ? card.children[0] : null),
     render: () => rebuilt.push("render"),
     renderPanel: () => {},
-    store: storeStub(),
   };
   return { card, itemRow: card.children[0], painted, rebuilt, ...sliceVm(["paintRow", "repaintRow"], env) };
 }

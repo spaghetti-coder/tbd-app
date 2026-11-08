@@ -15,12 +15,11 @@ export function stateHarness(names) {
     lastToast: null,
     calls: [],
     marked: [],
-    commit: () => sandbox.calls.push("commit"),
+    commit: (kind, id) => sandbox.calls.push(kind ? `commit:${kind}:${id}` : "commit"),
     // The scroll a sliced function asks for lands in the same call log.
     scrollY: 0,
     matchMedia: () => ({ matches: false }),
     scrollTo: () => sandbox.calls.push("toTop"),
-    repaintRow: (kind, id) => sandbox.calls.push(`repaintRow:${kind}:${id}`),
     showToast: (text) => { sandbox.lastToast = text; },
     rowById: () => null,
     t: (key) => key,

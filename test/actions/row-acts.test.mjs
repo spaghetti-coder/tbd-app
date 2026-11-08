@@ -14,7 +14,7 @@ function harness({ checklists = [], items = [], editing, search = searchStub() }
     findList: find(checklists),
     findItem: find(items),
     store: storeStub(calls),
-    repaintRow: (kind, id) => calls.push(`repaintRow:${kind}:${id}`),
+    commit: (kind, id) => calls.push(`commit:${kind}:${id}`),
     togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
     startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),
     addItem: (id) => calls.push(`addItem:${id}`),
@@ -27,12 +27,12 @@ function harness({ checklists = [], items = [], editing, search = searchStub() }
 
 const TRIGGER = { name: "trigger" };
 
-test("toggle flips a checklist and repaints its row", () => {
+test("toggle flips a checklist and commits its row", () => {
   const cl = { id: "c1", expanded: false };
   const { calls, onRowAct, row } = harness({ checklists: [cl] });
   onRowAct("toggle", "list", "c1", row, TRIGGER);
   assert.equal(cl.expanded, true);
-  assert.deepEqual(calls, ["markDirty:list:c1", "queueSave", "repaintRow:list:c1"]);
+  assert.deepEqual(calls, ["markDirty:list:c1", "commit:list:c1"]);
   onRowAct("toggle", "list", "c1", row, TRIGGER);
   assert.equal(cl.expanded, false);
 });
@@ -45,12 +45,12 @@ test("a list the search holds open is not toggled", () => {
   assert.deepEqual(calls, []);
 });
 
-test("toggle-done flips an item and repaints its row", () => {
+test("toggle-done flips an item and commits its row", () => {
   const item = { id: "i1", done: false };
   const { calls, onRowAct, row } = harness({ items: [item] });
   onRowAct("toggle-done", "item", "i1", row, TRIGGER);
   assert.equal(item.done, true);
-  assert.deepEqual(calls, ["markDirty:item:i1", "queueSave", "repaintRow:item:i1"]);
+  assert.deepEqual(calls, ["markDirty:item:i1", "commit:item:i1"]);
 });
 
 test("a row whose entity is gone does nothing", () => {

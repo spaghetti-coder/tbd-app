@@ -192,7 +192,6 @@ function realPath(editing, draft) {
     store: storeStub(),
     pruneSelection: () => {},
     search: searchStub(),
-    repaintRow: () => {},
     commit: () => {},
   };
   ctx.rowById = (kind, id) => shape.rows[id] ?? null;
@@ -226,19 +225,19 @@ const { api, store, search, calls, resetCalls, marks } = stateHarness([
   "findItem",
 ]);
 
-test("a renamed entity is saved and only its row is repainted", () => {
+test("a renamed entity goes out at once and its row alone is repainted", () => {
   const state = store([list("c1", { title: "old" })], [item("i1", "c1", { text: "old" })]);
   api.commitText("list", "c1", "  Groceries  ");
   assert.equal(state.checklists[0].title, "Groceries");
   assert.equal(state.ui.editing, null);
-  assert.equal(calls(), "flushSave,repaintRow:list:c1");
+  assert.equal(calls(), "commit:list:c1,flushSave");
   assert.equal(marks(), "markDirty:list:c1", "the renamed row is marked for saving");
 
   resetCalls();
   api.commitText("item", "i1", "Milk");
   assert.equal(state.items[0].text, "Milk");
   assert.equal(state.ui.editing, null);
-  assert.equal(calls(), "flushSave,repaintRow:item:i1");
+  assert.equal(calls(), "commit:item:i1,flushSave");
 });
 
 /* ---------- what a save does to a running search ---------- */
