@@ -5,6 +5,7 @@ import test from "node:test";
 import { list, searchStub } from "../../testkit/fixtures.mjs";
 import { storeHarness } from "../../testkit/store-fake.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
+import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const idle = () => new Promise(setImmediate);
 
@@ -35,16 +36,27 @@ test("a commit naming a row paints that row alone, and still offers the reload",
 
 test("a renamed row goes out in one write", async () => {
   const h = storeHarness();
-  const api = sliceVm(["commitText", "commit", "repaintRow", "findList", "findItem",
-    "entityText", "removeEntity", "pruneSelection"], {
-    state: h.state([list("c1", { title: "old" })], []),
+  const state = h.state([list("c1", { title: "old" })], []);
+  const input = fakeNode({ tag: "input", classes: ["input"] });
+  input.value = "Groceries";
+  const card = fakeNode({ classes: ["card"], kind: "list", id: "c1", children: [
+    fakeNode({ classes: ["row-edit"], children: [input] }),
+  ] });
+  const ctx = {
+    state,
     store: h.store,
     search: searchStub(),
-    rowById: () => null,
+    rowById: () => card,
     render: () => {},
     renderPanel: () => {},
-  });
-  api.commitText("list", "c1", "Groceries");
+    paintRow: () => true,
+  };
+  // The app's own wiring, over the live store.
+  const api = sliceVm(["createEditor", "makeEditor", "commit", "repaintRow", "findList", "findItem",
+    "draftText", "entityText", "removeEntity", "pruneSelection"], ctx);
+  const editor = api.makeEditor();
+  state.ui.editing = { kind: "list", id: "c1" };
+  editor.save();
   await idle();
   h.clock.run();
   await idle();

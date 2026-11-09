@@ -114,7 +114,7 @@ const created = {
     ui: { page: 4, newChecklist: "top", search: { text: "нет таких", lists: true, items: true } },
   },
   uid: () => "n1",
-  flushPendingEdit: () => {},
+  editor: { flush: () => {} },
   store: storeStub(),
   jumpTo: () => {},
   commit: () => {},

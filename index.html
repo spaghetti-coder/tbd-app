@@ -3200,7 +3200,7 @@ function entityText(kind, id) {
 let scrollTarget = null;
 
 function addChecklist() {
-  flushPendingEdit();
+  editor.flush();
   // A fresh empty row never matches the query on screen, so the query goes first.
   clearSearch();
   const cl = { id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false };
@@ -3216,7 +3216,7 @@ function addChecklist() {
 }
 
 function addItem(checklistId) {
-  flushPendingEdit();
+  editor.flush();
   clearSearch();
   const cl = findList(checklistId);
   if (!cl) return;
@@ -3239,6 +3239,14 @@ function addItem(checklistId) {
   commit();
 }
 
+/* Text in the editing row's input; null when it is off screen. */
+function draftText() {
+  const editing = state.ui.editing;
+  const row = editing && rowById(editing.kind, editing.id);
+  const input = row && row.querySelector(".row-edit input");
+  return input ? input.value : null;
+}
+
 function removeEntity(kind, id) {
   if (kind === "list") {
     // The items die with the list, and they are named while state still holds them.
@@ -3255,57 +3263,109 @@ function removeEntity(kind, id) {
   pruneSelection();
 }
 
-function commitText(kind, id, raw) {
-  const text = raw.trim();
-  if (!text && entityText(kind, id)) {
-    // Renaming to empty is a rollback, not a delete; only nameless new entities are discarded.
-    cancelEdit();
-    return;
+/* ---------- editor ---------- */
+
+/* Typed text belongs to its row. A save renames, rolls back, or drops a nameless row. */
+function createEditor({ getState, find, textOf, listIdOf, draft, remove, onSaved, repaint, writeNow }) {
+  // True when the text landed.
+  function commitText(kind, id, raw) {
+    const text = raw.trim();
+    if (!text && textOf(kind, id)) {
+      // Renaming to empty rolls back; only a nameless row is discarded.
+      cancel();
+      return false;
+    }
+    if (!text) {
+      remove(kind, id);
+      getState().ui.editing = null;
+      repaint();
+      return false;
+    }
+    const row = find(kind, id);
+    if (row) {
+      if (kind === "list") row.title = text;
+      else row.text = text;
+    }
+    getState().ui.editing = null;
+    onSaved(kind, id);
+    // One row: a rebuild would kill the focused button and its click.
+    repaint(kind, id);
+    // After the repaint: eats the save it queued.
+    writeNow();
+    return true;
   }
-  if (!text) {
-    removeEntity(kind, id);
-    state.ui.editing = null;
-    commit();
-    return;
+
+  function open(kind, id) {
+    flush();
+    // The flush can drop the row: no editor on a gone entity.
+    if (!find(kind, id)) return;
+    getState().ui.editing = { kind, id };
+    repaint();
   }
-  if (kind === "list") {
-    const cl = findList(id);
-    if (cl) cl.title = text;
-  } else {
-    const item = findItem(id);
-    if (item) item.text = text;
+
+  function flush() {
+    const editing = getState().ui.editing;
+    if (!editing) return;
+    const text = draft();
+    if (text !== null) {
+      commitText(editing.kind, editing.id, text);
+    }
   }
-  state.ui.editing = null;
-  store.markDirty(kind, id);
-  // A running search counts the saved text, not the one its result was built on.
-  search.refresh();
-  // One row: rebuilding would destroy the button that just took focus away, and its click with it.
-  commit(kind, id);
-  // The flush trails the commit: it writes the rename now and eats the save commit queued.
-  store.flushSave();
+
+  /* Returns the list to continue in, if this row got its first name.
+     Both reads precede the save: it can drop the row. */
+  function save() {
+    const editing = getState().ui.editing;
+    if (!editing) return null;
+    const text = draft();
+    if (text === null) return null;
+    const created = !textOf(editing.kind, editing.id);
+    const list = listIdOf(editing);
+    const named = commitText(editing.kind, editing.id, text);
+    return created && named ? list : null;
+  }
+
+  function cancel() {
+    const editing = getState().ui.editing;
+    if (!editing) return;
+    if (!textOf(editing.kind, editing.id)) {
+      remove(editing.kind, editing.id);
+    }
+    getState().ui.editing = null;
+    repaint();
+  }
+
+  // Only the row owning the blurred input commits; a blur trailing a save comes from the closed row.
+  function blur(owner, text) {
+    const editing = getState().ui.editing;
+    if (!editing || !owner || owner.kind !== editing.kind || owner.id !== editing.id) {
+      return;
+    }
+    commitText(editing.kind, editing.id, text);
+  }
+
+  return { open, flush, save, cancel, blur };
 }
 
-function cancelEdit() {
-  const editing = state.ui.editing;
-  if (!editing) return;
-  if (!entityText(editing.kind, editing.id)) {
-    removeEntity(editing.kind, editing.id);
-  }
-  state.ui.editing = null;
-  commit();
+function makeEditor() {
+  return createEditor({
+    getState: () => state,
+    find: (kind, id) => (kind === "list" ? findList(id) : findItem(id)),
+    textOf: entityText,
+    listIdOf: (edited) => (edited.kind === "item" ? (findItem(edited.id) ?? {}).checklistId : edited.id),
+    draft: draftText,
+    remove: removeEntity,
+    // A running search counts the saved text, not the one its result was built on.
+    onSaved: (kind, id) => {
+      store.markDirty(kind, id);
+      search.refresh();
+    },
+    repaint: commit,
+    writeNow: () => store.flushSave(),
+  });
 }
 
-/* Typed text belongs to the row it was typed in. Commit it before another row takes the editor:
-   the focus move fires a trailing blur, and by then `editing` already points at the new row. */
-function flushPendingEdit() {
-  const editing = state.ui.editing;
-  if (!editing) return;
-  const row = rowById(editing.kind, editing.id);
-  const input = row && row.querySelector(".row-edit input");
-  if (input) {
-    commitText(editing.kind, editing.id, input.value);
-  }
-}
+const editor = makeEditor();
 
 function archiveItemQuiet(id) {
   const item = findItem(id);
@@ -3371,7 +3431,7 @@ function setBulk(kind, ids) {
 }
 
 function startBulk(kind, id) {
-  flushPendingEdit();
+  editor.flush();
   setBulk(kind, [id]);
   state.ui.editing = null;
   state.ui.panel.collapsed = false;
@@ -3645,23 +3705,23 @@ function paintRowEditor(node, kind, id, text) {
 
 /* phKey === null closes the editor: the row goes back to its plain state. */
 function paintEditor(row, text, phKey) {
-  const editor = row.querySelector(".row-edit");
+  const field = row.querySelector(".row-edit");
   const label = row.querySelector(".card__title, .item__text");
   const editAct = row.querySelector(".act--edit");
   if (phKey === null) {
-    editor.hidden = true;
+    field.hidden = true;
     label.hidden = false;
     if (editAct) editAct.hidden = false;
     return;
   }
   label.hidden = true;
   if (editAct) editAct.hidden = true;
-  editor.hidden = false;
-  const input = editor.querySelector("input");
+  field.hidden = false;
+  const input = field.querySelector("input");
   input.value = text;
   input.placeholder = t(phKey);
   input.setAttribute("aria-label", t(phKey));
-  labelNode(editor.querySelector(".act--save"), "a_save");
+  labelNode(field.querySelector(".act--save"), "a_save");
 }
 
 function buildItem(item) {
@@ -4823,7 +4883,7 @@ function finishSwipe() {
     return;
   }
   if (dx > 0) {
-    startEdit(current.kind, current.id);
+    editor.open(current.kind, current.id);
     return;
   }
   ask(current.kind, [current.id], "archive", current.handle);
@@ -5378,16 +5438,6 @@ function endPanelDrag() {
 
 /* ---------- actions ---------- */
 
-function startEdit(kind, id) {
-  flushPendingEdit();
-  // The flush drops a nameless row, and an editor cannot open on an entity that is gone.
-  if (!(kind === "list" ? findList(id) : findItem(id))) {
-    return;
-  }
-  state.ui.editing = { kind, id };
-  commit();
-}
-
 /* Expanded and done are the same rule on different rows. */
 function flipFlag(kind, id, prop) {
   const entity = kind === "list" ? findList(id) : findItem(id);
@@ -5409,7 +5459,7 @@ const ROW_ACTS = {
   },
   "toggle-done": (kind, id) => flipFlag("item", id, "done"),
   pick: togglePick,
-  edit: startEdit,
+  edit: (kind, id) => editor.open(kind, id),
   "add-item": (kind, id) => addItem(id),
   menu: (kind, id, row, trigger) => openEntityMenu(kind, id, trigger),
   goto: (kind, id) => gotoHit(kind, id),
@@ -5458,31 +5508,13 @@ function onListDblClick(event) {
   const text = event.target.closest(".item__text");
   if (!text) return;
   const row = text.closest("[data-id]");
-  if (row) startEdit("item", row.dataset.id);
+  if (row) editor.open("item", row.dataset.id);
 }
 
-/* Set when Enter already committed: the browser still fires a trailing focusout for the
-   replaced input, and by then `editing` may point at the fresh row, whose text is empty. */
-let blurSuppress = false;
-
-/* Saving a name the row never had keeps the typing flow going: the next editor opens right away.
-   A rename only saves. The target list and the nameless state are read before the save, which
-   drops a row that is still nameless. */
+// A first name opens the next row in its list.
 function commitEditor() {
-  const editing = state.ui.editing;
-  const row = editing && rowById(editing.kind, editing.id);
-  const input = row && row.querySelector(".row-edit input");
-  if (!input) {
-    return;
-  }
-  const created = !entityText(editing.kind, editing.id);
-  const list = editing.kind === "item" ? (findItem(editing.id) ?? {}).checklistId : editing.id;
-  const named = input.value.trim() !== "";
-  blurSuppress = true;
-  commitText(editing.kind, editing.id, input.value);
-  if (created && named && list) {
-    addItem(list);
-  }
+  const continueIn = editor.save();
+  if (continueIn) addItem(continueIn);
 }
 
 function onListKeyDown(event) {
@@ -5497,18 +5529,14 @@ function onListKeyDown(event) {
   }
   if (event.key === "Escape") {
     event.preventDefault();
-    // Stop here: cancelEdit clears the editing flag, so the global Esc would read this same
+    // Stop here: the editor clears the editing flag, so the global Esc would read this same
     // press as "leave the search".
     event.stopPropagation();
-    cancelEdit();
+    editor.cancel();
   }
 }
 
 function onListBlur(event) {
-  if (blurSuppress) {
-    blurSuppress = false;
-    return;
-  }
   const input = event.target;
   // A detached node's blur is a rebuild artifact, not a user commit.
   if (!input.isConnected) return;
@@ -5516,13 +5544,8 @@ function onListBlur(event) {
   // Focus handed to the row's save button: the save itself commits, and a blur must not get there
   // first and stop the flow.
   if (event.relatedTarget?.closest(".act--save")) return;
-  const editing = state.ui.editing;
   const owner = input.closest && input.closest(".card, .item");
-  // Focus may already be another row's editor by now: commit only the row that owns this input.
-  if (!editing || !owner || owner.dataset.kind !== editing.kind || owner.dataset.id !== editing.id) {
-    return;
-  }
-  commitText(editing.kind, editing.id, input.value);
+  editor.blur(owner && { kind: owner.dataset.kind, id: owner.dataset.id }, input.value);
 }
 
 function onPanelClick(event) {

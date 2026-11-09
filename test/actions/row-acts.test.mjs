@@ -16,7 +16,7 @@ function harness({ checklists = [], items = [], editing, search = searchStub() }
     store: storeStub(calls),
     commit: (kind, id) => calls.push(`commit:${kind}:${id}`),
     togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
-    startEdit: (kind, id) => calls.push(`startEdit:${kind}:${id}`),
+    editor: { open: (kind, id) => calls.push(`open:${kind}:${id}`) },
     addItem: (id) => calls.push(`addItem:${id}`),
     openEntityMenu: (kind, id, trigger) => calls.push(`openEntityMenu:${kind}:${id}:${trigger.name}`),
     commitEditor: () => calls.push("commitEditor"),
@@ -68,7 +68,7 @@ test("pick, edit, add-item and menu forward their arguments", () => {
   onRowAct("menu", "item", "i1", row, TRIGGER);
   assert.deepEqual(calls, [
     "togglePick:item:i1",
-    "startEdit:list:c1",
+    "open:list:c1",
     "addItem:c1",
     "openEntityMenu:item:i1:trigger",
   ]);

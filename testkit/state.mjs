@@ -26,6 +26,8 @@ export function stateHarness(names) {
     showToast: (text) => { sandbox.lastToast = text; },
     rowById: () => null,
     t: (key) => key,
+    // Editing has its own module; store-level tests only need the collaborator.
+    editor: { flush: () => {}, open: () => {}, save: () => null, cancel: () => {}, blur: () => {} },
   };
   sandbox.store = storeStub(sandbox.marked, sandbox.calls);
   const base = ["PAGE_SIZES", "createSearch", ...ORDER];
