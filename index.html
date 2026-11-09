@@ -2919,7 +2919,7 @@ function createOrder(getState) {
 
 const order = createOrder(() => state);
 
-const safeToReload = () => !state.ui.editing && !gesture && !drag && !modalOpen();
+const safeToReload = () => !state.ui.editing && !pointer.active() && !modalOpen();
 
 const store = createStore({
   storage: idbStorage(CHANNEL),
@@ -3591,10 +3591,6 @@ function reconcile(host, nodes) {
 }
 
 function renderLists() {
-  // Reused nodes survive the render, so the drag styling has to be dropped here and re-applied by applyDragState.
-  for (const row of byId("lists").querySelectorAll(".is-drag-src")) {
-    row.classList.remove("is-drag-src");
-  }
   const existing = new Map([...byId("lists").children].map((node) => [node.dataset.id, node]));
   const rows = pagedChecklists().map((cl) => {
     const node = existing.get(cl.id) || byId("tpl-checklist").content.firstElementChild.cloneNode(true);
@@ -3875,7 +3871,7 @@ function afterRender() {
   }
   needFocus = false;
   if (scrollTarget) applyScrollTarget();
-  applyDragState();
+  rowDrag.afterRender();
 }
 
 function focusEditor(kind, id) {
@@ -4737,14 +4733,67 @@ function hideToast() {
   byId("banner").classList.remove("is-shown");
 }
 
-/* ---------- row gestures: long-press drag + swipe ---------- */
+/* ---------- auto-scroll ---------- */
 
-let gesture = null;
-let drag = null;
-let suppressClick = false;
-let pointerY = 0;
-let scrollRaf = 0;
-let autoScrolling = false;
+function ramp(k) {
+  return 1 + Math.round(9 * clamp(k, 0, 1));
+}
+
+/* One edge-scroll loop, shared by a row drag and a panel drag: only one rAF ever runs. onFrame fires
+   on a frame that scrolled and once more when the page runs out, so the aim lands on the settled view.
+   live is the net under a release that never arrived: nobody dragging kills the loop. */
+function createAutoScroll(onFrame, live) {
+  let raf = 0;
+  let y = 0;
+  let moved = false;
+  const stop = () => {
+    if (raf) {
+      cancelAnimationFrame(raf);
+    }
+    raf = 0;
+    moved = false;
+  };
+  const step = () => {
+    if (!live()) {
+      stop();
+      return;
+    }
+    let pixels = 0;
+    if (y < GESTURE.edge) {
+      pixels = -ramp(y / GESTURE.edge);
+    } else if (y > innerHeight - GESTURE.edge) {
+      pixels = ramp((y - (innerHeight - GESTURE.edge)) / GESTURE.edge);
+    }
+    const before = scrollY;
+    if (pixels !== 0) {
+      scrollBy(0, pixels);
+    }
+    const was = moved;
+    moved = scrollY !== before;
+    if (moved || was) {
+      onFrame();
+    }
+    raf = requestAnimationFrame(step);
+  };
+  return {
+    at(next) {
+      y = next;
+    },
+    start() {
+      if (!raf) {
+        raf = requestAnimationFrame(step);
+      }
+    },
+    stop,
+    // A page moving under the finger must not arm a hold on whatever passes by.
+    moved: () => moved,
+  };
+}
+
+const autoScroll = createAutoScroll(() => rowDrag.scrollFrame(),
+  () => rowDrag.active() || Boolean(panelDrag));
+
+/* ---------- row pointer: hold → swipe | drag → drop ---------- */
 
 function rowHandle(target) {
   if (!target || !target.closest) {
@@ -4769,134 +4818,19 @@ function rowById(kind, id) {
   return document.querySelector(`#lists [data-kind="${kind}"][data-id="${CSS.escape(id)}"]`);
 }
 
-function onRowDown(event) {
-  if (drag || modalOpen()) {
-    return;
-  }
-  if (event.pointerType === "mouse" && event.button !== 0) {
-    return;
-  }
-  const hit = rowHandle(event.target);
-  if (!hit) return;
-  pointerY = event.clientY;
-  gesture = {
-    ...hit,
-    x0: event.clientX,
-    y0: event.clientY,
-    mode: "pending",
-    timer: setTimeout(startDrag, GESTURE.press),
-  };
-  if (event.pointerType !== "mouse") {
-    document.documentElement.classList.add("is-dragging");
-    document.getSelection()?.removeAllRanges();
-  }
-  window.addEventListener("pointermove", onRowMove);
-  window.addEventListener("pointerup", onRowUp);
-  window.addEventListener("pointercancel", onRowUp);
-}
-
-function endRowListeners() {
-  document.documentElement.classList.remove("is-dragging");
-  window.removeEventListener("pointermove", onRowMove);
-  window.removeEventListener("pointerup", onRowUp);
-  window.removeEventListener("pointercancel", onRowUp);
-}
-
-function onRowMove(event) {
-  pointerY = event.clientY;
-  if (!gesture) return;
-  const dx = event.clientX - gesture.x0;
-  const dy = event.clientY - gesture.y0;
-  if (gesture.mode === "drag") {
-    updateDrag(event.clientX, event.clientY);
-    return;
-  }
-  if (gesture.mode === "swipe") {
-    paintSwipe(dx);
-    return;
-  }
-  if (Math.abs(dx) > GESTURE.swipeMin && Math.abs(dx) > GESTURE.ratio * Math.abs(dy)) {
-    gesture.mode = "swipe";
-    clearTimeout(gesture.timer);
-    paintSwipe(dx);
-    return;
-  }
-  if (Math.max(Math.abs(dx), Math.abs(dy)) > GESTURE.slop) {
-    clearTimeout(gesture.timer);
-    if (Math.abs(dy) >= Math.abs(dx)) {
-      endGesture();
-    }
-  }
-}
-
-function onRowUp() {
-  if (!gesture) return;
-  if (gesture.mode === "drag") {
-    suppressNextClick();
-    endDrag(true);
-    store.flushSave();
-  } else if (gesture.mode === "swipe") {
-    suppressNextClick();
-    finishSwipe();
-  }
-  endGesture();
-}
-
-function endGesture() {
-  if (gesture) clearTimeout(gesture.timer);
-  gesture = null;
-  endRowListeners();
-}
-
 function rubber(dx) {
   const over = Math.abs(dx) - GESTURE.trigger;
   if (over <= 0) return dx;
   return Math.sign(dx) * (GESTURE.trigger + over * 0.35);
 }
 
-function suppressNextClick() {
-  suppressClick = true;
-  setTimeout(() => { suppressClick = false; }, 250);
+// Rows a drag can count: the dragged ones and the marker are not in the way.
+function visibleRows(container, gap) {
+  return [...container.children].filter((node) => node !== gap && !node.classList.contains("is-drag-src"));
 }
 
-function paintSwipe(dx) {
-  const mover = gesture.mover;
-  gesture.lastDx = dx;
-  mover.style.transition = "none";
-  mover.style.transform = `translateX(${rubber(dx)}px)`;
-  const progress = clamp(Math.abs(dx) / GESTURE.trigger, 0, 1);
-  for (const bg of gesture.handle.querySelectorAll(".swipe-bg")) {
-    const rightSide = bg.classList.contains("swipe-bg--right");
-    bg.style.opacity = String(dx > 0 === rightSide ? progress : 0);
-  }
-}
-
-function finishSwipe() {
-  const current = gesture;
-  const dx = current.lastDx || 0;
-  current.mover.style.transition = "";
-  current.mover.style.transform = "";
-  for (const bg of current.handle.querySelectorAll(".swipe-bg")) {
-    bg.style.opacity = "0";
-  }
-  if (Math.abs(dx) < GESTURE.trigger) {
-    return;
-  }
-  if (dx > 0) {
-    editor.open(current.kind, current.id);
-    return;
-  }
-  ask(current.kind, [current.id], "archive", current.handle);
-}
-
-/* ---------- drag ---------- */
-
-function visibleRows(container) {
-  return [...container.children].filter((node) => node !== (drag && drag.gap) && !node.classList.contains("is-drag-src"));
-}
-
-function indexAt(container, y) {
-  const rows = visibleRows(container);
+function indexAt(container, y, gap) {
+  const rows = visibleRows(container, gap);
   let index = 0;
   for (const row of rows) {
     const rect = row.getBoundingClientRect();
@@ -4906,25 +4840,6 @@ function indexAt(container, y) {
     index += 1;
   }
   return index;
-}
-
-function placeGap() {
-  if (!drag || !drag.container) {
-    return;
-  }
-  const rows = visibleRows(drag.container);
-  const ref = rows[clamp(drag.index, 0, rows.length)];
-  if (ref) drag.container.insertBefore(drag.gap, ref);
-  else drag.container.append(drag.gap);
-}
-
-function applyDragState() {
-  if (!drag) return;
-  for (const id of drag.ids) {
-    const row = rowById(drag.kind, id);
-    if (row) row.classList.add("is-drag-src");
-  }
-  placeGap();
 }
 
 function targetContainer(kind, y) {
@@ -4953,8 +4868,8 @@ function targetContainer(kind, y) {
 }
 
 /* The aim leaves the held target only past GESTURE.hoverPad, so hand jitter cannot reset the hold. */
-function collapsedHeadAt(y) {
-  const held = drag.hoverId && rowById("list", drag.hoverId);
+function collapsedHeadAt(y, heldId) {
+  const held = heldId && rowById("list", heldId);
   const head = held && held.querySelector(":scope > .card__head");
   if (head) {
     const rect = head.getBoundingClientRect();
@@ -4971,124 +4886,14 @@ function collapsedHeadAt(y) {
   return null;
 }
 
-// The clone sits at `position: fixed; top: 0`, so its centre is pure arithmetic: no layout read.
-function cloneCenter() {
-  return drag.y - drag.dy + drag.cloneHalf;
-}
-
-/* Reads before writes: interleaving costs one relayout per pass. */
-function retarget() {
-  const cy = cloneCenter();
-  const hovered = drag.kind === "item" && !autoScrolling ? collapsedHeadAt(cy) : null;
-  const container = targetContainer(drag.kind, cy);
-  const index = container && !hovered ? indexAt(container, cy) : drag.index;
-  moveClone();
-  handleHover(hovered);
-  if (!container || (drag.container === container && drag.index === index)) {
-    return;
+// The id of the live row after ("next") or before ("prev") the drop marker; dragged rows are skipped.
+function siblingId(gap, dir) {
+  const key = dir === "next" ? "nextElementSibling" : "previousElementSibling";
+  let node = gap[key];
+  while (node && node.classList.contains("is-drag-src")) {
+    node = node[key];
   }
-  drag.container = container;
-  drag.index = index;
-  placeGap();
-}
-
-function clearCollapsedTarget() {
-  if (!drag.collapsedId) return;
-  const old = rowById("list", drag.collapsedId);
-  if (old) old.classList.remove("is-drop-hover");
-  drag.collapsedId = null;
-  drag.gap.classList.remove("is-standby");
-}
-
-/* Aiming at a collapsed head arms a hold that expands it; one hold per aimed head, and a null
-   head (leaving every card) clears it. */
-function handleHover(head) {
-  if (drag.kind !== "item") {
-    return;
-  }
-  const id = head ? head.parentElement.dataset.id : null;
-  if (drag.hoverId === id) {
-    return;
-  }
-  clearTimeout(drag.hoverTimer);
-  clearCollapsedTarget();
-  drag.hoverId = id;
-  if (id) {
-    drag.collapsedId = id;
-    drag.gap.classList.add("is-standby");
-    head.parentElement.classList.add("is-drop-hover");
-    drag.hoverTimer = setTimeout(() => expandForDrop(id), GESTURE.hover);
-  }
-}
-
-function expandForDrop(id) {
-  const cl = findList(id);
-  if (!drag || !cl || cl.expanded) {
-    return;
-  }
-  drag.hoverId = null;
-  clearCollapsedTarget();
-  cl.expanded = true;
-  store.markDirty("list", id);
-  commit("list", id);
-  const body = rowById("list", id)?.querySelector(".items");
-  // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
-  if (!body) {
-    retarget();
-    return;
-  }
-  drag.container = body;
-  drag.index = indexAt(body, cloneCenter());
-  placeGap();
-}
-
-function startDrag() {
-  const hit = gesture;
-  // The order on screen is a search result, not the real order: nothing to drag there.
-  if (!hit || search.active) return;
-  hit.mode = "drag";
-  const bulk = state.ui.bulk;
-  const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
-  // In state order, not tap order: a group lands in the order the app holds it, so the ghost matches the drop.
-  const picked = new Set(ids);
-  const source = hit.kind === "list" ? state.checklists : state.items;
-  const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
-  if (!rows.length) return;
-  navigator.vibrate?.(10);
-  // The grab offset comes from the ghosted head itself: a card rect drifts once the sticky head parks under the topbar.
-  const rect = hit.handle.getBoundingClientRect();
-  const clone = el("div", "drag-clone");
-  for (const row of rows) {
-    clone.append(dragCopy(row));
-  }
-  document.body.append(clone);
-  const gap = el("div", "drop-gap");
-  gap.style.height = `${clone.offsetHeight + gapPad(rows)}px`;
-  rows[0].before(gap);
-  drag = {
-    kind: hit.kind,
-    ids,
-    clone,
-    gap,
-    dx: hit.x0 - rect.left,
-    dy: hit.y0 - rect.top,
-    x: hit.x0,
-    y: hit.y0,
-    cloneHalf: clone.offsetHeight / 2,
-    raf: 0,
-    container: rows[0].parentElement,
-    index: 0,
-    hoverId: null,
-    hoverTimer: 0,
-    collapsedId: null,
-  };
-  for (const row of rows) {
-    row.classList.add("is-drag-src");
-  }
-  document.documentElement.classList.add("is-dragging");
-  document.getSelection()?.removeAllRanges();
-  retarget();
-  startAutoScroll();
+  return node && node.dataset ? node.dataset.id ?? null : null;
 }
 
 // A list drags as a closed card: a tall ghost lets the sticky head slip and aims far below the finger.
@@ -5110,33 +4915,6 @@ function gapPad(rows) {
   return gap * (rows.length - 1);
 }
 
-function moveClone() {
-  drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03) rotate(1.5deg)`;
-}
-
-function updateDrag(x, y) {
-  if (!drag) return;
-  drag.x = x;
-  drag.y = y;
-  if (!drag.raf) drag.raf = requestAnimationFrame(dragFrame);
-}
-
-function dragFrame() {
-  if (!drag) return;
-  drag.raf = 0;
-  retarget();
-}
-
-// The id of the live row after ("next") or before ("prev") the drop marker; dragged rows are skipped.
-function siblingId(gap, dir) {
-  const key = dir === "next" ? "nextElementSibling" : "previousElementSibling";
-  let node = gap[key];
-  while (node && node.classList.contains("is-drag-src")) {
-    node = node[key];
-  }
-  return node && node.dataset ? node.dataset.id ?? null : null;
-}
-
 function dropItemsInto(ids, checklistId, refId) {
   for (const id of ids) {
     store.markDirty("item", id);
@@ -5149,85 +4927,365 @@ function dropItemsInto(ids, checklistId, refId) {
   }
 }
 
-function endDrag(apply) {
-  const current = drag;
-  if (!current) return;
-  if (current.raf) {
-    // The drop must land where the last pointermove pointed, not where the previous frame said.
-    cancelAnimationFrame(current.raf);
-    current.raf = 0;
-    retarget();
+/* Where a released group lands, read off the marker and the card: a list moves among lists, an item
+   into the list it is held over, or the one it was dropped on. */
+function dropPlan(kind, collapsedId, checklistId, refId, prevId) {
+  if (kind === "list") {
+    return { before: refId, after: prevId };
   }
-  drag = null;
-  document.documentElement.classList.remove("is-dragging");
-  clearTimeout(current.hoverTimer);
-  // Dropped before the hold filled: nothing else takes the progress bar off the target head.
-  rowById("list", current.collapsedId)?.classList.remove("is-drop-hover");
-  const kind = current.kind;
-  const ids = current.ids;
-  const refId = siblingId(current.gap, "next");
-  const prevId = siblingId(current.gap, "prev");
-  const targetCard = current.container ? current.container.closest(".card") : null;
-  const checklistId = targetCard ? targetCard.dataset.id : null;
-  current.clone.remove();
-  current.gap.remove();
-  stopAutoScroll();
-  if (!apply) {
-    render();
+  const into = collapsedId ?? checklistId;
+  return into ? { into, before: collapsedId ? null : refId } : null;
+}
+
+/* The ghost, the grab offsets and the drop marker, off the held rows. The grab offset comes from the
+   ghosted head itself: a card rect drifts once the sticky head parks under the topbar. */
+function dragBag(kind, ids, hit, rows) {
+  const rect = hit.handle.getBoundingClientRect();
+  const clone = el("div", "drag-clone");
+  for (const row of rows) {
+    clone.append(dragCopy(row));
+  }
+  document.body.append(clone);
+  const gap = el("div", "drop-gap");
+  gap.style.height = `${clone.offsetHeight + gapPad(rows)}px`;
+  rows[0].before(gap);
+  return {
+    kind,
+    ids,
+    clone,
+    gap,
+    dx: hit.x0 - rect.left,
+    dy: hit.y0 - rect.top,
+    x: hit.x0,
+    y: hit.y0,
+    cloneHalf: clone.offsetHeight / 2,
+    raf: 0,
+    container: rows[0].parentElement,
+    index: 0,
+    hoverId: null,
+    hoverTimer: 0,
+    collapsedId: null,
+  };
+}
+
+function clearHold(drag) {
+  if (!drag.collapsedId) return;
+  const old = rowById("list", drag.collapsedId);
+  if (old) old.classList.remove("is-drop-hover");
+  drag.collapsedId = null;
+  drag.gap.classList.remove("is-standby");
+}
+
+/* Aiming at a collapsed head arms a hold that opens it for the drop; one hold per aimed head, and a
+   null head (leaving every card) clears it. */
+function armHover(drag, head, onHold) {
+  const id = head ? head.parentElement.dataset.id : null;
+  if (drag.hoverId === id) {
     return;
   }
-  if (kind === "list") {
-    order.place("list", ids, { before: refId, after: prevId });
-  } else if (current.collapsedId) {
-    dropItemsInto(ids, current.collapsedId, null);
-  } else if (checklistId) {
-    dropItemsInto(ids, checklistId, refId);
+  clearTimeout(drag.hoverTimer);
+  clearHold(drag);
+  drag.hoverId = id;
+  if (id) {
+    drag.collapsedId = id;
+    drag.gap.classList.add("is-standby");
+    head.parentElement.classList.add("is-drop-hover");
+    drag.hoverTimer = setTimeout(() => onHold(id), GESTURE.hover);
   }
-  commit();
 }
 
-function ramp(k) {
-  return 1 + Math.round(9 * clamp(k, 0, 1));
-}
+/* What a held row does with it: aim a drop marker, expand a closed list under the hold, land the
+   group. The bag lives here; the screen is the only thing that knows where the marker got to. */
+function createRowDrag({ getState, commit, render, search, autoScroll }) {
+  let drag = null;
 
-function startAutoScroll() {
-  if (scrollRaf) return;
-  const step = () => {
-    if (!drag && !panelDrag) {
-      scrollRaf = 0;
+  const cloneY = () => drag.y - drag.dy + drag.cloneHalf;
+
+  function placeGap() {
+    if (!drag || !drag.container) {
       return;
     }
-    const height = innerHeight;
-    let pixels = 0;
-    if (pointerY < GESTURE.edge) {
-      pixels = -ramp(pointerY / GESTURE.edge);
-    } else if (pointerY > height - GESTURE.edge) {
-      pixels = ramp((pointerY - (height - GESTURE.edge)) / GESTURE.edge);
+    const rows = visibleRows(drag.container, drag.gap);
+    const ref = rows[clamp(drag.index, 0, rows.length)];
+    if (ref) drag.container.insertBefore(drag.gap, ref);
+    else drag.container.append(drag.gap);
+  }
+
+  /* Reads before writes: interleaving costs one relayout per pass. */
+  function retarget() {
+    const cy = cloneY();
+    const hovered = drag.kind === "item" && !autoScroll.moved() ? collapsedHeadAt(cy, drag.hoverId) : null;
+    const container = targetContainer(drag.kind, cy);
+    const index = container && !hovered ? indexAt(container, cy, drag.gap) : drag.index;
+    drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03) rotate(1.5deg)`;
+    armHover(drag, hovered, expandForDrop);
+    if (!container || (drag.container === container && drag.index === index)) {
+      return;
     }
-    const before = scrollY;
-    if (pixels !== 0) {
-      scrollBy(0, pixels);
+    drag.container = container;
+    drag.index = index;
+    placeGap();
+  }
+
+  function expandForDrop(id) {
+    const cl = findList(id);
+    if (!drag || !cl || cl.expanded) {
+      return;
     }
-    const wasScrolling = autoScrolling;
-    autoScrolling = scrollY !== before;
-    if (drag && (autoScrolling || wasScrolling)) {
+    drag.hoverId = null;
+    clearHold(drag);
+    cl.expanded = true;
+    store.markDirty("list", id);
+    commit("list", id);
+    const body = rowById("list", id)?.querySelector(".items");
+    // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
+    if (!body) {
+      retarget();
+      return;
+    }
+    drag.container = body;
+    drag.index = indexAt(body, cloneY(), drag.gap);
+    placeGap();
+  }
+
+  /* A hold on a searched screen stays a hold: the order on screen is the query's, not the user's.
+     True once the hold became a drag. */
+  function start(hit) {
+    if (search.active) return false;
+    const bulk = getState().ui.bulk;
+    const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
+    // In state order, not tap order: a group lands in the order the app holds it, so the ghost matches the drop.
+    const picked = new Set(ids);
+    const source = hit.kind === "list" ? getState().checklists : getState().items;
+    const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
+    // Nothing of the group is rendered: no ghost to carry.
+    if (rows.length) {
+      navigator.vibrate?.(10);
+      drag = dragBag(hit.kind, ids, hit, rows);
+      for (const row of rows) {
+        row.classList.add("is-drag-src");
+      }
+      document.documentElement.classList.add("is-dragging");
+      document.getSelection()?.removeAllRanges();
+      retarget();
+      autoScroll.start();
+    }
+    return Boolean(drag);
+  }
+
+  function update(x, y) {
+    if (!drag) return;
+    drag.x = x;
+    drag.y = y;
+    if (!drag.raf) {
+      drag.raf = requestAnimationFrame(() => {
+        if (!drag) return;
+        drag.raf = 0;
+        retarget();
+      });
+    }
+  }
+
+  function finish(apply) {
+    const current = drag;
+    if (!current) return;
+    if (current.raf) {
+      // The drop must land where the last pointermove pointed, not where the previous frame said.
+      cancelAnimationFrame(current.raf);
+      current.raf = 0;
       retarget();
     }
-    scrollRaf = requestAnimationFrame(step);
+    drag = null;
+    document.documentElement.classList.remove("is-dragging");
+    clearTimeout(current.hoverTimer);
+    // Dropped before the hold filled: nothing else takes the progress bar off the target head.
+    rowById("list", current.collapsedId)?.classList.remove("is-drop-hover");
+    const card = current.container?.closest(".card");
+    const plan = dropPlan(current.kind, current.collapsedId, card?.dataset.id ?? null,
+      siblingId(current.gap, "next"), siblingId(current.gap, "prev"));
+    current.clone.remove();
+    current.gap.remove();
+    autoScroll.stop();
+    if (!apply) {
+      render();
+      return;
+    }
+    if (plan) {
+      if (current.kind === "list") {
+        order.place("list", current.ids, plan);
+      } else {
+        dropItemsInto(current.ids, plan.into, plan.before);
+      }
+    }
+    commit();
+    store.flushSave();
+  }
+
+  /* Reused nodes survive a render: the drag styling goes off every row and back onto the dragged ones,
+     with the marker where the last aim left it. */
+  function afterRender() {
+    for (const row of byId("lists").querySelectorAll(".is-drag-src")) {
+      row.classList.remove("is-drag-src");
+    }
+    if (!drag) return;
+    for (const id of drag.ids) {
+      const row = rowById(drag.kind, id);
+      if (row) row.classList.add("is-drag-src");
+    }
+    placeGap();
+  }
+
+  return {
+    start,
+    update,
+    release: () => finish(true),
+    cancel: () => finish(false),
+    active: () => Boolean(drag),
+    scrollFrame: () => { if (drag) retarget(); },
+    afterRender,
   };
-  scrollRaf = requestAnimationFrame(step);
 }
 
-function stopAutoScroll() {
-  if (scrollRaf) {
-    cancelAnimationFrame(scrollRaf);
-    scrollRaf = 0;
+/* What a finger does on a row: the hold that decides between a swipe and a drag, the swipe itself,
+   and the click a release leaves behind. The mode lives here and nowhere else. */
+function createPointer({ rowDrag, autoScroll, editor, ask, modalOpen }) {
+  let gesture = null;
+  let suppressClick = false;
+
+  function down(event) {
+    if (rowDrag.active() || modalOpen()) {
+      return;
+    }
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    const hit = rowHandle(event.target);
+    if (!hit) return;
+    autoScroll.at(event.clientY);
+    gesture = {
+      ...hit,
+      x0: event.clientX,
+      y0: event.clientY,
+      mode: "pending",
+      timer: setTimeout(holdFilled, GESTURE.press),
+    };
+    if (event.pointerType !== "mouse") {
+      document.documentElement.classList.add("is-dragging");
+      document.getSelection()?.removeAllRanges();
+    }
   }
-  autoScrolling = false;
+
+  function holdFilled() {
+    if (gesture && rowDrag.start(gesture)) {
+      gesture.mode = "drag";
+    }
+  }
+
+  function move(event) {
+    autoScroll.at(event.clientY);
+    if (!gesture) return;
+    const dx = event.clientX - gesture.x0;
+    const dy = event.clientY - gesture.y0;
+    if (gesture.mode === "drag") {
+      rowDrag.update(event.clientX, event.clientY);
+      return;
+    }
+    if (gesture.mode === "swipe") {
+      paintSwipe(dx);
+      return;
+    }
+    if (Math.abs(dx) > GESTURE.swipeMin && Math.abs(dx) > GESTURE.ratio * Math.abs(dy)) {
+      gesture.mode = "swipe";
+      clearTimeout(gesture.timer);
+      paintSwipe(dx);
+      return;
+    }
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > GESTURE.slop) {
+      clearTimeout(gesture.timer);
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        endGesture();
+      }
+    }
+  }
+
+  function up() {
+    if (!gesture) return;
+    if (gesture.mode === "drag") {
+      suppressNextClick();
+      rowDrag.release();
+    } else if (gesture.mode === "swipe") {
+      suppressNextClick();
+      finishSwipe();
+    }
+    endGesture();
+  }
+
+  function endGesture() {
+    if (gesture) clearTimeout(gesture.timer);
+    gesture = null;
+    document.documentElement.classList.remove("is-dragging");
+  }
+
+  function suppressNextClick() {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 250);
+  }
+
+  function paintSwipe(dx) {
+    const mover = gesture.mover;
+    gesture.lastDx = dx;
+    mover.style.transition = "none";
+    mover.style.transform = `translateX(${rubber(dx)}px)`;
+    const progress = clamp(Math.abs(dx) / GESTURE.trigger, 0, 1);
+    for (const bg of gesture.handle.querySelectorAll(".swipe-bg")) {
+      const rightSide = bg.classList.contains("swipe-bg--right");
+      bg.style.opacity = String(dx > 0 === rightSide ? progress : 0);
+    }
+  }
+
+  function finishSwipe() {
+    const current = gesture;
+    const dx = current.lastDx || 0;
+    current.mover.style.transition = "";
+    current.mover.style.transform = "";
+    for (const bg of current.handle.querySelectorAll(".swipe-bg")) {
+      bg.style.opacity = "0";
+    }
+    if (Math.abs(dx) < GESTURE.trigger) {
+      return;
+    }
+    if (dx > 0) {
+      editor.open(current.kind, current.id);
+      return;
+    }
+    ask(current.kind, [current.id], "archive", current.handle);
+  }
+
+  return {
+    down,
+    move,
+    up,
+    active: () => Boolean(gesture) || rowDrag.active(),
+    clickSuppressed: () => suppressClick,
+    suppressNextClick,
+  };
 }
+
+const rowDrag = createRowDrag({
+  getState: () => state,
+  order,
+  store,
+  commit,
+  render,
+  search,
+  findList,
+  autoScroll,
+});
+
+const pointer = createPointer({ rowDrag, autoScroll, editor, ask, modalOpen });
 
 document.addEventListener("touchmove", (event) => {
-  if (drag || panelDrag) {
+  if (rowDrag.active() || panelDrag) {
     event.preventDefault();
   }
 }, { passive: false });
@@ -5369,7 +5427,6 @@ function onPanelDown(event) {
   const rect = byId("panel").getBoundingClientRect();
   const origin = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
   const move = (e) => {
-    pointerY = e.clientY;
     if (!panelDrag && (Math.abs(e.clientX - origin.x) > GESTURE.slop || Math.abs(e.clientY - origin.y) > GESTURE.slop)) {
       beginPanelDrag(e, origin);
     }
@@ -5401,7 +5458,7 @@ function beginPanelDrag(event, origin) {
   panel.classList.add("is-dragging");
   document.documentElement.classList.add("is-dragging");
   document.getSelection()?.removeAllRanges();
-  startAutoScroll();
+  autoScroll.start();
 }
 
 function movePanelDrag(event) {
@@ -5429,11 +5486,11 @@ function endPanelDrag() {
   panel.classList.remove("is-dragging");
   document.documentElement.classList.remove("is-dragging");
   hideGhost();
-  stopAutoScroll();
+  autoScroll.stop();
   store.markUi();
   store.flushSave();
   positionPanel();
-  suppressNextClick();
+  pointer.suppressNextClick();
 }
 
 /* ---------- actions ---------- */
@@ -5496,7 +5553,7 @@ function onPanelAct(act, button) {
 /* ---------- wiring ---------- */
 
 function onListClick(event) {
-  if (suppressClick) return;
+  if (pointer.clickSuppressed()) return;
   const button = event.target.closest("[data-act]");
   if (!button) return;
   const row = button.closest("[data-id]");
@@ -5549,7 +5606,7 @@ function onListBlur(event) {
 }
 
 function onPanelClick(event) {
-  if (suppressClick) return;
+  if (pointer.clickSuppressed()) return;
   const button = event.target.closest("[data-act]");
   if (button) onPanelAct(button.dataset.act, button);
 }
@@ -5558,8 +5615,8 @@ function onKey(event) {
   if (event.key !== "Escape") {
     return;
   }
-  if (drag) {
-    endDrag(false);
+  if (rowDrag.active()) {
+    rowDrag.cancel();
     return;
   }
   if (modalOpen()) {
@@ -5646,13 +5703,16 @@ function bind() {
   lists.addEventListener("dblclick", onListDblClick);
   lists.addEventListener("keydown", onListKeyDown);
   lists.addEventListener("focusout", onListBlur);
-  lists.addEventListener("pointerdown", onRowDown);
+  lists.addEventListener("pointerdown", pointer.down);
+  addEventListener("pointermove", pointer.move);
+  addEventListener("pointerup", pointer.up);
+  addEventListener("pointercancel", pointer.up);
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
   panel.addEventListener("pointerdown", onPanelDown);
   // No long-press menu over a running row gesture, row drag or panel drag.
   document.addEventListener("contextmenu", (event) => {
-    if (gesture || drag || panelDrag) {
+    if (pointer.active() || panelDrag) {
       event.preventDefault();
     }
   });

@@ -60,15 +60,14 @@ test("after reloading for another tab nothing is written back", async () => {
 });
 
 // The conditions a reload waits for, on their own.
-const safeWhen = ({ editing = null, gesture = null, drag = null, dialogs = false } = {}) =>
+const safeWhen = ({ editing = null, held = false, dialogs = false } = {}) =>
   sliceVm(["safeToReload"], {
-    state: { ui: { editing } }, gesture, drag, modalOpen: () => dialogs,
+    state: { ui: { editing } }, pointer: { active: () => held }, modalOpen: () => dialogs,
   }).safeToReload();
 
 test("a reload waits until nothing on screen would lose work", () => {
   assert.equal(safeWhen(), true);
   assert.equal(safeWhen({ editing: { kind: "item", id: "i1" } }), false, "a typed draft");
-  assert.equal(safeWhen({ gesture: {} }), false, "a row gesture under a finger");
-  assert.equal(safeWhen({ drag: {} }), false, "a drag in flight");
+  assert.equal(safeWhen({ held: true }), false, "a row gesture or a drag under a finger");
   assert.equal(safeWhen({ dialogs: true }), false, "an open dialog");
 });

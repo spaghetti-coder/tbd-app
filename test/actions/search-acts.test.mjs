@@ -133,11 +133,9 @@ test("creating a list drops a search that would hide it", () => {
 });
 
 test("a searched screen has nothing to drag: its order is the query's, not the user's", () => {
-  const box = { search: searchStub({ active: true }), drag: null, gesture: { kind: "list", id: "l1", mode: "pending" } };
-  const { startDrag } = sliceVm(["startDrag"], box);
-  startDrag();
-  assert.equal(box.gesture.mode, "pending", "the hold never became a drag");
-  assert.equal(box.drag, null);
+  const { createRowDrag } = sliceVm(["createRowDrag"], {});
+  const rowDrag = createRowDrag({ search: searchStub({ active: true }) });
+  assert.equal(rowDrag.start({ kind: "list", id: "l1" }), false, "the hold never becomes a drag");
 });
 
 /* ---------- the empty state ---------- */

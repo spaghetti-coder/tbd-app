@@ -1,9 +1,11 @@
 // A stand-in for Element: only the DOM contract the sliced functions touch.
-export function fakeNode({ classes = [], id, kind, tag, rect, children = [] } = {}) {
+export function fakeNode({ classes = [], id, kind, tag, rect, height = 0, width = 0, children = [] } = {}) {
   const set = new Set(classes);
   const node = {
     classes: set,
     tag: tag ?? "",
+    offsetHeight: height,
+    offsetWidth: width,
     classList: {
       add: (name) => set.add(name),
       remove: (name) => set.delete(name),
@@ -23,6 +25,35 @@ export function fakeNode({ classes = [], id, kind, tag, rect, children = [] } = 
     get nextSibling() {
       const at = this.parentElement?.children.indexOf(this) ?? -1;
       return at < 0 ? null : this.parentElement.children[at + 1] ?? null;
+    },
+    get nextElementSibling() {
+      return this.nextSibling;
+    },
+    get previousElementSibling() {
+      const at = this.parentElement?.children.indexOf(this) ?? -1;
+      return at < 1 ? null : this.parentElement.children[at - 1];
+    },
+    append(...added) {
+      for (const child of added) {
+        child.remove();
+        this.children.push(child);
+        child.parentElement = this;
+      }
+    },
+    before(neighbor) {
+      this.parentElement?.insertBefore(neighbor, this);
+    },
+    cloneNode() {
+      return fakeNode({
+        classes: [...this.classes],
+        id: this.dataset.id,
+        kind: this.dataset.kind,
+        tag: this.tag,
+        rect: this.getBoundingClientRect ? this.getBoundingClientRect() : undefined,
+        height: this.offsetHeight,
+        width: this.offsetWidth,
+        children: this.children.map((child) => child.cloneNode()),
+      });
     },
     remove() {
       const at = this.parentElement?.children.indexOf(this) ?? -1;
@@ -68,6 +99,14 @@ export function fakeNode({ classes = [], id, kind, tag, rect, children = [] } = 
         if (found) return found;
       }
       return null;
+    },
+    querySelectorAll(selectors) {
+      const out = [];
+      for (const child of this.children) {
+        if (child.matches(selectors)) out.push(child);
+        out.push(...child.querySelectorAll(selectors));
+      }
+      return out;
     },
   };
   if (rect) {
