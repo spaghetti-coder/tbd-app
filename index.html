@@ -4791,7 +4791,7 @@ function createAutoScroll(onFrame, live) {
 }
 
 const autoScroll = createAutoScroll(() => rowDrag.scrollFrame(),
-  () => rowDrag.active() || Boolean(panelDrag));
+  () => rowDrag.active() || panelDrag.active());
 
 /* ---------- row pointer: hold → swipe | drag → drop ---------- */
 
@@ -5285,15 +5285,12 @@ const rowDrag = createRowDrag({
 const pointer = createPointer({ rowDrag, autoScroll, editor, ask, modalOpen });
 
 document.addEventListener("touchmove", (event) => {
-  if (rowDrag.active() || panelDrag) {
+  if (rowDrag.active() || panelDrag.active()) {
     event.preventDefault();
   }
 }, { passive: false });
 
 /* ---------- minipanel ---------- */
-
-let panelDrag = null;
-let panelGhost = null;
 
 function cssVarPx(name) {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
@@ -5340,14 +5337,6 @@ function panelTop(pct, height, base) {
   return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), min, panelCeiling(height, min));
 }
 
-function panelFraction(top, base) {
-  const [min, max] = panelTopRange(base);
-  if (!(max > min) || !Number.isFinite(top)) {
-    return 0;
-  }
-  return clamp((top - min) / (max - min), 0, 1);
-}
-
 /* The docks, left then right: beside the content column when the panel fits there,
    the safe-area edges otherwise, and never past the safe area. */
 function panelDocks(width) {
@@ -5372,7 +5361,7 @@ function panelLiesDown(panel) {
 
 function positionPanel() {
   const panel = byId("panel");
-  if (panelDrag) return;
+  if (panelDrag.active()) return;
   const row = panel.classList.toggle("is-row", panelLiesDown(panel));
   panel.setAttribute("aria-orientation", row ? "horizontal" : "vertical");
   for (const sep of panel.querySelectorAll(".panel__sep")) {
@@ -5384,114 +5373,147 @@ function positionPanel() {
   panel.style.top = `${panelTop(state.ui.panel.topPct, height, collapsedHeight())}px`;
 }
 
-function snapSide(center, width, docks) {
-  return sideFor(center, docks[0] + width / 2, docks[1] + width / 2, state.ui.panel.side);
-}
-
-// Peel past the threshold, re-glue at half of it: the gap is wider than GESTURE.slop, so jitter cannot oscillate it.
-function detached(desired, dock, wasDetached) {
-  const dist = Math.abs(desired - dock);
-  return wasDetached ? dist >= GESTURE.detach / 2 : dist >= GESTURE.detach;
-}
-
-// Switch docks only past 33% of the span from the current one.
-function sideFor(center, left, right, side) {
-  const trigger = (right - left) * 0.33;
-  if (side === "left") {
-    return center - left >= trigger ? "right" : "left";
-  }
-  return right - center >= trigger ? "left" : "right";
-}
-
-function showGhost(left, top, width, height) {
-  const ghost = panelGhost ?? document.body.appendChild(el("div", "panel-ghost"));
-  panelGhost = ghost;
-  ghost.hidden = false;
-  ghost.style.width = `${width}px`;
-  ghost.style.height = `${height}px`;
-  ghost.style.left = `${left}px`;
-  ghost.style.top = `${top}px`;
-}
-
-function hideGhost() {
-  if (panelGhost) panelGhost.hidden = true;
-}
-
-function onPanelDown(event) {
-  if (panelDrag || modalOpen()) {
-    return;
-  }
-  if (event.pointerType === "mouse" && event.button !== 0) {
-    return;
-  }
-  const rect = byId("panel").getBoundingClientRect();
-  const origin = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top };
-  const move = (e) => {
-    if (!panelDrag && (Math.abs(e.clientX - origin.x) > GESTURE.slop || Math.abs(e.clientY - origin.y) > GESTURE.slop)) {
-      beginPanelDrag(e, origin);
-    }
-    if (panelDrag) movePanelDrag(e);
-  };
-  const up = () => {
-    if (panelDrag) endPanelDrag();
-    stop();
-  };
-  const stop = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", up);
-    window.removeEventListener("pointercancel", up);
-  };
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", up);
-  window.addEventListener("pointercancel", up);
-}
-
-function beginPanelDrag(event, origin) {
-  const panel = byId("panel");
-  panelDrag = {
-    dx: event.clientX - origin.left,
-    dy: event.clientY - origin.top,
-    width: panel.offsetWidth,
-    height: panel.offsetHeight,
-    detached: false,
-  };
-  panel.classList.add("is-dragging");
-  document.documentElement.classList.add("is-dragging");
-  document.getSelection()?.removeAllRanges();
-  autoScroll.start();
-}
-
-function movePanelDrag(event) {
-  const panel = byId("panel");
-  const [minTop, maxTop] = panelTopRange(panelDrag.height);
-  // Outward of a dock there is nothing to catch the panel, so the docks are the bounds.
-  const docks = panelDocks(panelDrag.width);
-  const desired = clamp(event.clientX - panelDrag.dx, docks[0], docks[1]);
-  const dock = panelX(state.ui.panel.side, docks);
-  panelDrag.detached = detached(desired, dock, panelDrag.detached);
-  const top = clamp(event.clientY - panelDrag.dy, minTop, maxTop);
-  const left = panelDrag.detached ? desired : dock;
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
-  const side = snapSide(left + panelDrag.width / 2, panelDrag.width, docks);
-  showGhost(panelX(side, docks), top, panelDrag.width, panelDrag.height);
-}
-
-function endPanelDrag() {
+/* One DOM read per gesture, taken when the drag starts: docks / band stand still while the finger is down.
+   Two bands — the panel's own for the clamp, the collapsed one for the saved fraction. */
+function panelGeometry() {
   const panel = byId("panel");
   const rect = panel.getBoundingClientRect();
-  state.ui.panel.side = snapSide(rect.left + rect.width / 2, rect.width, panelDocks(rect.width));
-  state.ui.panel.topPct = panelFraction(rect.top, collapsedHeight());
-  panelDrag = null;
-  panel.classList.remove("is-dragging");
-  document.documentElement.classList.remove("is-dragging");
-  hideGhost();
-  autoScroll.stop();
-  store.markUi();
-  store.flushSave();
-  positionPanel();
-  pointer.suppressNextClick();
+  const width = panel.offsetWidth;
+  const height = panel.offsetHeight;
+  const [topMin, topMax] = panelTopRange(height);
+  const [baseMin, baseMax] = panelTopRange(collapsedHeight());
+  return { left: rect.left, top: rect.top, width, height, docks: panelDocks(width), topMin, topMax, baseMin, baseMax };
 }
+
+/* Minipanel drag: slop -> hold, follow between the docks, snap on release.
+   shortcut: docks / band pinned at the drag's first move; a mid-drag resize lands on the next gesture. */
+function createPanelDrag({ side, measure, persist, position, suppressClick, autoScroll, modalOpen }) {
+  let drag = null;
+  let ghost = null;
+
+  // Peel at GESTURE.detach, re-glue at half: hysteresis wider than slop -> no jitter oscillation.
+  const peel = (desired, dock, wasDetached) => {
+    const dist = Math.abs(desired - dock);
+    return wasDetached ? dist >= GESTURE.detach / 2 : dist >= GESTURE.detach;
+  };
+
+  // Switch docks only past 33% of the span from the current one.
+  const snap = (center, from) => {
+    const left = drag.docks[0] + drag.width / 2;
+    const right = drag.docks[1] + drag.width / 2;
+    const trigger = (right - left) * 0.33;
+    if (from === "left") {
+      return center - left >= trigger ? "right" : "left";
+    }
+    return right - center >= trigger ? "left" : "right";
+  };
+
+  const fraction = (top) => (drag.baseMax > drag.baseMin && Number.isFinite(top)
+    ? clamp((top - drag.baseMin) / (drag.baseMax - drag.baseMin), 0, 1)
+    : 0);
+
+  const showGhost = (left, top) => {
+    ghost ??= document.body.appendChild(el("div", "panel-ghost"));
+    ghost.hidden = false;
+    ghost.style.width = `${drag.width}px`;
+    ghost.style.height = `${drag.height}px`;
+    ghost.style.left = `${left}px`;
+    ghost.style.top = `${top}px`;
+  };
+
+  const begin = (event) => {
+    const geo = measure();
+    drag = {
+      ...geo,
+      from: side(),
+      dx: event.clientX - geo.left,
+      dy: event.clientY - geo.top,
+      left: geo.left,
+      top: geo.top,
+      detached: false,
+    };
+    byId("panel").classList.add("is-dragging");
+    document.documentElement.classList.add("is-dragging");
+    document.getSelection()?.removeAllRanges();
+    autoScroll.start();
+  };
+
+  const follow = (event) => {
+    const panel = byId("panel");
+    const dock = panelX(drag.from, drag.docks);
+    const desired = clamp(event.clientX - drag.dx, drag.docks[0], drag.docks[1]);
+    // Nothing catches the panel outward of a dock -> the docks are the bounds.
+    drag.detached = peel(desired, dock, drag.detached);
+    drag.top = clamp(event.clientY - drag.dy, drag.topMin, drag.topMax);
+    drag.left = drag.detached ? desired : dock;
+    panel.style.left = `${drag.left}px`;
+    panel.style.top = `${drag.top}px`;
+    showGhost(panelX(snap(drag.left + drag.width / 2, drag.from), drag.docks), drag.top);
+  };
+
+  const release = () => {
+    persist({ side: snap(drag.left + drag.width / 2, drag.from), topPct: fraction(drag.top) });
+    drag = null;
+    byId("panel").classList.remove("is-dragging");
+    document.documentElement.classList.remove("is-dragging");
+    if (ghost) {
+      ghost.hidden = true;
+    }
+    autoScroll.stop();
+    position();
+    suppressClick();
+  };
+
+  function onDown(event) {
+    if (drag || modalOpen()) {
+      return;
+    }
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const move = (moved) => {
+      if (!drag && (Math.abs(moved.clientX - startX) > GESTURE.slop || Math.abs(moved.clientY - startY) > GESTURE.slop)) {
+        begin(moved);
+      }
+      if (drag) {
+        follow(moved);
+      }
+    };
+    const up = () => {
+      if (drag) {
+        release();
+      }
+      stop();
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
+
+  return { onDown, active: () => Boolean(drag) };
+}
+
+const panelDrag = createPanelDrag({
+  side: () => state.ui.panel.side,
+  measure: panelGeometry,
+  autoScroll,
+  modalOpen,
+  position: positionPanel,
+  suppressClick: () => pointer.suppressNextClick(),
+  persist: ({ side, topPct }) => {
+    state.ui.panel.side = side;
+    state.ui.panel.topPct = topPct;
+    store.markUi();
+    store.flushSave();
+  },
+});
 
 /* ---------- actions ---------- */
 
@@ -5709,10 +5731,10 @@ function bind() {
   addEventListener("pointercancel", pointer.up);
   const panel = byId("panel");
   panel.addEventListener("click", onPanelClick);
-  panel.addEventListener("pointerdown", onPanelDown);
+  panel.addEventListener("pointerdown", panelDrag.onDown);
   // No long-press menu over a running row gesture, row drag or panel drag.
   document.addEventListener("contextmenu", (event) => {
-    if (pointer.active() || panelDrag) {
+    if (pointer.active() || panelDrag.active()) {
       event.preventDefault();
     }
   });
