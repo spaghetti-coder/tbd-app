@@ -5296,93 +5296,121 @@ function cssVarPx(name) {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
 }
 
-function cssBottomInset() {
-  return parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
-}
+/* Panel placement: the band it may sit in, the docks, the remembered fraction.
+   Reads / writes cross `screen`. A fraction scales over the collapsed band, clamps against the panel's own. */
+function createPanelLayout(screen) {
+  const ceiling = (s, height, min) => Math.max(min, s.innerH - height - Math.max(GESTURE.gap, s.bottomInset));
 
-function panelCeiling(height, min) {
-  return Math.max(min, innerHeight - height - Math.max(GESTURE.gap, cssBottomInset()));
-}
+  // Band: below the sticky topbar, above the bottom safe area.
+  const range = (s, height) => {
+    const min = Math.round(s.topbar) + GESTURE.gap;
+    return [min, ceiling(s, height, min)];
+  };
 
-// A band of zero height leaves the panel nowhere to sit and its far end past the screen edge.
-function panelFits(height) {
-  const [min, max] = panelTopRange(height);
-  return max > min;
-}
+  // Zero band -> nothing to move in, far end past the screen edge.
+  const fits = (s) => {
+    const [min, max] = range(s, s.height);
+    return max > min;
+  };
 
-// Vertical band the panel may occupy: below the sticky topbar, above the bottom safe area.
-function panelTopRange(height) {
-  const min = Math.round(document.querySelector(".topbar").getBoundingClientRect().bottom) + GESTURE.gap;
-  return [min, panelCeiling(height, min)];
-}
+  /* Docks: beside the content column when the panel fits there, the safe-area edges otherwise,
+     never past them, and never crossed. */
+  const docks = (s) => {
+    const safeLeft = Math.round(s.safeLeft);
+    const safeRight = Math.round(s.innerW - s.width - s.safeRight);
+    const pair = s.wrapLeft >= s.width + GESTURE.gap * 2
+      ? [Math.max(safeLeft, Math.round(s.wrapLeft - s.width - GESTURE.gap)), Math.min(safeRight, Math.round(s.wrapRight + GESTURE.gap))]
+      : [safeLeft, safeRight];
+    return { left: Math.min(...pair), right: Math.max(...pair) };
+  };
 
-/* The pill as collapsed: the grip is always the first child, so the band the
-   drag anchor is scaled against never changes with the panel's real height. */
-function collapsedHeight() {
-  const panel = byId("panel");
-  const grip = panel.firstElementChild;
-  if (!grip) {
-    return panel.offsetHeight;
+  // A tall panel clamps into its own band: the grip moves only when there is no room left.
+  const top = (s, pct) => {
+    const [min, baseMax] = range(s, s.collapsed);
+    return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), min, ceiling(s, s.height, min));
+  };
+
+  /* Mode decided standing (the row layout hides the height it is about), position taken in the mode chosen. */
+  function place(side, pct) {
+    screen.setRow(false);
+    const row = !fits(screen.measure());
+    screen.setRow(row);
+    const s = screen.measure();
+    screen.write({ left: docks(s)[side], top: top(s, pct) });
   }
-  const style = getComputedStyle(panel);
-  return grip.offsetHeight
-    + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
-    + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+
+  function forDrag() {
+    const s = screen.measure();
+    const d = docks(s);
+    const [topMin, topMax] = range(s, s.height);
+    const [baseMin, baseMax] = range(s, s.collapsed);
+    return {
+      left: s.left,
+      top: s.top,
+      width: s.width,
+      height: s.height,
+      docks: d,
+      clampTop: (y) => clamp(y, topMin, topMax),
+      fractionOf: (y) => (baseMax > baseMin && Number.isFinite(y)
+        ? clamp((y - baseMin) / (baseMax - baseMin), 0, 1)
+        : 0),
+    };
+  }
+
+  return { place, forDrag };
 }
 
-/* The fraction is of the collapsed band; a taller panel is clamped into its own,
-   so the grip only moves when there is genuinely no room left for it. */
-function panelTop(pct, height, base) {
-  const [min, baseMax] = panelTopRange(base);
-  return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), min, panelCeiling(height, min));
+/* Measures the panel and the viewport. Collapsed height = grip (always first child) + padding &
+   border: the fraction's band never changes with the panel's height. */
+function createPanelScreen() {
+  const metrics = (panel) => {
+    const rect = panel.getBoundingClientRect();
+    const grip = panel.firstElementChild;
+    const style = getComputedStyle(panel);
+    const wrap = document.querySelector(".wrap").getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: panel.offsetWidth,
+      height: panel.offsetHeight,
+      collapsed: grip
+        ? grip.offsetHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+          + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+        : panel.offsetHeight,
+      topbar: document.querySelector(".topbar").getBoundingClientRect().bottom,
+      bottomInset: parseFloat(getComputedStyle(document.body).paddingBottom) || 0,
+      innerW: innerWidth,
+      innerH: innerHeight,
+      safeLeft: cssVarPx("--safe-left"),
+      safeRight: cssVarPx("--safe-right"),
+      wrapLeft: wrap.left,
+      wrapRight: wrap.right,
+    };
+  };
+  return {
+    measure: () => metrics(byId("panel")),
+    // Applies the mode; the next measure() is the one that knows its size.
+    setRow(row) {
+      const panel = byId("panel");
+      panel.classList.toggle("is-row", row);
+      panel.setAttribute("aria-orientation", row ? "horizontal" : "vertical");
+      for (const sep of panel.querySelectorAll(".panel__sep")) {
+        sep.setAttribute("aria-orientation", row ? "vertical" : "horizontal");
+      }
+    },
+    write({ left, top }) {
+      const panel = byId("panel");
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+    },
+  };
 }
 
-/* The docks, left then right: beside the content column when the panel fits there,
-   the safe-area edges otherwise, and never past the safe area. */
-function panelDocks(width) {
-  const safeLeft = Math.round(cssVarPx("--safe-left"));
-  const safeRight = Math.round(innerWidth - width - cssVarPx("--safe-right"));
-  const wrap = document.querySelector(".wrap").getBoundingClientRect();
-  const docks = wrap.left >= width + GESTURE.gap * 2
-    ? [Math.max(safeLeft, Math.round(wrap.left - width - GESTURE.gap)), Math.min(safeRight, Math.round(wrap.right + GESTURE.gap))]
-    : [safeLeft, safeRight];
-  return [Math.min(...docks), Math.max(...docks)];
-}
-
-function panelX(side, docks) {
-  return side === "left" ? docks[0] : docks[1];
-}
-
-// Row mode is decided on the unrowed height: the row layout hides the height it is about.
-function panelLiesDown(panel) {
-  panel.classList.remove("is-row");
-  return !panelFits(panel.offsetHeight);
-}
+const panelLayout = createPanelLayout(createPanelScreen());
 
 function positionPanel() {
-  const panel = byId("panel");
   if (panelDrag.active()) return;
-  const row = panel.classList.toggle("is-row", panelLiesDown(panel));
-  panel.setAttribute("aria-orientation", row ? "horizontal" : "vertical");
-  for (const sep of panel.querySelectorAll(".panel__sep")) {
-    sep.setAttribute("aria-orientation", row ? "vertical" : "horizontal");
-  }
-  const width = panel.offsetWidth;
-  const height = panel.offsetHeight;
-  panel.style.left = `${panelX(state.ui.panel.side, panelDocks(width))}px`;
-  panel.style.top = `${panelTop(state.ui.panel.topPct, height, collapsedHeight())}px`;
-}
-
-/* One DOM read per gesture, taken when the drag starts: docks / band stand still while the finger is down.
-   Two bands — the panel's own for the clamp, the collapsed one for the saved fraction. */
-function panelGeometry() {
-  const panel = byId("panel");
-  const rect = panel.getBoundingClientRect();
-  const width = panel.offsetWidth;
-  const height = panel.offsetHeight;
-  const [topMin, topMax] = panelTopRange(height);
-  const [baseMin, baseMax] = panelTopRange(collapsedHeight());
-  return { left: rect.left, top: rect.top, width, height, docks: panelDocks(width), topMin, topMax, baseMin, baseMax };
+  panelLayout.place(state.ui.panel.side, state.ui.panel.topPct);
 }
 
 /* Minipanel drag: slop -> hold, follow between the docks, snap on release.
@@ -5399,18 +5427,14 @@ function createPanelDrag({ side, measure, persist, position, suppressClick, auto
 
   // Switch docks only past 33% of the span from the current one.
   const snap = (center, from) => {
-    const left = drag.docks[0] + drag.width / 2;
-    const right = drag.docks[1] + drag.width / 2;
+    const left = drag.docks.left + drag.width / 2;
+    const right = drag.docks.right + drag.width / 2;
     const trigger = (right - left) * 0.33;
     if (from === "left") {
       return center - left >= trigger ? "right" : "left";
     }
     return right - center >= trigger ? "left" : "right";
   };
-
-  const fraction = (top) => (drag.baseMax > drag.baseMin && Number.isFinite(top)
-    ? clamp((top - drag.baseMin) / (drag.baseMax - drag.baseMin), 0, 1)
-    : 0);
 
   const showGhost = (left, top) => {
     ghost ??= document.body.appendChild(el("div", "panel-ghost"));
@@ -5440,19 +5464,19 @@ function createPanelDrag({ side, measure, persist, position, suppressClick, auto
 
   const follow = (event) => {
     const panel = byId("panel");
-    const dock = panelX(drag.from, drag.docks);
-    const desired = clamp(event.clientX - drag.dx, drag.docks[0], drag.docks[1]);
+    const dock = drag.docks[drag.from];
+    const desired = clamp(event.clientX - drag.dx, drag.docks.left, drag.docks.right);
     // Nothing catches the panel outward of a dock -> the docks are the bounds.
     drag.detached = peel(desired, dock, drag.detached);
-    drag.top = clamp(event.clientY - drag.dy, drag.topMin, drag.topMax);
+    drag.top = drag.clampTop(event.clientY - drag.dy);
     drag.left = drag.detached ? desired : dock;
     panel.style.left = `${drag.left}px`;
     panel.style.top = `${drag.top}px`;
-    showGhost(panelX(snap(drag.left + drag.width / 2, drag.from), drag.docks), drag.top);
+    showGhost(drag.docks[snap(drag.left + drag.width / 2, drag.from)], drag.top);
   };
 
   const release = () => {
-    persist({ side: snap(drag.left + drag.width / 2, drag.from), topPct: fraction(drag.top) });
+    persist({ side: snap(drag.left + drag.width / 2, drag.from), topPct: drag.fractionOf(drag.top) });
     drag = null;
     byId("panel").classList.remove("is-dragging");
     document.documentElement.classList.remove("is-dragging");
@@ -5502,7 +5526,7 @@ function createPanelDrag({ side, measure, persist, position, suppressClick, auto
 
 const panelDrag = createPanelDrag({
   side: () => state.ui.panel.side,
-  measure: panelGeometry,
+  measure: panelLayout.forDrag,
   autoScroll,
   modalOpen,
   position: positionPanel,

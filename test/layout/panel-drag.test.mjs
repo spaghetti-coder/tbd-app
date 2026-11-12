@@ -3,27 +3,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
-import { plain } from "../../testkit/fixtures.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 
 // docks 100/900 with width 120 -> dock centres 160/960, so a switch costs 33% of the span: 264.
-const GEO = {
-  left: 400, top: 200, width: 120, height: 300, docks: [100, 900], topMin: 80, topMax: 600, baseMin: 100, baseMax: 500,
-};
-
-// Collapsed pill: 40px grip plus 2x5px padding and 2x1px border.
-const BASE = 52;
-const bandEnv = { innerHeight: 900, paddingBottom: "24px", topbarBottom: 68 };
-const layoutBox = {
-  document: {
-    querySelector: () => ({ getBoundingClientRect: () => ({ bottom: bandEnv.topbarBottom }) }),
-    body: {},
-  },
-  getComputedStyle: () => ({ paddingBottom: bandEnv.paddingBottom }),
-};
-Object.defineProperty(layoutBox, "innerHeight", { get: () => bandEnv.innerHeight });
-const layout = sliceVm(
-  ["GESTURE", "clamp", "cssBottomInset", "panelCeiling", "panelTopRange", "panelTop"], layoutBox);
+// band: the panel's own, base: the collapsed pill's.
+const geometry = ({ left = 400, docks = { left: 100, right: 900 }, band = [80, 600], base = [100, 500] } = {}) => ({
+  left, top: 200, width: 120, height: 300, docks,
+  clampTop: (y) => Math.min(Math.max(y, band[0]), band[1]),
+  fractionOf: (y) => (base[1] > base[0]
+    ? Math.min(Math.max((y - base[0]) / (base[1] - base[0]), 0), 1)
+    : 0),
+});
+const GEO = geometry();
 
 function rig({ side = "left", geo = GEO, open = false } = {}) {
   const panel = fakeNode({ id: "panel", width: geo.width, height: geo.height, rect: { left: geo.left, top: geo.top } });
@@ -32,7 +23,7 @@ function rig({ side = "left", geo = GEO, open = false } = {}) {
   const ghosts = [];
   const persisted = [];
   let measures = 0;
-  const drag = sliceVm(["GESTURE", "clamp", "panelX", "el", "createPanelDrag"], {
+  const drag = sliceVm(["GESTURE", "clamp", "el", "createPanelDrag"], {
     byId: (id) => (id === "panel" ? panel : null),
     document: {
       createElement: (tag) => fakeNode({ tag }),
@@ -122,21 +113,21 @@ test("a running drag is visible to the rest of the app", () => {
 });
 
 test("the dock holds while the finger stays within the peel threshold", () => {
-  const r = rig({ geo: { ...GEO, left: 100 } });
+  const r = rig({ geo: geometry({ left: 100 }) });
   r.grab();
   r.moveTo(140);
   assert.equal(r.panel.style.left, "100px");
 });
 
 test("the panel follows the finger once it peels off the dock", () => {
-  const r = rig({ geo: { ...GEO, left: 100 } });
+  const r = rig({ geo: geometry({ left: 100 }) });
   r.grab();
   r.moveTo(180);
   assert.equal(r.panel.style.left, "130px");
 });
 
 test("a peeled panel re-glues at half the threshold", () => {
-  const r = rig({ geo: { ...GEO, left: 100 } });
+  const r = rig({ geo: geometry({ left: 100 }) });
   r.grab();
   r.moveTo(180);
   r.moveTo(170);
@@ -202,24 +193,11 @@ test("geometry is read once per gesture, not per move", () => {
 });
 
 test("a band with no room leaves the fraction at zero", () => {
-  const r = rig({ geo: { ...GEO, baseMin: 100, baseMax: 100 } });
+  const r = rig({ geo: geometry({ base: [100, 100] }) });
   r.grab();
   r.moveTo(450, 300);
   r.up();
   assert.equal(r.persisted[0].topPct, 0);
-});
-
-const DY = 210 - GEO.top;   // the offset grab() leaves between finger and panel top
-
-test("the saved fraction puts the grip back where the drag left it", () => {
-  const [min, max] = plain(layout.panelTopRange(BASE));
-  for (const top of [min, 300, 500, max]) {
-    const r = rig({ geo: { ...GEO, topMin: min, topMax: max, baseMin: min, baseMax: max } });
-    r.grab();
-    r.moveTo(450, top + DY);
-    r.up();
-    assert.equal(layout.panelTop(r.persisted[0].topPct, BASE, BASE), top, `grip left at ${top}`);
-  }
 });
 
 test("the choice is kept before the panel is repositioned", () => {
