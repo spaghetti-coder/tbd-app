@@ -4824,13 +4824,13 @@ function rubber(dx) {
   return Math.sign(dx) * (GESTURE.trigger + over * 0.35);
 }
 
-// Rows a drag can count: the dragged ones and the marker are not in the way.
-function visibleRows(container, gap) {
-  return [...container.children].filter((node) => node !== gap && !node.classList.contains("is-drag-src"));
+/* Rows a drag can count: the marker and the dragged rows are not in the way. */
+function liveRows(rows, drag) {
+  return rows.filter((node) => node !== drag.gap && !drag.ids.includes(node.dataset.id));
 }
 
-function indexAt(container, y, gap) {
-  const rows = visibleRows(container, gap);
+/* Index among live rows: how many of their midpoints y has passed. */
+function indexAt(rows, y) {
   let index = 0;
   for (const row of rows) {
     const rect = row.getBoundingClientRect();
@@ -4842,55 +4842,85 @@ function indexAt(container, y, gap) {
   return index;
 }
 
-function targetContainer(kind, y) {
-  if (kind === "list") {
-    return byId("lists");
+/* The head a hold aims at. The card a hold owns keeps GESTURE.hoverPad against jitter; a neighbour
+   must be hit dead on. */
+function headAt(y, heldId, heads) {
+  const held = heldId && heads.find((head) => head.id === heldId);
+  if (held && y >= held.rect.top - GESTURE.hoverPad && y <= held.rect.bottom + GESTURE.hoverPad) {
+    return held.node;
   }
-  for (const card of document.querySelectorAll("#lists .card")) {
-    const rect = card.getBoundingClientRect();
-    if (y < rect.top || y > rect.bottom) {
-      continue;
-    }
-    return card.classList.contains("is-open") ? card.querySelector(".items") : null;
+  const neighbour = heads.find((head) => !head.open && y >= head.rect.top && y <= head.rect.bottom);
+  return neighbour ? neighbour.node : null;
+}
+
+/* The body a dropped row belongs to: the open card under the point, else the nearest open body.
+   A closed card has no body — its head is the target. */
+function containerAt(y, screen) {
+  const cards = screen.cards();
+  const on = cards.find((card) => y >= card.rect.top && y <= card.rect.bottom);
+  if (on) {
+    return on.open ? screen.body(on).node : null;
   }
-  // Off every card: the open body whose middle is nearest.
   let best = null;
   let bestDistance = Infinity;
-  for (const body of document.querySelectorAll("#lists .card.is-open .items")) {
-    const rect = body.getBoundingClientRect();
+  for (const card of cards) {
+    if (!card.open) {
+      continue;
+    }
+    const rect = screen.body(card).rect;
     const distance = Math.abs(y - (rect.top + rect.height / 2));
     if (distance < bestDistance) {
       bestDistance = distance;
-      best = body;
+      best = card;
     }
   }
-  return best;
+  return best ? screen.body(best).node : null;
 }
 
-/* The aim leaves the held target only past GESTURE.hoverPad, so hand jitter cannot reset the hold. */
-function collapsedHeadAt(y, heldId) {
-  const held = heldId && rowById("list", heldId);
-  const head = held && held.querySelector(":scope > .card__head");
-  if (head) {
-    const rect = head.getBoundingClientRect();
-    if (y >= rect.top - GESTURE.hoverPad && y <= rect.bottom + GESTURE.hoverPad) {
-      return head;
-    }
-  }
-  for (const other of document.querySelectorAll("#lists .card:not(.is-open) > .card__head")) {
-    const rect = other.getBoundingClientRect();
-    if (y >= rect.top && y <= rect.bottom) {
-      return other;
-    }
-  }
-  return null;
+/* Where the marker and the hold go: all aiming rules over one screen snapshot, nothing written. */
+function aim(drag, screen) {
+  const y = drag.y - drag.dy + drag.cloneHalf;
+  const hover = drag.kind === "item" && !screen.moved() ? headAt(y, drag.hoverId, screen.heads()) : null;
+  const container = drag.kind === "list" ? screen.root() : containerAt(y, screen);
+  const index = container && !hover ? indexAt(liveRows(screen.rows(container), drag), y) : drag.index;
+  return { container, index, hover };
+}
+
+/* What a drag sees and never changes: the prod side of the screen seam. One screen lives for one aim
+   pass, so all its rects read one layout. */
+function createDragScreen() {
+  return {
+    moved: () => autoScroll.moved(),
+    root: () => byId("lists"),
+    heads() {
+      return [...document.querySelectorAll("#lists .card > .card__head")].map((node) => ({
+        node,
+        id: node.parentElement.dataset.id,
+        open: node.parentElement.classList.contains("is-open"),
+        rect: node.getBoundingClientRect(),
+      }));
+    },
+    cards() {
+      return [...document.querySelectorAll("#lists .card")].map((node) => ({
+        node,
+        id: node.dataset.id,
+        open: node.classList.contains("is-open"),
+        rect: node.getBoundingClientRect(),
+      }));
+    },
+    body(card) {
+      const node = card.node.querySelector(".items");
+      return { node, rect: node.getBoundingClientRect() };
+    },
+    rows: (container) => [...container.children],
+  };
 }
 
 // The id of the live row after ("next") or before ("prev") the drop marker; dragged rows are skipped.
-function siblingId(gap, dir) {
+function siblingId(gap, dir, ids) {
   const key = dir === "next" ? "nextElementSibling" : "previousElementSibling";
   let node = gap[key];
-  while (node && node.classList.contains("is-drag-src")) {
+  while (node && ids.includes(node.dataset?.id)) {
     node = node[key];
   }
   return node && node.dataset ? node.dataset.id ?? null : null;
@@ -4996,34 +5026,28 @@ function armHover(drag, head, onHold) {
 
 /* What a held row does with it: aim a drop marker, expand a closed list under the hold, land the
    group. The bag lives here; the screen is the only thing that knows where the marker got to. */
-function createRowDrag({ getState, commit, render, search, autoScroll }) {
+function createRowDrag({ getState, commit, render, search, autoScroll, order, store, findList, screen }) {
   let drag = null;
-
-  const cloneY = () => drag.y - drag.dy + drag.cloneHalf;
 
   function placeGap() {
     if (!drag || !drag.container) {
       return;
     }
-    const rows = visibleRows(drag.container, drag.gap);
+    const rows = liveRows([...drag.container.children], drag);
     const ref = rows[clamp(drag.index, 0, rows.length)];
     if (ref) drag.container.insertBefore(drag.gap, ref);
     else drag.container.append(drag.gap);
   }
 
-  /* Reads before writes: interleaving costs one relayout per pass. */
   function retarget() {
-    const cy = cloneY();
-    const hovered = drag.kind === "item" && !autoScroll.moved() ? collapsedHeadAt(cy, drag.hoverId) : null;
-    const container = targetContainer(drag.kind, cy);
-    const index = container && !hovered ? indexAt(container, cy, drag.gap) : drag.index;
+    const target = aim(drag, screen());
     drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03) rotate(1.5deg)`;
-    armHover(drag, hovered, expandForDrop);
-    if (!container || (drag.container === container && drag.index === index)) {
+    armHover(drag, target.hover, expandForDrop);
+    if (!target.container || (drag.container === target.container && drag.index === target.index)) {
       return;
     }
-    drag.container = container;
-    drag.index = index;
+    drag.container = target.container;
+    drag.index = target.index;
     placeGap();
   }
 
@@ -5037,15 +5061,8 @@ function createRowDrag({ getState, commit, render, search, autoScroll }) {
     cl.expanded = true;
     store.markDirty("list", id);
     commit("list", id);
-    const body = rowById("list", id)?.querySelector(".items");
-    // The expanded list may not be rendered (off the current page): re-aim at what is on screen.
-    if (!body) {
-      retarget();
-      return;
-    }
-    drag.container = body;
-    drag.index = indexAt(body, cloneY(), drag.gap);
-    placeGap();
+    // The layout moved: aim again, rendered or not.
+    retarget();
   }
 
   /* A hold on a searched screen stays a hold: the order on screen is the query's, not the user's.
@@ -5102,7 +5119,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll }) {
     rowById("list", current.collapsedId)?.classList.remove("is-drop-hover");
     const card = current.container?.closest(".card");
     const plan = dropPlan(current.kind, current.collapsedId, card?.dataset.id ?? null,
-      siblingId(current.gap, "next"), siblingId(current.gap, "prev"));
+      siblingId(current.gap, "next", current.ids), siblingId(current.gap, "prev", current.ids));
     current.clone.remove();
     current.gap.remove();
     autoScroll.stop();
@@ -5280,6 +5297,7 @@ const rowDrag = createRowDrag({
   search,
   findList,
   autoScroll,
+  screen: createDragScreen,
 });
 
 const pointer = createPointer({ rowDrag, autoScroll, editor, ask, modalOpen });
