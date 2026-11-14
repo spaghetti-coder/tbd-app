@@ -9,7 +9,7 @@ import { plain } from "../../testkit/fixtures.mjs";
 
 const rect = (top, bottom, left = 0) => ({ top, bottom, left, height: bottom - top });
 const item = (id, top) => fakeNode({
-  classes: ["item"], id, kind: "item", rect: rect(top, top + 40, 120), height: 40,
+  classes: ["item"], id, kind: "item", rect: rect(top, top + 40, 120), height: 40, width: 300,
 });
 const items = [item("i1", 100), item("i2", 140), item("i3", 180)];
 const bodyA = fakeNode({ classes: ["items"], rect: rect(100, 220), children: [...items] });
@@ -58,7 +58,6 @@ const box = {
     return node;
   },
   navigator: { vibrate: () => {} },
-  getComputedStyle: () => ({ rowGap: box.rowGap ?? "0" }),
   byId: () => lists,
   rowById: (kind, id) => (kind === "list"
     ? { A: cardA, C: cardC }[id] ?? null
@@ -98,8 +97,8 @@ const box = {
   }),
 };
 
-const { createRowDrag, armHover, gapPad, dropPlan } = sliceVm(
-  ["GESTURE", "clamp", "liveRows", "indexAt", "headAt", "containerAt", "aim", "dragCopy", "dragBag", "gapPad",
+const { createRowDrag, armHover, dropPlan } = sliceVm(
+  ["GESTURE", "clamp", "liveRows", "indexAt", "headAt", "containerAt", "aim", "dragCopy", "dragBag",
     "dropPlan", "dropItemsInto", "siblingId", "clearHold", "armHover", "createRowDrag"], box,
 );
 
@@ -107,13 +106,13 @@ const rowDrag = createRowDrag(box);
 
 // A finished drag leaves markers and `is-drag-src` behind: start every test clean.
 const reset = () => {
+  rowDrag.cancel();
   calls.length = 0;
   timers.armed.length = 0;
   frames.length = 0;
   clones.length = 0;
   box.scrolling = false;
   box.bulk = null;
-  box.rowGap = "0";
   held.C.expanded = false;
   sync();
   cardC.classes.delete("is-drop-hover");
@@ -124,19 +123,51 @@ const reset = () => {
   bodyA.append(...items);
 };
 // A ghost's top rides the press point: the aim sits 20px under the finger.
-const hitItem = () => ({ kind: "item", id: "i1", handle: items[0], x0: 120, y0: 100 });
-const hitList = () => ({ kind: "list", id: "C", handle: headC, x0: 0, y0: 300 });
+const hitItem = () => ({ kind: "item", id: "i1", handle: items[0], row: items[0], x0: 120, y0: 100 });
+const hitList = () => ({ kind: "list", id: "C", handle: headC, row: cardC, x0: 0, y0: 300 });
 
 const frame = () => frames.splice(0, frames.length).forEach((fn) => fn());
 const armed = () => timers.armed.map(([, ms]) => ms);
 const marker = () => [...lists.querySelectorAll(".drop-gap")].find((node) => node.parentElement) ?? null;
 
-test("the ghost carries a picked group in the order the app holds it, not in tap order", () => {
+// Hold, look, drop: a running drag leaks into the next test.
+const deckOf = (hit) => {
+  assert.equal(rowDrag.start(hit), true);
+  const clone = clones[0];
+  const seen = {
+    edges: clone.children.slice(0, -1).map((node) => node.style.transform),
+    width: clone.style.width,
+    height: clone.style.height,
+    lean: /rotate/.test(clone.style.transform),
+    top: clone.children.at(-1).dataset.id,
+    marker: marker().style.height,
+  };
+  rowDrag.cancel();
+  return seen;
+};
+
+test("a lone row rides as one card, the marker as tall as it", () => {
+  reset();
+  assert.deepEqual(deckOf(hitItem()), {
+    edges: [], width: "300px", height: "40px", lean: true, top: "i1", marker: "40px",
+  });
+});
+
+test("a picked group rides as a deck, blank edges under the held card", () => {
   reset();
   box.bulk = { kind: "item", ids: ["i3", "i1"] };
-  assert.equal(rowDrag.start(hitItem()), true);
-  assert.deepEqual(clones[0].children.map((node) => node.dataset.id), ["i1", "i3"]);
-  rowDrag.cancel();
+  assert.deepEqual(deckOf(hitItem()), {
+    edges: ["rotate(-1.3deg)"], width: "300px", height: "47px", lean: false, top: "i1", marker: "47px",
+  });
+});
+
+test("the deck stays a deck however big the group is", () => {
+  reset();
+  box.bulk = { kind: "item", ids: ["i1", "i2", "i3", "i9"] };
+  const seen = deckOf(hitItem());
+  assert.deepEqual(seen.edges, ["rotate(-2.6deg)", "rotate(-1.3deg)"],
+    "the edges are decoration, not a headcount");
+  assert.equal(seen.height, "54px");
 });
 
 test("a drag aims where the ghost is, and drops there", () => {
@@ -249,13 +280,6 @@ test("a dragged list lands among the lists", () => {
   calls.length = 0;
   rowDrag.release();
   assert.deepEqual(calls, ["place:list:C:{\"before\":\"A\",\"after\":null}", "commit::", "flush"]);
-});
-
-test("the marker is as tall as the ghost plus the pads between the carried rows", () => {
-  box.rowGap = "8";
-  assert.equal(gapPad([]), 0);
-  assert.equal(gapPad([items[0]]), 0);
-  assert.equal(gapPad([items[0], items[1], items[2]]), 16);
 });
 
 test("the plan reads the drop off the marker and the card", () => {

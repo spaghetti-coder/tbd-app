@@ -41,7 +41,7 @@ const screenOver = ({ moved = false, heads = HEADS, cards = CARDS, bodies = BODI
 });
 
 const dragOver = (over) => ({
-  kind: "item", ids: ["i1"], gap: node("gap"), y: 0, dy: 0, cloneHalf: 0,
+  kind: "item", ids: ["i1"], gap: node("gap"), y: 0, dy: 0, cardHalf: 0,
   hoverId: null, index: 0, container: null, ...over,
 });
 
@@ -100,6 +100,11 @@ test("a drag of items aims at the body and the row the ghost is over", () => {
   const target = aim(dragOver({ y: 170, ids: [] }), screenOver());
   assert.equal(target.container, bodyA);
   assert.equal(target.index, 2, "past i1 and i2, short of i3");
+});
+
+test("the aim rides the held card's middle, not the middle of a carried group", () => {
+  const target = aim(dragOver({ y: 190, dy: 20, cardHalf: 20, ids: [] }), screenOver());
+  assert.equal(target.index, 2, "the finger point, as a lone row aims");
 });
 
 test("a held head freezes the index, a running page leaves the hold alone", () => {

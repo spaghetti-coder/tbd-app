@@ -22,6 +22,7 @@
     --danger: #d1453b;
     --shadow: 0 1px 2px rgb(16 20 28 / 0.07), 0 12px 32px rgb(16 20 28 / 0.10);
     --shadow-drag: 0 2px 6px rgb(16 20 28 / 0.14), 0 18px 44px rgb(16 20 28 / 0.22);
+    --shadow-deck: 0 1px 2px rgb(16 20 28 / 0.25);
     --shadow-up: 0 -12px 32px rgb(16 20 28 / 0.10);
     --gutter: clamp(12px, 4vw, 20px);
     --wrap: 720px;
@@ -56,6 +57,7 @@
     --danger: #f0776c;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 12px 32px rgb(0 0 0 / 0.45);
     --shadow-drag: 0 2px 6px rgb(0 0 0 / 0.55), 0 20px 48px rgb(0 0 0 / 0.6);
+    --shadow-deck: 0 1px 3px rgb(0 0 0 / 0.7);
     --shadow-up: 0 -12px 32px rgb(0 0 0 / 0.45);
 
     color-scheme: dark;
@@ -525,16 +527,31 @@
 
   .drag-clone {
     left: 0;
-    opacity: 0.95;
+    list-style: none;
     pointer-events: none;
     position: fixed;
     top: 0;
     z-index: 60;
   }
 
+  /* Deck: the last child rides on top. */
   .drag-clone > * {
-    box-shadow: var(--shadow-drag);
+    left: 0;
     margin: 0;
+    position: absolute;
+  }
+
+  .drag-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    box-shadow: var(--shadow-deck);
+    inset-inline: 0;
+    transform-origin: 100% 50%;
+  }
+
+  .drag-clone > :last-child {
+    box-shadow: var(--shadow-drag);
   }
 
   /* JS sets --flash per jump; a search jump holds it longer. */
@@ -1357,6 +1374,8 @@ const GESTURE = {
   edge: 24,
   detach: 24,
   gap: 12,
+  deck: 3,
+  tilt: 1.3,
 };
 
 const PAGE_SIZES = ["all", 10, 20, 30, 50, 80, 130, 210];
@@ -4879,7 +4898,7 @@ function containerAt(y, screen) {
 
 /* Where the marker and the hold go: all aiming rules over one screen snapshot, nothing written. */
 function aim(drag, screen) {
-  const y = drag.y - drag.dy + drag.cloneHalf;
+  const y = drag.y - drag.dy + drag.cardHalf;
   const hover = drag.kind === "item" && !screen.moved() ? headAt(y, drag.hoverId, screen.heads()) : null;
   const container = drag.kind === "list" ? screen.root() : containerAt(y, screen);
   const index = container && !hover ? indexAt(liveRows(screen.rows(container), drag), y) : drag.index;
@@ -4937,14 +4956,6 @@ function dragCopy(row) {
   return copy;
 }
 
-function gapPad(rows) {
-  if (rows.length < 2) {
-    return 0;
-  }
-  const gap = parseFloat(getComputedStyle(rows[0].parentElement).rowGap) || 0;
-  return gap * (rows.length - 1);
-}
-
 function dropItemsInto(ids, checklistId, refId) {
   for (const id of ids) {
     store.markDirty("item", id);
@@ -4967,30 +4978,44 @@ function dropPlan(kind, collapsedId, checklistId, refId, prevId) {
   return into ? { into, before: collapsedId ? null : refId } : null;
 }
 
-/* The ghost, the grab offsets and the drop marker, off the held rows. The grab offset comes from the
-   ghosted head itself: a card rect drifts once the sticky head parks under the topbar. */
-function dragBag(kind, ids, hit, rows) {
+/* The ghost, the grab offsets and the drop marker. Grab offset off the ghosted head: a card rect
+   drifts once the sticky head parks under the topbar. */
+function dragBag(kind, ids, hit) {
   const rect = hit.handle.getBoundingClientRect();
   const clone = el("div", "drag-clone");
-  for (const row of rows) {
-    clone.append(dragCopy(row));
+  // Deck, not the group: the aim stays on the held card.
+  const cards = Math.min(ids.length, GESTURE.deck);
+  const width = hit.row.offsetWidth;
+  // Deck height = the rotated edge's bottom.
+  const deck = Math.round(rect.height + width * Math.sin(GESTURE.tilt * (cards - 1) * Math.PI / 180));
+  // Edges stay blank: row content would bleed through the held card.
+  for (let i = cards - 1; i > 0; i -= 1) {
+    const edge = el("div", "drag-card");
+    edge.style.height = `${rect.height}px`;
+    edge.style.transform = `rotate(${-i * GESTURE.tilt}deg)`;
+    clone.append(edge);
   }
+  clone.append(dragCopy(hit.row));
+  clone.style.width = `${width}px`;
+  clone.style.height = `${deck}px`;
   document.body.append(clone);
   const gap = el("div", "drop-gap");
-  gap.style.height = `${clone.offsetHeight + gapPad(rows)}px`;
-  rows[0].before(gap);
+  gap.style.height = `${deck}px`;
+  hit.row.before(gap);
   return {
     kind,
     ids,
     clone,
     gap,
+    // Tilt buries the deck edges: lean a lone card only.
+    lift: cards === 1 ? " rotate(1.5deg)" : "",
     dx: hit.x0 - rect.left,
     dy: hit.y0 - rect.top,
     x: hit.x0,
     y: hit.y0,
-    cloneHalf: clone.offsetHeight / 2,
+    cardHalf: rect.height / 2,
     raf: 0,
-    container: rows[0].parentElement,
+    container: hit.row.parentElement,
     index: 0,
     hoverId: null,
     hoverTimer: 0,
@@ -5041,7 +5066,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
 
   function retarget() {
     const target = aim(drag, screen());
-    drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03) rotate(1.5deg)`;
+    drag.clone.style.transform = `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px) scale(1.03)${drag.lift}`;
     armHover(drag, target.hover, expandForDrop);
     if (!target.container || (drag.container === target.container && drag.index === target.index)) {
       return;
@@ -5071,14 +5096,13 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
     if (search.active) return false;
     const bulk = getState().ui.bulk;
     const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
-    // In state order, not tap order: a group lands in the order the app holds it, so the ghost matches the drop.
     const picked = new Set(ids);
     const source = hit.kind === "list" ? getState().checklists : getState().items;
     const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
     // Nothing of the group is rendered: no ghost to carry.
     if (rows.length) {
       navigator.vibrate?.(10);
-      drag = dragBag(hit.kind, ids, hit, rows);
+      drag = dragBag(hit.kind, ids, hit);
       for (const row of rows) {
         row.classList.add("is-drag-src");
       }
