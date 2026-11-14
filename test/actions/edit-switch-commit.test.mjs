@@ -25,7 +25,7 @@ function board() {
   return { listInput, itemInput, rows: { L1: card, i1: row } };
 }
 
-/* The real editor over the real lookups. `saved` and `painted` record what it asked for. */
+/* The real editor over the real lookups; `saved`/`painted` record what it asked for. */
 function box({ lists = [], items = [], ui = {}, onScreen = true, search = searchStub() } = {}) {
   const shape = board();
   const saved = [];
@@ -114,7 +114,7 @@ test("no editor opens on a nameless row the save just dropped", () => {
   editor.open("item", "i1");
   assert.deepEqual(ids(ctx.state.items), []);
   assert.equal(ctx.state.ui.editing, null);
-  assert.deepEqual(painted, ["all"], "gone: only the save rendered");
+  assert.deepEqual(painted, ["all"], "only the save rendered");
 });
 
 /* ---------- what a save writes, rolls back or drops ---------- */
@@ -218,7 +218,6 @@ test("a save inside a search recounts the result", () => {
     items: [{ id: "i1", checklistId: "L1", text: "молоко" }],
     ui: { editing: { kind: "item", id: "i1" }, search: { text: "молоко", lists: true, items: true } },
   });
-  // Real search over the same state.
   b.ctx.search = searchOver(() => b.ctx.state);
   b.ctx.search.refresh();
   assert.deepEqual(plain(b.ctx.search.rangesFor("i1")), [[0, 6]]);
@@ -277,7 +276,7 @@ test("a blur arriving after the editor closed commits nothing", () => {
   assert.equal(saved.filter((mark) => mark === "markDirty:item:i1").length, 1, "no second write");
 });
 
-// onListBlur keeps only what the event can tell.
+// onListBlur alone, with the editor as its only collaborator.
 const blur = (editor) => sliceVm(["onListBlur"], { editor }).onListBlur;
 
 test("a blur handed to the save button commits nothing", () => {

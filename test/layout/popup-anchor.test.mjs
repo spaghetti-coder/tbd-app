@@ -18,7 +18,7 @@ Object.defineProperty(box, "innerWidth", { get: () => env.innerWidth });
 Object.defineProperty(box, "innerHeight", { get: () => env.innerHeight });
 const { anchoredBox } = sliceVm(["clamp", "cssVarPx", "anchoredBox"], box);
 
-// The trigger sits at (left, top)..(right, bottom), like a getBoundingClientRect result.
+// (left, top)..(right, bottom), as getBoundingClientRect returns.
 const trigger = (top, bottom, left, right) => ({ top, bottom, left, right });
 
 test("with room below the popup hangs under the trigger, right-aligned to it", () => {
@@ -27,7 +27,6 @@ test("with room below the popup hangs under the trigger, right-aligned to it", (
 });
 
 test("a popup that would not fit below flips above the trigger", () => {
-  // Bottom edge lands 8px above the trigger top.
   const pos = anchoredBox(trigger(700, 740, 700, 740), 300, 400);
   assert.equal(pos.top, 700 - 8 - 400);
 });

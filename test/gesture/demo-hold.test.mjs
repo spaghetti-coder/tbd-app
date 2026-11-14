@@ -1,12 +1,12 @@
-// Hold-to-enter on the Archive row: a short press taps, a full hold lands once, and the click
-// trailing any hold - finished or broken mid-fill - is swallowed.
+// Hold-to-enter on the Archive row: a short press taps, a full hold lands once, and the trailing
+// click of any hold - finished or broken mid-fill - is swallowed.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
-// Virtual clock: timers fire only when the test advances it, in due order.
+// Virtual clock: timers fire only when advanced, in due order.
 function clock() {
   let now = 0;
   let seq = 0;
@@ -115,7 +115,7 @@ test("the full hold lands once, and the trailing click is swallowed", () => {
   const r = rig();
   r.button.fire("pointerdown");
   r.timers.advance(1799);
-  assert.equal(r.holds.length, 0, "not yet");
+  assert.equal(r.holds.length, 0);
   r.timers.advance(1);
   assert.equal(r.holds.length, 1);
   assert.equal(r.taps.length, 0);

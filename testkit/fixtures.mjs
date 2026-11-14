@@ -1,4 +1,4 @@
-// Shapes shared by the store-level tests: entities as the app keeps them, ids read out of any realm.
+// Shapes shared by the store-level tests: entities as the app keeps them, ids from any realm.
 
 export const list = (id, extra) => ({
   id, title: `list ${id}`, expanded: true, createdAt: 1, archived: false, ...extra,
@@ -9,13 +9,13 @@ export const item = (id, checklistId, extra) => ({
   ...extra,
 });
 
-// Array.from, not map: rows may come from another realm, and map() would keep that realm's Array.prototype.
+// Array.from, not map: cross-realm rows would keep that realm's Array.prototype.
 export const ids = (rows) => Array.from(rows, (row) => row.id);
 
-// Objects built inside the VM carry that realm's prototypes, so compare plain copies of their fields.
+// VM objects carry VM prototypes: compare plain copies.
 export const plain = (value) => (value === undefined ? value : JSON.parse(JSON.stringify(value)));
 
-// Asserting against the env directly would leak a mutation into the next test if one fails.
+// Restores env afterwards: a failing assert must not leak a mutation.
 export const withEnv = (env, patch, fn) => {
   const restore = { ...env };
   Object.assign(env, patch);
@@ -26,8 +26,7 @@ export const withEnv = (env, patch, fn) => {
   }
 };
 
-// The search interface answered by hand, for tests whose subject is a painter, not a query.
-// Inactive by default: the same as no search at all.
+// Hand-answered search interface, for painter tests. Inactive by default = no search.
 export const searchStub = (answers = {}) => ({
   refresh: () => {},
   active: false,

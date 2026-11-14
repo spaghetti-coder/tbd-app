@@ -60,6 +60,6 @@ test("a renamed row goes out in one write", async () => {
   await idle();
   h.clock.run();
   await idle();
-  assert.equal(h.storage.batches.length, 1, "the queue a commit opens is eaten by its flush, not written after it");
+  assert.equal(h.storage.batches.length, 1, "the flush eats the queue it opened");
   assert.deepEqual(h.echo.posts, ["tab"], "the other tabs hear about the rename once");
 });

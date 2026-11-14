@@ -1,5 +1,4 @@
 // Placement: where a group lands, which rows hold an edge, which page shows a list.
-// Run against a `state` shim and the real order module.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -59,7 +58,7 @@ test("into another list re-parents the group, at its end or at a neighbour", () 
   const state = store([list("c1"), list("c2", { expanded: false })],
     [item("a", "c1"), item("b", "c1"), item("p", "c2"), item("q", "c2"), item("r", "c2", { archived: true })]);
   order.place("item", ["a", "b"], { into: "c2" });
-  assert.deepEqual(ids(state.items), ["p", "q", "r", "a", "b"], "last of the live rows it will be shown with");
+  assert.deepEqual(ids(state.items), ["p", "q", "r", "a", "b"], "last of the live rows it joins");
   assert.deepEqual([state.items.find((i) => i.id === "a").checklistId], ["c2"]);
   order.place("item", ["a", "b"], { into: "c2", before: "q" });
   assert.deepEqual(ids(state.items), ["p", "a", "b", "q", "r"]);
@@ -105,7 +104,7 @@ test("atEdge is false for a bulk group that still has room, even when one row ho
   store([list("a"), list("b"), list("c")], [item("p", "c1"), item("q", "c1"), item("r", "c1")]);
   assert.equal(order.atEdge("item", ["p", "r"], "top"), false, "the last one moves up past the middle");
   assert.equal(order.atEdge("item", ["p", "r"], "bottom"), false, "the first one moves down past the middle");
-  assert.equal(order.atEdge("item", ["p", "q"], "top"), true, "a group already at the edge in order");
+  assert.equal(order.atEdge("item", ["p", "q"], "top"), true, "a contiguous group at the edge");
   assert.equal(order.atEdge("item", ["p", "q"], "bottom"), false);
   assert.equal(order.atEdge("item", ["q", "r"], "top"), false);
   assert.equal(order.atEdge("item", ["q", "r"], "bottom"), true);

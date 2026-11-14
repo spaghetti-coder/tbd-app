@@ -7,8 +7,8 @@ import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const { rowHandle } = sliceVm(["rowHandle"]);
 
-// Shaped like tpl-checklist / tpl-item: one card head and one item, each with a mover row,
-// controls and a hidden editor. `id: null` builds the row without its data-id.
+// Mirrors the real row markup: one card head, one item, each with a mover row, controls and a
+// hidden editor. `id: null` builds the row without its data-id.
 function board({ listId = "L1", itemId = "i1" } = {}) {
   const editor = (children) => fakeNode({ classes: ["row-edit"], children });
   const input = fakeNode({ classes: ["input"] });

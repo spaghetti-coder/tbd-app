@@ -1,4 +1,4 @@
-// Order lives in the order docs alone: rows carry no ordinal, so a round trip has to rebuild it.
+// Order lives in the order docs alone: rows carry no ordinal, a round trip rebuilds it.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -12,10 +12,9 @@ const ACTIONS = [
 
 const harness = () => storeHarness({ actions: ACTIONS });
 
-// The ids of the items of one list, in the order state holds them.
 const inList = (state, checklistId) => ids(state.items.filter((i) => i.checklistId === checklistId));
 
-/* Everything in state as this tab itself wrote it: after this the order is on disk and the store knows it. */
+/* Writes state as this tab wrote it: after this the order is on disk and known to the store. */
 async function seed(h, groups) {
   const state = h.state(groups.map(([id]) => list(id)),
     groups.flatMap(([id, rowIds]) => rowIds.map((itemId) => item(itemId, id))));
@@ -95,7 +94,7 @@ test("a move within a list writes its order doc and no rows", async () => {
   h.order.place("item", ["b"], "top");
   await h.store.flushSave();
   const batch = h.storage.batches.at(-1);
-  assert.deepEqual(ids(batch.items), [], "no row changed, so no row goes out");
+  assert.deepEqual(ids(batch.items), [], "no row changed, no row out");
   assert.deepEqual(plain(batch.docs), [{ key: "order:c1", value: ["b", "a"] }]);
 });
 
@@ -150,7 +149,7 @@ test("a move made while a write is open still reaches the store", async () => {
   h.storage.hold(false);
   await reload(h);
   assert.deepEqual(inList(h.current(), "c1"), ["b", "c", "a"],
-    "the order on disk is the order the user last saw, not the one the open write carried");
+    "disk order = what the user last saw, not the open write's");
 });
 
 test("a list that lost its last item loses its order doc too", async () => {

@@ -13,7 +13,6 @@ const { api, store } = stateHarness([
   "findItem",
 ]);
 
-// An archived item, as the store keeps it.
 const archived = (id, checklistId, by = "user") => item(id, checklistId, { archived: true, archivedBy: by });
 const archivedList = (...ids) => ids.map((id) => list(id, { archived: true }));
 
@@ -22,7 +21,7 @@ function archivedTab(checklists, items) {
   return ids(api.archivedItems());
 }
 
-// [checklists, items, expected ids]
+// [what, checklists, items, expected ids]
 test("the Items tab: the user's own archived items, grouped in the order of the checklists", () => {
   const rows = [
     ["grouped by checklist, in the checklist order",

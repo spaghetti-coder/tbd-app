@@ -1,5 +1,5 @@
-// The store over a map-backed adapter: the real createStore and the real batch arithmetic run, and
-// what lands in the adapter is what a test asserts on.
+// The store over a map-backed adapter: real createStore, real batch arithmetic; a test asserts on
+// what lands in the adapter.
 import { sliceVm } from "./html-source.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
@@ -8,7 +8,7 @@ export const STORE = [
   "validBulk", "normalize", "withoutArchived", "findItem", "visibleChecklists", "pageCount",
 ];
 
-// Reads come back sorted by key, the way getAll answers: no row carries an ordinal of its own.
+// Reads sorted by key, like getAll: rows carry no ordinal.
 const byKey = (a, b) => (a.id < b.id ? -1 : 1);
 
 const put = (rows, row) => {
@@ -123,7 +123,7 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
   const store = api.createStore({
     storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
   });
-  // The app's action functions, marking through the store interface over the same state object.
+  // The app's action functions, marking through the store interface over the same state.
   const actBox = { ...globals, store, order };
   const act = sliceVm(actions, actBox);
   const assign = (value) => {

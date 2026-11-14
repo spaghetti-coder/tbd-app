@@ -110,7 +110,7 @@ test("the aim rides the held card's middle, not the middle of a carried group", 
 test("a held head freezes the index, a running page leaves the hold alone", () => {
   const held = aim(dragOver({ y: 320, hoverId: "C", index: 5 }), screenOver());
   assert.equal(held.hover, headC);
-  assert.equal(held.index, 5, "moving down a list being held open must not shuffle the marker");
+  assert.equal(held.index, 5, "scrolling a list held open must not shuffle the marker");
 
   const running = aim(dragOver({ y: 320, index: 5 }), screenOver({ moved: true }));
   assert.equal(running.hover, null, "a page running under the finger arms nothing");

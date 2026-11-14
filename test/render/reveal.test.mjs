@@ -1,6 +1,5 @@
-// Scroll stops at the visible band; centring is what leaves a row under the keyboard and makes
-// Chrome pan the visual viewport, taking the sticky header off screen. A new result set instead
-// starts at the top of the page, and only when there is somewhere to go.
+// Scroll stops at the visible band. Centring puts a row under the keyboard and pans the visual
+// viewport, pushing the sticky header off screen. A new result set starts at the page top.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -22,7 +21,7 @@ const rowUnder = (kind, head) => {
   return kind === "item" ? item : card;
 };
 
-// [row top, row bottom, expected scroll], the band being the area between header and keyboard.
+// [row top, row bottom, expected scroll]; band = header..keyboard.
 test("a row is scrolled just far enough to sit inside the band", () => {
   const rows = [
     [100, 144, 0],
@@ -55,7 +54,7 @@ test("a list head shoved above the line by its own card is still revealed", () =
   assert.equal(revealTop(rowUnder("list", { top: 40, bottom: 92 }), band), 64);
 });
 
-// Scrolled objects come from another realm, so the recorder keeps what it was asked for.
+// Records scrollTo args as a string; VM opts are cross-realm.
 const topScroll = (offset, reduced) => {
   const calls = [];
   sliceVm(["reduce", "scrollBehavior", "toTop"], {

@@ -1,5 +1,5 @@
-// A list render repaints the rows that stayed instead of swapping their nodes: a row rebuilt
-// under the finger loses the swipe.
+// A list render repaints rows that stayed instead of swapping nodes: a row rebuilt under the
+// finger loses the swipe.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -34,6 +34,6 @@ test("a closed list renders no rows", () => {
   const { state, card, host, painted, paintChecklist } = paintHarness([rowNode("i1")]);
   state.items = [item("i1")];
   paintChecklist(card, { id: "L1", expanded: false });
-  assert.equal(idsOf(host), "i1", "the rows wait for the list to open again");
+  assert.equal(idsOf(host), "i1", "rows wait for the list to reopen");
   assert.deepEqual(painted, []);
 });

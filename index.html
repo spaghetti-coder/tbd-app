@@ -90,8 +90,8 @@
     overflow: hidden;
   }
 
-  /* Locked: scroll stays on the document (overflow on body here would steal the sticky card
-     heads) and the body makes room for the fixed topbar. */
+  /* Locked: scroll stays on the document; body overflow here would steal the sticky card heads.
+     Padding clears the fixed topbar. */
   html.is-locked body {
     padding-top: var(--topbar-h);
   }
@@ -199,8 +199,8 @@
     color: var(--danger);
   }
 
-  /* The hairline is an inset shadow: a border would add a pixel to every sticky offset below the
-     header. Its height is the content, and JS mirrors it into --topbar-h. */
+  /* Hairline = inset shadow: a border would add a px to every sticky offset below. Height is the
+     content; JS mirrors it into --topbar-h. */
   .topbar {
     background: var(--bg);
     box-shadow: inset 0 -1px 0 var(--line);
@@ -595,8 +595,8 @@
     z-index: 3;
   }
 
-  /* The bar is the page's bottom edge, so the page keeps no room under it: sticky would un-pin it
-     short of the edge at scroll end. The fixed bar below the breakpoint takes its own room. */
+  /* Sticky would un-pin the bar short of the bottom edge at scroll end, so the page keeps no room
+     under it. Below the breakpoint the fixed bar takes its own room. */
   body:has(.pager:not([hidden])) {
     padding-bottom: 0;
   }
@@ -843,7 +843,7 @@
     flex: none;
   }
 
-  /* The item text is what matters, so it never loses more than half the row to the checklist name. */
+  /* Item text never loses more than half the row to the checklist name. */
   .rows__row .rows__label {
     min-width: 50%;
   }
@@ -1075,8 +1075,8 @@
     background: var(--surface-2);
   }
 
-  /* With a mouse the pencil action waits for hover or focus; touch always shows it. It collapses to
-     zero width, not display:none, so the keyboard and a screen reader still reach it. */
+  /* Mouse: the pencil waits for hover/focus; touch always shows it. Zero width, not display:none —
+     keyboard & screen reader still reach it. */
   @media (hover: hover) {
     .act--edit {
       overflow: hidden;
@@ -1102,7 +1102,7 @@
       padding-bottom: max(20px, env(safe-area-inset-bottom));
     }
 
-    /* Sheet actions: one deliberate row, never a stray wrap; labels ellipsize only if squeezed. */
+    /* Sheet actions: one row, never a stray wrap; labels ellipsize only if squeezed. */
     .modal--sheet .modal__actions {
       flex-wrap: nowrap;
     }
@@ -1119,8 +1119,8 @@
       box-shadow: var(--shadow);
     }
 
-    /* Edge to edge and always on the bottom edge: a short page would otherwise leave a sticky bar
-       floating where the content ends. The safe area goes inside the bar, not under it. */
+    /* Fixed to the bottom edge: a sticky bar floats where a short page ends. Safe area goes inside the
+       bar, not under it. */
     .pager {
       bottom: 0;
       inset-inline: 0;
@@ -1310,7 +1310,7 @@ const ICON_HOSTS = [
   `https://cdn.statically.io/npm/lucide-static@${LUCIDE_VERSION}/icons`,
 ];
 
-// Every icon the style sheet masks with --ic-<name>: the Lucide file and the glyph shown while the CDN is unreachable.
+// Icons masked by --ic-<name>: [Lucide file, glyph shown while the CDN is down].
 const ICONS = {
   archive: ["archive", "▣"],
   bottom: ["arrow-down-to-line", "↓"],
@@ -2551,8 +2551,8 @@ function idbStorage(name) {
   };
 }
 
-/* The echo to the other tabs on the same store. On file:// the origin is opaque and a channel can be
-   missing or deaf: those tabs simply leave each other alone. */
+/* Echo to the other tabs on the same store. file:// origins are opaque: a channel can be missing or
+   deaf, those tabs leave each other alone. */
 function tabEcho(name) {
   try {
     const bus = new BroadcastChannel(name);
@@ -2572,8 +2572,8 @@ const dark = matchMedia("(prefers-color-scheme: dark)");
 const wide = matchMedia("(width > 560px)");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
-/* One transaction at a time. A row is marked when the row itself changed; order is read off state at
-   save time. A list that dies marks its items gone with it, so a batch says on its own what it deletes. */
+/* One transaction at a time. A row mark means the row itself changed; order diffs off state at
+   save. A dying list marks its items gone, so a batch states its own deletes. */
 function createStore({ storage, echo, order, getState, canReload, onError }) {
   const dirty = {
     lists: new Set(), items: new Set(), goneLists: new Set(), goneItems: new Set(), ui: false,
@@ -2593,13 +2593,13 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
     try {
       let { checklists, items, docs } = await storage.readAll();
       if (demo && !checklists.length) {
-        // Eviction can leave the flag standing and the stores empty: a stand never starts empty, and
-        // whatever settings survived are still its own.
+        // Eviction can leave the flag up & the stores empty: a stand never starts empty.
+        // Surviving settings stay its own.
         await storage.seed(docs[UI_KEY]);
         ({ checklists, items, docs } = await storage.readAll());
       }
       const data = order.read(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
-      // A tab that has just read the whole store knows exactly what is on disk.
+      // A fresh read means disk == state.
       written = order.snapshot(data);
       return data;
     } catch {
@@ -2629,8 +2629,8 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
     dirty.ui = true;
   }
 
-  /* Read out of state here: a marked row it lost in the meantime has nothing left to write, and its
-     gone mark travels in the same batch. */
+  /* Read off state at save: a row lost since has nothing left to write, its gone mark rides the same
+     batch. */
   function take() {
     const st = getState();
     // shortcut: the diff walks every row on every save (~5ms per 50k rows on desktop); gate it on a flag if it shows on a phone.
@@ -2679,8 +2679,8 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
     const st = getState();
     inflight = storage.write(writes(batch, st))
       .then(() => {
-        // Only once the batch landed, and only what it carried: a rejected write has to leave the diff
-        // showing the same change, and a move made while it was open has to stay owed.
+        // Only after the batch lands, and only what it carried: a rejected write must re-report
+        // the same diff, a move made meanwhile stays owed.
         for (const [id, ids] of batch.order) {
           written.set(id, ids);
         }
@@ -2788,9 +2788,8 @@ function withoutArchived(items, checklistId) {
 
 /* ---------- order ---------- */
 
-/* Where a group of rows lands, and what that does to the page. Callers say where — an edge, a
-   neighbour, another list — never an index. An item's edges are the edges of its own list, archived
-   rows aside. A move needs no store mark: the order on disk is diffed off state at save time. */
+/* Where a group of rows lands & what that does to the page. Callers say where — an edge, a
+   neighbour, another list — never an index. An item's edges are its own list's, archived rows aside. */
 function createOrder(getState) {
   /* One order doc per list, plus one for the lists themselves. */
   const key = (listId) => `order:${listId}`;
@@ -2809,7 +2808,6 @@ function createOrder(getState) {
     return [...out, ...rest.values()];
   }
 
-  /* Items are ordered inside their own list, lists in one doc of their own. */
   function read(data, docs) {
     data.checklists = byOrder(data.checklists, docs[key("lists")]);
     const groups = new Map();
@@ -2837,8 +2835,8 @@ function createOrder(getState) {
     return held.length === ids.length && held.every((id, at) => id === ids[at]);
   }
 
-  /* What to rewrite, as [id, order] pairs, and the docs whose list has no rows left to order. A list
-     that dies is cleared with its rows, not here. */
+  /* Docs to rewrite as [id, order] pairs + order docs left empty. Dying lists clear with their rows,
+     not here. */
   function changes(state, written, dyingLists) {
     const live = snapshot(state);
     const changed = [];
@@ -2865,9 +2863,9 @@ function createOrder(getState) {
     return rest;
   }
 
-  /* The index among the rows that stay. An edge is the edge of `peers`: for an item that is its own
-     list, so a lone row has nowhere to go and lands last — which is the end of its list too, since
-     rows are shown grouped by list. A `before` whose row is gone falls back to `after`. */
+  /* Index among the rows that stay. Edges are edges of `peers`: an item's peers are its own list, so
+     a lone row lands last — also its list's end, rows being grouped by list. A gone `before` falls
+     back to `after`. */
   function landing(rest, peers, target) {
     if (target === "top" || target === "bottom") {
       const edge = peers.at(target === "top" ? 0 : -1);
@@ -2958,9 +2956,8 @@ const HIT_LEAD = 8;
 let searchPanel = false;
 let focusSearch = false;
 
-/* What the current query lets through and what it lights up. refresh() rebuilds the answers once per
-   render, before any of them is read; every other call reads the last refresh, so a caller never has
-   to know how a result is shaped. */
+/* What the current query lets through & what it lights up. refresh() rebuilds the answers once per
+   render, before any read; every other call reads the last result. */
 function createSearch(getState) {
   /* Case- and accent-insensitive fold. Match offsets are reported against the original text, so it
      keeps a map back: NFD and dropping marks change the length. */
@@ -3052,7 +3049,7 @@ function createSearch(getState) {
     return {
       tokens,
       byItems: s.items,
-      // Scopes decide what counts, and only what counts gets highlighted.
+      // Scope gates what counts and what highlights.
       visible: new Set([...(s.lists ? titles.keys() : []), ...(s.items ? listsByItem : [])]),
       expand: s.items ? listsByItem : new Set(),
       titles: s.lists ? titles : new Map(),
@@ -3103,8 +3100,8 @@ function paintText(node, text, ranges, from = 0) {
   node.replaceChildren(...parts);
 }
 
-/* Rows are laid out by now, so a match past the visible edge is measurable: re-paint the line from
-   just before the match and let the ellipsis cut the tail. */
+/* Laid out by now, so a match past the visible edge is measurable: re-paint from just before it,
+   the ellipsis cuts the tail. */
 function fitMatches() {
   if (!search.active) return;
   for (const mark of document.querySelectorAll("#lists .card__title mark, #lists .item__text mark")) {
@@ -3115,7 +3112,7 @@ function fitMatches() {
   }
 }
 
-/* Leaving the search: the query goes, and the scope picks with it — they are never remembered. */
+/* Leaving the search: the query goes, the scope picks with it. */
 function clearSearch() {
   state.ui.search = { text: "", lists: true, items: true };
   searchPanel = false;
@@ -3589,9 +3586,9 @@ function renderChrome() {
   renderSearch();
 }
 
-/* Rows are moved, never rebuilt, and only when gone or out of place. A row rebuilt under the
-   pointer is lost to the gesture: styles and rect go with the old node, and a touch pointer with a
-   detached target is cancelled. */
+/* Rows are moved, never rebuilt, and only when gone or out of place. A rebuild under the pointer
+   loses the gesture: styles & rect die with the old node, and a touch pointer with a detached target
+   is cancelled. */
 function reconcile(host, nodes) {
   const kept = new Set(nodes);
   for (const node of [...host.children]) {
@@ -3928,9 +3925,8 @@ function revealDelta(rect, band) {
 
 const scrollBehavior = () => (reduce.matches ? "auto" : "smooth");
 
-/* The top edge a row has to clear. A card head sticks to the header line and paints over the gap
-   under it: an item revealed in the gap ends up behind the head, while a head pinned to that line
-   has nowhere left to be scrolled to. */
+/* Top edge a row must clear. A card head paints over the gap under it: an item revealed there hides
+   behind the head, and a head pinned to the line has no scroll room left. */
 function revealTop(row, band) {
   const head = row.closest(".card")?.querySelector(":scope > .card__head");
   if (!head) {
@@ -3954,8 +3950,8 @@ function revealRow(row) {
   }
 }
 
-/* A new result set - another query, another scope, another page - starts at the top: deep in the
-   old one the new one stays off screen. Not inside clearSearch, whose other callers place a row. */
+/* A new result set — query, scope, page — starts at the top: deep in the old scroll it stays off
+   screen. Not part of clearing, where some callers place a row. */
 function toTop() {
   if (scrollY > 0) {
     scrollTo({ top: 0, behavior: scrollBehavior() });
@@ -4057,8 +4053,8 @@ function openModal(opts) {
   return { box, body, close: closeModal };
 }
 
-/* Dropdown placement: below the trigger, right-aligned to it. A popup never drifts off its trigger —
-   when the list fits neither below nor above, it takes the roomier side and scrolls there. */
+/* Dropdown: below the trigger, right-aligned. Never drifts off it — fits neither side => take the
+   roomier one and scroll there. */
 function anchoredBox(rect, width, height) {
   const minLeft = 8 + cssVarPx("--safe-left");
   const maxLeft = Math.max(minLeft, innerWidth - width - 8 - cssVarPx("--safe-right"));
@@ -4277,7 +4273,7 @@ function openPicker(labelKey, items, value, onPick, anchor) {
 }
 
 function pickerControl(labelKey, items, value, onChange) {
-  // A stored value that is no longer offered shows the first option instead of breaking the dialog.
+  // A stored value no longer offered shows the first option.
   const labelFor = (val) => String((items.find(([item]) => String(item) === String(val)) ?? items[0])[1]);
   let current = value;
   const trigger = el("button", "picker");
@@ -4373,7 +4369,6 @@ function openSettings() {
     label: t("settings"),
     body,
     anchor: byId("btn-settings"),
-    // A language change closes this dialog and immediately opens its replacement in the new language.
     onClosed: () => {
       if (!layerDialogs(".modal--dropdown").length) {
         byId("btn-settings").setAttribute("aria-expanded", "false");
@@ -4589,9 +4584,8 @@ function demoData() {
   return { checklists, items };
 }
 
-/* One transaction over a wiped stand, so a half-seeded or previously edited stand is never
-   readable. The stand takes the given settings but never a selection: the selected ids live in
-   whichever database the settings came from. */
+/* One transaction over a wiped stand: a half-seeded or already edited stand is never readable.
+   Settings come along, never the selection — its ids belong to the source database. */
 function seedRows(conn, ui) {
   return withTx(conn, "readwrite", (tx) => {
     const data = demoData();
@@ -4640,8 +4634,8 @@ async function exitDemo() {
   location.reload();
 }
 
-/* Hold-to-enter wiring for a button. Returns whether the last activation was a hold - run to the
-   end, or let go once the fill had started - so the caller swallows the trailing click. */
+/* Hold-to-enter wiring. Returns whether the last activation was a hold (ran out, or let go after
+   the fill started) so the caller swallows the trailing click. */
 function demoHold(button, bar, onTap, onDone) {
   let wait = 0;
   let run = 0;
@@ -4758,9 +4752,9 @@ function ramp(k) {
   return 1 + Math.round(9 * clamp(k, 0, 1));
 }
 
-/* One edge-scroll loop, shared by a row drag and a panel drag: only one rAF ever runs. onFrame fires
-   on a frame that scrolled and once more when the page runs out, so the aim lands on the settled view.
-   live is the net under a release that never arrived: nobody dragging kills the loop. */
+/* One edge-scroll loop for row & panel drag: one rAF ever. onFrame fires on every scrolled frame
+   and once more when the page runs out, so the aim lands on the settled view. live = someone is
+   dragging; a release that never arrived must still kill the loop. */
 function createAutoScroll(onFrame, live) {
   let raf = 0;
   let y = 0;
@@ -4905,8 +4899,7 @@ function aim(drag, screen) {
   return { container, index, hover };
 }
 
-/* What a drag sees and never changes: the prod side of the screen seam. One screen lives for one aim
-   pass, so all its rects read one layout. */
+/* What a drag reads, never writes. One screen per aim pass, so all its rects read one layout. */
 function createDragScreen() {
   return {
     moved: () => autoScroll.moved(),
@@ -5049,8 +5042,8 @@ function armHover(drag, head, onHold) {
   }
 }
 
-/* What a held row does with it: aim a drop marker, expand a closed list under the hold, land the
-   group. The bag lives here; the screen is the only thing that knows where the marker got to. */
+/* A held row: aim a drop marker, expand a closed list under the hold, land the group. The bag lives
+   here; only the screen knows where the marker got to. */
 function createRowDrag({ getState, commit, render, search, autoScroll, order, store, findList, screen }) {
   let drag = null;
 
@@ -5338,8 +5331,8 @@ function cssVarPx(name) {
   return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
 }
 
-/* Panel placement: the band it may sit in, the docks, the remembered fraction.
-   Reads / writes cross `screen`. A fraction scales over the collapsed band, clamps against the panel's own. */
+/* Panel placement: band, docks, remembered fraction. A fraction scales over the collapsed band,
+   clamps against the panel's own. */
 function createPanelLayout(screen) {
   const ceiling = (s, height, min) => Math.max(min, s.innerH - height - Math.max(GESTURE.gap, s.bottomInset));
 
@@ -5732,9 +5725,9 @@ function onResize() {
   }, 120);
 }
 
-/* The keyboard opens after focus, so the band the editor has to fit in is only known by then. And
-   when the keyboard pushes the visible area below the layout top, the header pinned there follows
-   it down by the same amount — otherwise it leaves the screen. */
+/* The keyboard opens after focus: the editor's band is only known by then. A keyboard-pushed visual
+   viewport drags the header pinned to the layout top down by the same amount, or it leaves the
+   screen. */
 function onViewportChange() {
   const vv = visualViewport;
   if (vv) {

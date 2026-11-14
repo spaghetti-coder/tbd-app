@@ -1,5 +1,4 @@
 // What a held row does: ghost, marker, the hold that opens a closed list, the drop.
-// The aiming rules themselves are in test/gesture/aim.test.mjs.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -31,7 +30,6 @@ const calls = [];
 const clones = [];
 const held = { A: { expanded: true }, C: { expanded: false } };
 
-// Renders state, as the app does after a commit.
 const sync = () => {
   cardC.classList.toggle("is-open", held.C.expanded);
   if (held.C.expanded) {
@@ -130,7 +128,7 @@ const frame = () => frames.splice(0, frames.length).forEach((fn) => fn());
 const armed = () => timers.armed.map(([, ms]) => ms);
 const marker = () => [...lists.querySelectorAll(".drop-gap")].find((node) => node.parentElement) ?? null;
 
-// Hold, look, drop: a running drag leaks into the next test.
+// Start, read the deck, cancel: a running drag leaks into the next test.
 const deckOf = (hit) => {
   assert.equal(rowDrag.start(hit), true);
   const clone = clones[0];
@@ -173,7 +171,7 @@ test("the deck stays a deck however big the group is", () => {
 test("a drag aims where the ghost is, and drops there", () => {
   reset();
   assert.equal(rowDrag.start(hitItem()), true);
-  // 190 sits past the middle of i2 and short of i3's.
+  // 170 + 20 aim offset: past i2's middle, short of i3's.
   rowDrag.update(120, 170);
   frame();
   calls.length = 0;

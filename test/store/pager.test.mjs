@@ -1,4 +1,4 @@
-// The pager must stay out of the way unless there is more than one page.
+// Pager visibility + page math: the pager stays out of the way unless there is more than one page.
 
 import assert from "node:assert/strict";
 import test from "node:test";

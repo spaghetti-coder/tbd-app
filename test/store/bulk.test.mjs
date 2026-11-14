@@ -28,7 +28,7 @@ test("deleteMany removes a checklist with its items and ends the selection", () 
   assert.deepEqual(ids(state.checklists), ["c2"]);
   assert.deepEqual(ids(state.items), ["p"], "the items of a deleted checklist go with it");
   assert.equal(marks(), "markGone:item:a,markGone:item:b,markGone:list:c1",
-    "the deleted list names every row it takes with it, while state still holds them");
+    "deleted rows are named while state still holds them");
   assert.deepEqual(plain(state.ui.bulk), { kind: null, ids: [] });
 });
 
@@ -81,7 +81,7 @@ test("pruneSelection drops the picks that are gone and keeps the rest", () => {
 
 test("spansLists is true only for an item selection spread over two checklists", () => {
   store([list("c1"), list("c2")], [item("a", "c1"), item("b", "c1"), item("p", "c2")]);
-  assert.equal(api.spansLists({ kind: "list", ids: ["c1", "c2"] }), false, "a list selection is one list per row");
+  assert.equal(api.spansLists({ kind: "list", ids: ["c1", "c2"] }), false, "a list selection never spans lists");
   assert.equal(api.spansLists({ kind: "item", ids: [] }), false, "no picks, no lists");
   assert.equal(api.spansLists({ kind: "item", ids: ["a"] }), false);
   assert.equal(api.spansLists({ kind: "item", ids: ["a", "b"] }), false, "both picks live in c1");

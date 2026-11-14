@@ -1,9 +1,7 @@
-// The `state` shim the store-level functions run against: sliced by name into one sandbox,
-// so a test drives the real function over a real object graph instead of a mock of it.
+// The `state` shim store-level functions run against: real code sliced into one sandbox.
 import { sliceVm } from "./html-source.mjs";
 import { storeStub } from "./fixtures.mjs";
 
-// The real search module over a state a hand-built sandbox owns.
 export const searchOver = (getState) => sliceVm(["createSearch"], {}).createSearch(getState);
 
 // What the order module reaches for; it runs for real over the same state the actions write.
@@ -26,13 +24,13 @@ export function stateHarness(names) {
     showToast: (text) => { sandbox.lastToast = text; },
     rowById: () => null,
     t: (key) => key,
-    // Editing has its own module; store-level tests only need the collaborator.
+    // editor stub: editing has its own module and tests.
     editor: { flush: () => {}, open: () => {}, save: () => null, cancel: () => {}, blur: () => {} },
   };
   sandbox.store = storeStub(sandbox.marked, sandbox.calls);
   const base = ["PAGE_SIZES", "createSearch", ...ORDER];
   const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
-  // The real search module over the same state the actions write, so a test refreshes and asks it.
+  // Real search over the same state the actions write: a test refreshes, then asks it.
   sandbox.search = api.createSearch(() => sandbox.state);
   sandbox.order = api.createOrder(() => sandbox.state);
 
@@ -49,7 +47,7 @@ export function stateHarness(names) {
     resetCalls: () => {
       sandbox.calls.length = 0;
     },
-    // The search is rebuilt with it: a stored state never answers from the previous test's query.
+    // Rebuilt with each state: no stale query from a previous test.
     store: (checklists, items, ui) => {
       sandbox.calls.length = 0;
       sandbox.marked.length = 0;

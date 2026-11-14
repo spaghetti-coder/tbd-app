@@ -37,9 +37,9 @@ test("normalize keeps the theme, panel and bulk rules", () => {
   assert.deepEqual(plain(api.normalize({ version: 1, ui: { bulk: { kind: "list" } } }).ui.bulk),
     { kind: null, ids: [] });
   const legacy = api.normalize({ version: 1, ui: { bulk: { kind: "item", checklistId: "c1", ids: ["a"] } } }).ui.bulk;
-  assert.equal(legacy.kind, "item", "a selection saved by an older build still restores");
+  assert.equal(legacy.kind, "item", "an older build's selection still restores");
   assert.deepEqual(Array.from(legacy.ids), ["a"]);
-  assert.equal(api.normalize({ version: 1 }).ui.panel.collapsed, false, "panel starts expanded");
+  assert.equal(api.normalize({ version: 1 }).ui.panel.collapsed, false);
   assert.equal(api.normalize({ version: 1, ui: { panel: { side: "left", topPct: 0.5, collapsed: true } } }).ui.panel.collapsed, true);
   assert.equal(api.normalize({ version: 1, ui: { panel: { collapsed: "yes" } } }).ui.panel.collapsed, false);
   assert.equal(api.normalize({ version: 1, ui: { panel: { collapsed: 1 } } }).ui.panel.collapsed, false);

@@ -1,5 +1,4 @@
-// The stand's seed rows: the shape the stores take, the counts the stand promises, and the
-// settings a new stand inherits.
+// Stand seed rows: store shapes, promised counts, inherited settings.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -11,8 +10,8 @@ const { demoData, seedRows, UI_KEY } = sliceVm([
   "withTx", "seedRows",
 ]);
 
-// A stand-in for an IDB connection: records every store call, keeps what reached the doc store,
-// and completes the transaction once the caller has wired the handlers.
+// IDB connection stand-in: records store calls, keeps what reached the doc store,
+// completes the tx after the caller wires the handlers.
 function fakeConn() {
   const calls = [];
   const docs = [];
@@ -68,7 +67,7 @@ test("the stand's rows are well formed", () => {
   assert.equal(new Set(of(big.id).map((row) => row.text)).size, 40, "the long list repeats a label");
 
   const done = data.items.filter((row) => row.done).length;
-  assert.ok(done > 0 && done < data.items.length, "every item checked, or none");
+  assert.ok(done > 0 && done < data.items.length, "all items checked, or none");
   for (const cl of live.filter((row) => shown(row) < 2)) {
     assert.equal(of(cl.id).filter((row) => row.done).length, 0, `a checked item in the one-item list ${cl.id}`);
   }
@@ -92,8 +91,8 @@ test("the archive holds one checklist, and three items of their own", () => {
   }
 });
 
-/* A fresh stand database holds no order docs, so getAll returns the rows by key: the ids have to
-   sort into the order the stand shows. */
+/* A fresh stand db holds no order docs: getAll returns rows by key, so ids must sort into the
+   shown order. */
 test("row keys sort into the intended order", () => {
   const keys = ids(data.checklists);
   assert.equal([...keys].sort().join(), keys.join());

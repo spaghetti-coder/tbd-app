@@ -1,5 +1,5 @@
-// A new result set starts at its top. toTop() itself is tested in test/render/reveal.test.mjs;
-// these are the call sites, which no sandbox reaches.
+// A new result set starts at its top. These are toTop() call sites in page listeners, out of a
+// sandbox's reach, so the source is asserted.
 
 import assert from "node:assert/strict";
 import test from "node:test";

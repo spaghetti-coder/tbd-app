@@ -8,7 +8,7 @@ import { stateHarness } from "../../testkit/state.mjs";
 
 const { createSearch } = sliceVm(["createSearch"]);
 
-// The real module over a board; refresh once, then ask it the way render does.
+// Real module over a board; refresh once, then ask as render does.
 function searched(checklists, items, ui = {}) {
   const state = { checklists, items, ui: { search: { text: "", lists: true, items: true }, ...ui } };
   const search = createSearch(() => state);
@@ -41,7 +41,7 @@ test("no query, no scope: the search filters nothing and opens nothing", () => {
   });
   assert.equal(searched([], [], { search: { text: "\u0301", lists: true, items: true } }).active, false);
   assert.equal(board({ search: { text: "\u0301", lists: true, items: true } }).active, false,
-    "a stored mark-only query must not hang the first render either");
+    "stored mark-only query: no hang on first render");
 });
 
 test("both scopes: a list is in by its name or by any of its items", () => {
@@ -50,7 +50,7 @@ test("both scopes: a list is in by its name or by any of its items", () => {
     active: true, any: true, lists: ["l1", "l2"], items: ["i1"], expanded: ["l2"],
   });
   assert.deepEqual(plain(found.rangesFor("l1")), [[0, 6]], "in by its own name, and lit");
-  assert.equal(found.rangesFor("l2"), null, "in only through an item, so its name stays unlit");
+  assert.equal(found.rangesFor("l2"), null, "in via an item only: name stays unlit");
   assert.deepEqual(plain(found.rangesFor("i1")), [[0, 6]]);
   assert.equal(found.rangesFor("i2"), null);
 });
@@ -81,7 +81,7 @@ test("archived rows are not searched, but a narrow miss still reports the wider 
 
   const narrow = board({ search: { text: "работа", lists: false, items: true } });
   assert.deepEqual(ask(narrow).lists, [], "the name is out of this scope");
-  assert.equal(narrow.any, true, "but it is there, so the screen can offer the wider search");
+  assert.equal(narrow.any, true, "it is there: offer the wider search");
 
   const wide = board({ search: { text: "магазин", lists: true, items: true } });
   assert.deepEqual(ask(wide), { active: true, any: true, lists: ["l2"], items: ["i1"], expanded: ["l2"] });
@@ -89,7 +89,7 @@ test("archived rows are not searched, but a narrow miss still reports the wider 
 
 /* ---------- what gets lit up ---------- */
 
-// [query, text, expected ranges] - a piece may sit anywhere, in any order and at any distance.
+// [query, text, expected ranges, note?] - a piece may sit anywhere, in any order, at any distance.
 test("every query piece has to be found, and the hits merge", () => {
   const rows = [
     ["ку", "стояла курица", [[7, 9]]],
@@ -114,16 +114,16 @@ test("every query piece has to be found, and the hits merge", () => {
 test("a query of bare combining marks leaves no token and matches nothing", () => {
   const marks = searched([list("l1", { title: "колесо" })], [item("i1", "l1", { text: "колесо" })],
     { search: { text: "\u0301 \u0302 x", lists: true, items: true } });
-  assert.equal(marks.active, true, "the marks drop out and the token that is left still counts");
+  assert.equal(marks.active, true, "marks drop, the remaining token counts");
   assert.equal(marks.rangesFor("l1"), null);
 });
 
 /* ---------- how the app wires it ---------- */
 
-// Every painter reads the last refresh, so the only place the result is built has to build it first.
+// Painters read the last refresh: render must build it first.
 test("render rebuilds the answer before it paints anything", () => {
   const body = slice("render");
-  assert.ok(body.includes("search.refresh()"), "render refreshes the search");
+  assert.ok(body.includes("search.refresh()"));
   assert.ok(body.indexOf("search.refresh()") < body.indexOf("renderChrome()"), "before the painters read it");
 });
 

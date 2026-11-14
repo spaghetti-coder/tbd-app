@@ -23,7 +23,7 @@ let held = true;
 const { createAutoScroll } = sliceVm(["GESTURE", "clamp", "ramp", "createAutoScroll"], box);
 const scroll = createAutoScroll(() => fired.push("frame"), () => held);
 
-// One loop for all: stop first, so a test never inherits a frame from the one before.
+// Stop first: a test must not inherit a frame from the previous one.
 const fresh = () => {
   held = true;
   scroll.stop();
@@ -65,7 +65,7 @@ test("a loop outliving its drag stops itself", () => {
   held = false;
   assert.equal(run(500, 2), "", "no frame is worked after the release");
   assert.equal(frames.length, 0, "the loop is gone, not spinning");
-  assert.equal(page.y, 400, "no scroll");
+  assert.equal(page.y, 400);
 });
 
 test("stopping cancels the loop and clears the moving flag", () => {

@@ -8,7 +8,7 @@ const { optionKeyIndex, prefixMatchIndex } = sliceVm(["optionKeyIndex", "prefixM
 
 const LANGS = ["Auto", "Русский", "Български", "English", "Español", "Română"];
 
-// [key, current, option count, expected], the count 6 unless a single option list is asked for.
+// [key, current, option count, expected, note?]
 test("arrows step, Home and End jump, and the ends hold", () => {
   const rows = [
     ["ArrowDown", 2, 6, 3],
@@ -26,7 +26,7 @@ test("arrows step, Home and End jump, and the ends hold", () => {
   }
 });
 
-// [labels, typed, current, expected]
+// [labels, typed, current, expected, note?]
 test("a typed letter moves to the next label starting with it", () => {
   const rows = [
     [LANGS, "р", 0, 1],
@@ -36,7 +36,7 @@ test("a typed letter moves to the next label starting with it", () => {
     [LANGS, "z", 2, 2, "no match keeps the focus"],
     [LANGS, "б", 0, 2],
     [LANGS, "E", 0, 3, "case is ignored"],
-    // A label stored with decomposed letters (macOS keyboards) answers to the composed letter.
+    // Decomposed labels (macOS keyboards) answer to the composed letter.
     [["A\u030Angstrom", "Tok"], "\u00E5", 1, 0],
   ];
   for (const [labels, typed, at, want, note] of rows) {

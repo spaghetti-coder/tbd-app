@@ -39,7 +39,7 @@ test("a write waits for a safe moment, and is acted on when it comes", async () 
   const h = storeHarness({ canReload: () => safe.on });
   h.echo.send("other");
   await idle();
-  assert.deepEqual(h.reloads, [], "nothing reloads while something would be interrupted");
+  assert.deepEqual(h.reloads, [], "no reload while work would be interrupted");
 
   safe.on = true;
   h.store.reloadWhenSafe();
@@ -59,7 +59,7 @@ test("after reloading for another tab nothing is written back", async () => {
   assert.equal(h.storage.batches.length, writes, "a late flush must not put an older state back");
 });
 
-// The conditions a reload waits for, on their own.
+// Reload safety conditions in isolation.
 const safeWhen = ({ editing = null, held = false, dialogs = false } = {}) =>
   sliceVm(["safeToReload"], {
     state: { ui: { editing } }, pointer: { active: () => held }, modalOpen: () => dialogs,

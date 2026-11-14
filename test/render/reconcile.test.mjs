@@ -8,7 +8,6 @@ import { idsOf, rowNode } from "../../testkit/render.mjs";
 
 const { reconcile } = sliceVm(["reconcile"]);
 
-// Every move and every removal is recorded, so "left where it was" is an observable fact.
 // A move out of nowhere (a fresh row) is not a removal; only leaving the list counts.
 function logged(host, nodes) {
   const log = [];

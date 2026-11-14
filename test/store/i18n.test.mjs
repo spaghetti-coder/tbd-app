@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
-// The dictionaries are literals in the file; they are evaluated once so the tests can read them.
+// Dictionary literals: evaluate once for all tests.
 const { DICTS: dicts } = sliceVm(["EN", "DICTS"]);
 const { actionMessage } = sliceVm(["actionMessage"], { t: (key) => key });
 
@@ -22,7 +22,7 @@ test("every dictionary defines exactly the keys EN defines", () => {
   for (const [code, dict] of Object.entries(dicts)) {
     assert.deepEqual(Object.keys(dict).sort(), en, `dictionary "${code}" is out of sync with EN`);
   }
-  // Parity with EN covers every dictionary, so the confirmation keys only have to be checked there.
+  // EN parity covers every dictionary: check the confirmation keys in EN only.
   const wanted = ["list", "item"].flatMap((kind) =>
     ["archive", "delete"].flatMap((verb) => [actionMessage(kind, 1, verb), actionMessage(kind, 2, verb)]));
   for (const key of wanted) {

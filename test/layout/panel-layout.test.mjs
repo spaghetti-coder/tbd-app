@@ -12,7 +12,7 @@ const SCREEN = {
   safeLeft: 0, safeRight: 0, wrapLeft: 100, wrapRight: 900,
 };
 
-// A screen knows its size only in the mode it is in: measure() answers for the mode setRow left.
+// measure() answers only for the mode setRow left.
 function rig({ standing = SCREEN, lying = standing } = {}) {
   const written = [];
   let row = false;
@@ -44,7 +44,7 @@ test("the fraction scales over the collapsed band", () => {
 });
 
 test("the bottom inset floors the band, the gesture gap when there is none", () => {
-  assert.equal(rig({ standing: { ...SCREEN, bottomInset: 0 } }).placeAt(1).top, 836, "34px of inset eats 10px of band");
+  assert.equal(rig({ standing: { ...SCREEN, bottomInset: 0 } }).placeAt(1).top, 836, "inset 0: the 12px gap floors it");
   assert.equal(rig({ standing: { ...SCREEN, bottomInset: 4 } }).placeAt(1).top, 836, "below the gap the gap is the floor");
   assert.equal(rig({ standing: { ...SCREEN, bottomInset: 34 } }).placeAt(1).top, 814);
 });
@@ -66,7 +66,7 @@ test("lying down, the docks and the band are the lying panel's", () => {
   const r = rig({ standing: { ...short, height: 374 }, lying: { ...short, width: 374, collapsed: 38 } });
   const out = r.placeAt(0.5, "right");
   assert.equal(out.row, true);
-  assert.equal(out.left, 626, "the dock is the lying width's, so the pill stays on screen");
+  assert.equal(out.left, 626, "the dock is the lying width's: pill stays on screen");
   assert.equal(out.top, 210, "the fraction scales over the lying pill's band");
   assert.equal(r.placeAt(r.layout.forDrag().fractionOf(210), "right").top, 210, "a drag's fraction survives the mode");
 });

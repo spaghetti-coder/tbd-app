@@ -42,7 +42,7 @@ test("jumping to an item leaves the search and opens its list for real", () => {
   api.gotoHit("item", "i1");
   assert.equal(state.ui.search.text, "");
   assert.equal(state.checklists.find((cl) => cl.id === "l2").expanded, true);
-  assert.deepEqual(plain(scrollTargetOf()), { kind: "item", id: "i1", flash: 1800 }, "the item itself gets revealed, with a held flash");
+  assert.deepEqual(plain(scrollTargetOf()), { kind: "item", id: "i1", flash: 1800 }, "the item is revealed, flash held");
   assert.equal(calls(), "commit");
 });
 
@@ -50,7 +50,7 @@ test("jumping to a list lands on the page that holds it", () => {
   const state = typed("молоко", { pageSize: 2 });
   api.gotoHit("list", "l3");
   assert.equal(state.ui.search.text, "");
-  assert.equal(state.ui.page, 2, "l3 is the third of three with two per page");
+  assert.equal(state.ui.page, 2, "l3 is 3rd of 3, 2 per page");
   assert.deepEqual(plain(scrollTargetOf()), { kind: "list", id: "l3", flash: 1800 });
 });
 
@@ -82,7 +82,7 @@ test("a scope switch narrows the result and starts the paging again", () => {
   api.setSearchScope("lists");
   search.refresh();
   assert.deepEqual(api.visibleChecklists().map((cl) => cl.id), ["l2"]);
-  assert.equal(state.ui.page, 1, "the page the query was counted on is gone");
+  assert.equal(state.ui.page, 1, "the page the query counted is gone");
   assert.equal(calls(), "toTop,commit", "the new result starts at the top");
 });
 
@@ -105,7 +105,7 @@ test("both switches off stops filtering without erasing the query", () => {
   assert.deepEqual(api.visibleChecklists().map((cl) => cl.id), ["l1", "l2", "l3"]);
 });
 
-/* addChecklist runs over its own globals: the creation path needs a uid and no render loop. */
+/* addChecklist runs over its own globals: creation needs a uid, no render loop. */
 const created = {
   searchPanel: false,
   state: {
@@ -142,7 +142,7 @@ test("a searched screen has nothing to drag: its order is the query's, not the u
 
 const ONE = () => [list("l1", { title: "Работа" })];
 
-// A fresh empty node and env per test, so a failing assert cannot leak into the next one.
+// Fresh node + env per test: a failing assert leaks nothing.
 function emptyHarness(search, checklists) {
   const empty = {
     hidden: true,

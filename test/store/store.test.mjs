@@ -11,7 +11,7 @@ test("a save with nothing dirty leaves the store alone", async () => {
   const { store, storage, echo } = storeHarness();
   await store.flushSave();
   assert.deepEqual(storage.batches, [], "no marks, no transaction");
-  assert.deepEqual(echo.posts, [], "and no other tab is told to reload");
+  assert.deepEqual(echo.posts, [], "no echo to the other tabs");
 });
 
 test("a save carries the marked rows, the order docs the state implies, and a ui doc with only the query", async () => {
@@ -35,7 +35,7 @@ test("a queued save writes once, when its debounce fires", async () => {
   const h = storeHarness();
   h.state([list("c1")], []);
   h.store.queueSave();
-  assert.equal(h.storage.batches.length, 0, "nothing went out yet");
+  assert.equal(h.storage.batches.length, 0);
   h.clock.run();
   await idle();
   assert.equal(h.storage.batches.length, 1);
@@ -46,7 +46,7 @@ test("flushing writes now and drops the queued one", async () => {
   h.state([list("c1")], []);
   h.store.queueSave();
   await h.store.flushSave();
-  assert.equal(h.storage.batches.length, 1, "the flush wrote it");
+  assert.equal(h.storage.batches.length, 1);
   h.clock.run();
   assert.equal(h.storage.batches.length, 1, "the dropped save never wrote");
 });
@@ -80,7 +80,7 @@ test("one write runs at a time, and an edit made during it goes out as soon as i
 
   h.storage.release();
   await first;
-  assert.equal(h.storage.batches.length, 2, "the queued edit goes out right after it, without a timer");
+  assert.equal(h.storage.batches.length, 2, "the queued edit goes out next, no timer");
   assert.deepEqual(ids(h.storage.batches[1].items), ["i1"]);
   h.storage.release();
   await second;
@@ -100,7 +100,7 @@ test("a flush running into an open write waits until its own batch landed", asyn
     landed = true;
   });
   assert.equal(h.storage.batches.length, 1, "the queued write has not started");
-  assert.equal(landed, false, "and the flush does not report before it");
+  assert.equal(landed, false, "the flush does not report early");
 
   h.storage.release();
   await first;
@@ -127,7 +127,7 @@ test("erase clears the store and stops this tab writing back", async () => {
   h.state([list("c1")], []);
   h.store.markDirty("list", "c1");
   await h.store.erase();
-  assert.equal(h.storage.seen.cleared, 1, "the stores were emptied");
+  assert.equal(h.storage.seen.cleared, 1);
   await h.store.flushSave();
   assert.deepEqual(h.storage.batches, [], "a wiped tab writes nothing back");
 });

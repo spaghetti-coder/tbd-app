@@ -74,9 +74,9 @@ test("ask receives the selection as a copy, not the live array", () => {
   const { asked, onPanelAct } = harness(ids, "list");
   onPanelAct("bulk-delete", BUTTON);
   assert.equal(asked.length, 1);
-  // Cross-realm arrays: compare by value, identity only for the "is it the live array" check.
+  // Cross-realm arrays: compare by value; identity only for the copy check.
   assert.equal(asked[0].picked.join(","), BULK.join(","));
-  assert.notEqual(asked[0].picked, ids, "a copy: the confirm dialog must not see later selection changes");
+  assert.notEqual(asked[0].picked, ids, "a copy: the dialog must not see later picks");
   assert.equal(asked[0].kind, "list");
   assert.equal(asked[0].button, BUTTON);
 });

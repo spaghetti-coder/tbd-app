@@ -1,6 +1,5 @@
-// Painting a search result: only the matching items survive in the body, the card opens without
+// Painting a search result: only matching items survive in the body, the card opens without
 // touching what the user left it as, and a match past the ellipsis pulls the line to it.
-// The search itself answers through its interface; the module is tested in test/store/search.test.mjs.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -11,7 +10,6 @@ import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
 
 const itemRow = (id) => ({ id, checklistId: "L1" });
 
-// A search that filters everything out, and one that holds a single item.
 const NONE = searchStub({ active: true, allowsList: () => false, allowsItem: () => false });
 const HIT = (id) => searchStub({
   active: true,
@@ -20,7 +18,7 @@ const HIT = (id) => searchStub({
   expands: () => true,
   matched: (kind, row) => kind === "item" && row === id,
 });
-// A search over names only: every item of a list that is in stays inside.
+// Names-only search: every item of a list that is in stays inside.
 const BY_NAME = searchStub({ active: true, allowsList: () => true });
 
 test("only the matching items stay in the body of a searched list", () => {
@@ -37,7 +35,7 @@ test("a searched list opens without touching what the user left it as", () => {
   const cl = list("L1", { expanded: false });
   env.search = HIT("i1");
   paintChecklist(card, cl);
-  assert.equal(card.open, true, "open for the search");
+  assert.equal(card.open, true);
   assert.equal(card.querySelector(".card__body").hidden, false);
   assert.equal(cl.expanded, false, "the saved state is untouched");
 
@@ -125,7 +123,7 @@ test("a match past the visible edge pulls the line to it", () => {
   paintEnv.search = searchStub({ active: true, rangesFor: (id) => (id === "i9" ? [[40, 42]] : null) });
   fitMatches();
   assert.equal(node.children[0].text, "…", "what fell off is behind an ellipsis");
-  assert.equal(node.children[1].text, text(8), "the line starts eight chars before the match");
+  assert.equal(node.children[1].text, text(8), "the line starts 8 chars before the match");
   assert.equal(node.children[2].text, "xx", "and the match itself is marked");
   delete nodes.m;
 });
@@ -136,7 +134,7 @@ test("a match that is already visible is left alone", () => {
   nodes.m = node.children[0];
   paintEnv.search = searchStub({ active: true, rangesFor: (id) => (id === "i9" ? [[40, 42]] : null) });
   fitMatches();
-  assert.equal(node.children.length, 1, "re-painted only when it had to be");
+  assert.equal(node.children.length, 1, "repainted only when needed");
   delete nodes.m;
 });
 
@@ -216,5 +214,5 @@ test("only a row that leaves the result takes the rebuild", () => {
 
   const fresh = rowHarness(HIT("i9"));
   fresh.repaintRow("item", "i9");
-  assert.deepEqual(fresh.rebuilt, ["render"], "a row that just entered the result is rendered");
+  assert.deepEqual(fresh.rebuilt, ["render"], "a row entering the result is rendered");
 });
