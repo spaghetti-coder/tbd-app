@@ -4,8 +4,9 @@ import { sliceVm } from "./html-source.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
-  "createStore", "createOrder", "writes", "clamp", "UI_KEY", "PAGE_SIZES", "defaults", "normalizeSearch",
-  "validBulk", "normalize", "withoutArchived", "findItem", "visibleChecklists", "pageCount",
+  "createStore", "createOrder", "writes", "uiDoc", "sameDoc", "keyed", "patch", "clamp", "UI_KEY",
+  "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived", "findItem",
+  "visibleChecklists", "pageCount",
 ];
 
 // Reads sorted by key, like getAll: rows carry no ordinal.
@@ -97,7 +98,8 @@ export function clockFake() {
 }
 
 // A live store: real code, with storage, timers and tabs under the test's hand.
-export function storeHarness({ canReload = () => true, demo = false, storage = storageFake(), actions = [] } = {}) {
+export function storeHarness({ disk = {}, canReload = () => true, demo = false, actions = [] } = {}) {
+  const storage = storageFake(disk);
   const echo = echoFake();
   const clock = clockFake();
   const errors = [];
@@ -123,9 +125,9 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
   const store = api.createStore({
     storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
   });
-  // The app's action functions, marking through the store interface over the same state.
+  // App actions over the same state.
   const actBox = { ...globals, store, order };
-  const act = sliceVm(actions, actBox);
+  const act = sliceVm([...new Set(["patch", ...actions])], actBox);
   const assign = (value) => {
     state = value;
     actBox.state = value;
@@ -133,6 +135,8 @@ export function storeHarness({ canReload = () => true, demo = false, storage = s
   };
   return {
     store, storage, echo, clock, errors, reloads, api, order, actions: act,
+    load: async () => assign(await store.load()),
+    edit: (kind, id, props) => api.patch(kind, id, props),
     state: (checklists, items, ui) => assign({
       checklists, items, ui: { pageSize: 20, page: 1, search: { text: "" }, bulk: { kind: null, ids: [] }, ...ui },
     }),

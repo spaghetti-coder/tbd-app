@@ -15,7 +15,6 @@ export function stateHarness(names) {
     scrollTarget: null,
     lastToast: null,
     calls: [],
-    marked: [],
     commit: (kind, id) => sandbox.calls.push(kind ? `commit:${kind}:${id}` : "commit"),
     // The scroll a sliced function asks for lands in the same call log.
     scrollY: 0,
@@ -27,8 +26,8 @@ export function stateHarness(names) {
     // editor stub: editing has its own module and tests.
     editor: { flush: () => {}, open: () => {}, save: () => null, cancel: () => {}, blur: () => {} },
   };
-  sandbox.store = storeStub(sandbox.marked, sandbox.calls);
-  const base = ["PAGE_SIZES", "createSearch", ...ORDER];
+  sandbox.store = storeStub(sandbox.calls);
+  const base = ["PAGE_SIZES", "createSearch", "patch", ...ORDER];
   const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
   // Real search over the same state the actions write: a test refreshes, then asks it.
   sandbox.search = api.createSearch(() => sandbox.state);
@@ -43,14 +42,13 @@ export function stateHarness(names) {
     setScroll: (y) => { sandbox.scrollY = y; },
     toastOf: () => sandbox.lastToast,
     calls: () => sandbox.calls.join(","),
-    marks: () => sandbox.marked.join(","),
     resetCalls: () => {
       sandbox.calls.length = 0;
     },
+    edit: (kind, id, props) => sandbox.api.patch(kind, id, props),
     // Rebuilt with each state: no stale query from a previous test.
     store: (checklists, items, ui) => {
       sandbox.calls.length = 0;
-      sandbox.marked.length = 0;
       sandbox.state = {
         checklists,
         items,

@@ -2443,7 +2443,7 @@ function normalize(data) {
   }
   out.checklists = (Array.isArray(data.checklists) ? data.checklists : [])
     .filter((c) => c && typeof c.id === "string")
-    .map((c) => ({
+    .map((c) => Object.freeze({
       id: c.id,
       title: typeof c.title === "string" ? c.title : "",
       expanded: c.expanded !== false,
@@ -2453,7 +2453,7 @@ function normalize(data) {
   const known = new Set(out.checklists.map((c) => c.id));
   out.items = (Array.isArray(data.items) ? data.items : [])
     .filter((i) => i && typeof i.id === "string" && known.has(i.checklistId))
-    .map((i) => ({
+    .map((i) => Object.freeze({
       id: i.id,
       checklistId: i.checklistId,
       text: typeof i.text === "string" ? i.text : "",
@@ -2510,9 +2510,7 @@ function withTx(connection, mode, work) {
 
 function clearStores(connection) {
   return withTx(connection, "readwrite", (tx) => {
-    for (const name of STORES) {
-      tx.objectStore(name).clear();
-    }
+    STORES.forEach(name => tx.objectStore(name).clear());
   });
 }
 
@@ -2534,12 +2532,12 @@ function idbStorage(name) {
         const lists = tx.objectStore("checklists");
         const items = tx.objectStore("items");
         const docs = tx.objectStore("doc");
-        for (const row of batch.checklists) lists.put(row);
-        for (const row of batch.items) items.put(row);
-        for (const doc of batch.docs) docs.put(doc);
-        for (const id of batch.goneItems) items.delete(id);
-        for (const id of batch.goneChecklists) lists.delete(id);
-        for (const key of batch.goneDocs) docs.delete(key);
+        batch.checklists.forEach(row => lists.put(row));
+        batch.items.forEach(row => items.put(row));
+        batch.docs.forEach(doc => docs.put(doc));
+        batch.goneItems.forEach(id => items.delete(id));
+        batch.goneChecklists.forEach(id => lists.delete(id));
+        batch.goneDocs.forEach(key => docs.delete(key));
       });
     },
     clear() {
@@ -2572,14 +2570,11 @@ const dark = matchMedia("(prefers-color-scheme: dark)");
 const wide = matchMedia("(width > 560px)");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
-/* One transaction at a time. A row mark means the row itself changed; order diffs off state at
-   save. A dying list marks its items gone, so a batch states its own deletes. */
 function createStore({ storage, echo, order, getState, canReload, onError }) {
-  const dirty = {
-    lists: new Set(), items: new Set(), goneLists: new Set(), goneItems: new Set(), ui: false,
-  };
-  /* The order the last write left on disk. Live order is diffed against it, so a move needs no mark. */
+  /* What the last write left on disk: order docs, row objects, the ui doc. State is diffed against
+     these; a row that is not that very object changed, an id state no longer holds is deleted. */
   let written = new Map();
+  let landed = { lists: new Map(), items: new Map(), ui: null };
   let timer = 0;
   let running = false;
   let again = false;
@@ -2601,6 +2596,7 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
       const data = order.read(normalize({ version: 1, checklists, items, ui: docs[UI_KEY] }), docs);
       // A fresh read means disk == state.
       written = order.snapshot(data);
+      landed = { lists: keyed(data.checklists), items: keyed(data.items), ui: uiDoc(data.ui) };
       return data;
     } catch {
       // Nothing can be written to a store that will not open: say it once and stay in memory.
@@ -2610,47 +2606,23 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
     }
   }
 
-  function markDirty(kind, id) {
-    dirty[kind === "list" ? "lists" : "items"].add(id);
-  }
-
-  function markGone(kind, id) {
-    if (kind === "list") {
-      dirty.goneLists.add(id);
-      dirty.lists.delete(id);
-    } else {
-      dirty.goneItems.add(id);
-      dirty.items.delete(id);
-    }
-  }
-
-  /* The save queue marks it, so no ui path has to remember a mark of its own. */
-  function markUi() {
-    dirty.ui = true;
-  }
-
-  /* Read off state at save: a row lost since has nothing left to write, its gone mark rides the same
-     batch. */
   function take() {
     const st = getState();
     // shortcut: the diff walks every row on every save (~5ms per 50k rows on desktop); gate it on a flag if it shows on a phone.
-    const diff = order.changes(st, written, dirty.goneLists);
-    const batch = {
-      lists: [], items: [], order: diff.changed, goneOrder: diff.cleared,
-      goneLists: [...dirty.goneLists], goneItems: [...dirty.goneItems], ui: dirty.ui,
+    const lists = keyed(st.checklists);
+    const items = keyed(st.items);
+    const goneLists = [...landed.lists.keys()].filter((id) => !lists.has(id));
+    const diff = order.changes(st, written, new Set(goneLists));
+    const doc = uiDoc(st.ui);
+    return {
+      lists: [...lists.values()].filter((row) => landed.lists.get(row.id) !== row),
+      items: [...items.values()].filter((row) => landed.items.get(row.id) !== row),
+      order: diff.changed,
+      // Order docs to drop: dying lists + lists emptied.
+      goneOrder: [...goneLists, ...diff.cleared],
+      goneLists, goneItems: [...landed.items.keys()].filter((id) => !items.has(id)),
+      ui: sameDoc(doc, landed.ui) ? null : doc,
     };
-    for (const row of st.checklists) {
-      if (dirty.lists.has(row.id)) batch.lists.push(row);
-    }
-    for (const row of st.items) {
-      if (dirty.items.has(row.id)) batch.items.push(row);
-    }
-    dirty.lists.clear();
-    dirty.items.clear();
-    dirty.goneLists.clear();
-    dirty.goneItems.clear();
-    dirty.ui = false;
-    return batch;
   }
 
   function empty(batch) {
@@ -2658,41 +2630,29 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
       && !batch.goneLists.length && !batch.goneItems.length && !batch.ui;
   }
 
-  function requeue(batch) {
-    for (const row of batch.lists) dirty.lists.add(row.id);
-    for (const row of batch.items) dirty.items.add(row.id);
-    for (const id of batch.goneLists) dirty.goneLists.add(id);
-    for (const id of batch.goneItems) dirty.goneItems.add(id);
-    dirty.ui = dirty.ui || batch.ui;
-  }
-
   function save() {
     if (stopped) return Promise.resolve();
-    const batch = take();
-    if (empty(batch)) return Promise.resolve();
+    // An open write changes what is owed: judge after it lands.
     if (running) {
-      requeue(batch);
       again = true;
       return inflight.then(save);
     }
+    const batch = take();
+    if (empty(batch)) return Promise.resolve();
     running = true;
-    const st = getState();
-    inflight = storage.write(writes(batch, st))
+    inflight = storage.write(writes(batch))
       .then(() => {
-        // Only after the batch lands, and only what it carried: a rejected write must re-report
-        // the same diff, a move made meanwhile stays owed.
-        for (const [id, ids] of batch.order) {
-          written.set(id, ids);
-        }
-        for (const id of [...batch.goneLists, ...batch.goneOrder]) {
-          written.delete(id);
-        }
+        // Only what landed counts: a failed write re-reports itself.
+        batch.lists.forEach(row => landed.lists.set(row.id, row));
+        batch.items.forEach(row => landed.items.set(row.id, row));
+        batch.goneLists.forEach(id => landed.lists.delete(id));
+        batch.goneItems.forEach(id => landed.items.delete(id));
+        if (batch.ui) landed.ui = batch.ui;
+        batch.order.forEach(([id, ids]) => written.set(id, ids));
+        batch.goneOrder.forEach(id => written.delete(id));
         return echo.post(tab);
       })
-      .catch(() => {
-        requeue(batch);
-        onError();
-      })
+      .catch(() => onError())
       .finally(() => {
         running = false;
         if (again) {
@@ -2704,7 +2664,6 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   }
 
   function queueSave() {
-    markUi();
     clearTimeout(timer);
     timer = setTimeout(() => {
       timer = 0;
@@ -2752,16 +2711,23 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   });
 
   return {
-    load, markDirty, markGone, markUi, queueSave, flushSave, reloadWhenSafe, erase,
+    load, queueSave, flushSave, reloadWhenSafe, erase,
   };
 }
 
-/* The batch carries the order to put on disk, so a record of a write is a record of what landed. */
-function writes(batch, state) {
+const keyed = (rows) => new Map(rows.map((row) => [row.id, row]));
+
+/* Live picks are this tab's choice: they do not outlive it. */
+function uiDoc(ui) {
+  return { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } };
+}
+
+const sameDoc = (doc, held) => JSON.stringify(doc) === JSON.stringify(held);
+
+function writes(batch) {
   const docs = batch.order.map(([id, ids]) => ({ key: order.key(id), value: ids }));
   if (batch.ui) {
-    // The scope picks are a live choice, not a setting: only the query outlives the tab.
-    docs.push({ key: UI_KEY, value: { ...state.ui, search: { text: state.ui.search.text } } });
+    docs.push({ key: UI_KEY, value: batch.ui });
   }
   return {
     checklists: batch.lists,
@@ -2769,7 +2735,7 @@ function writes(batch, state) {
     docs,
     goneItems: batch.goneItems,
     goneChecklists: batch.goneLists,
-    goneDocs: [...batch.goneLists, ...batch.goneOrder].map((id) => order.key(id)),
+    goneDocs: batch.goneOrder.map((id) => order.key(id)),
   };
 }
 
@@ -2900,9 +2866,8 @@ function createOrder(getState) {
     const groups = new Map();
     for (const row of st.items) {
       if (!picked.has(row.id)) continue;
-      const listId = target.into ?? row.checklistId;
-      if (target.into) row.checklistId = listId;
-      groups.set(listId, [...(groups.get(listId) ?? []), row]);
+      const moved = target.into ? Object.freeze({ ...row, checklistId: target.into }) : row;
+      groups.set(moved.checklistId, [...(groups.get(moved.checklistId) ?? []), moved]);
     }
     let next = st.items.filter((row) => !picked.has(row.id));
     for (const [listId, group] of groups) {
@@ -3136,8 +3101,7 @@ function gotoHit(kind, id) {
     return;
   }
   if (kind === "item") {
-    cl.expanded = true;
-    store.markDirty("list", cl.id);
+    patch("list", cl.id, { expanded: true });
   }
   jumpTo(cl.id);
   scrollTarget = { kind, id, flash: JUMP_FLASH };
@@ -3205,6 +3169,13 @@ function findItem(id) {
   return state.items.find((i) => i.id === id);
 }
 
+/* Rows are values: a change puts another object; the save diffs identity. */
+function patch(kind, id, props) {
+  const rows = kind === "list" ? state.checklists : state.items;
+  const at = rows.findIndex((row) => row.id === id);
+  return at < 0 ? null : (rows[at] = Object.freeze({ ...rows[at], ...props }));
+}
+
 function entityText(kind, id) {
   const row = kind === "list" ? findList(id) : findItem(id);
   if (!row) return "";
@@ -3219,13 +3190,12 @@ function addChecklist() {
   editor.flush();
   // A fresh empty row never matches the query on screen, so the query goes first.
   clearSearch();
-  const cl = { id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false };
+  const cl = Object.freeze({ id: uid(), title: "", expanded: true, createdAt: Date.now(), archived: false });
   if (state.ui.newChecklist === "top") {
     state.checklists.unshift(cl);
   } else {
     state.checklists.push(cl);
   }
-  store.markDirty("list", cl.id);
   state.ui.editing = { kind: "list", id: cl.id };
   jumpTo(cl.id);
   commit();
@@ -3234,11 +3204,9 @@ function addChecklist() {
 function addItem(checklistId) {
   editor.flush();
   clearSearch();
-  const cl = findList(checklistId);
-  if (!cl) return;
-  cl.expanded = true;
-  store.markDirty("list", cl.id);
-  const item = {
+  if (!findList(checklistId)) return;
+  patch("list", checklistId, { expanded: true });
+  const item = Object.freeze({
     id: uid(),
     checklistId,
     text: "",
@@ -3246,10 +3214,9 @@ function addItem(checklistId) {
     createdAt: Date.now(),
     archived: false,
     archivedBy: "user",
-  };
+  });
   state.items.push(item);
   order.place("item", [item.id], state.ui.newItem === "top" ? "top" : "bottom");
-  store.markDirty("item", item.id);
   state.ui.editing = { kind: "item", id: item.id };
   scrollTarget = { kind: "item", id: item.id };
   commit();
@@ -3265,16 +3232,10 @@ function draftText() {
 
 function removeEntity(kind, id) {
   if (kind === "list") {
-    // The items die with the list, and they are named while state still holds them.
-    for (const item of state.items) {
-      if (item.checklistId === id) store.markGone("item", item.id);
-    }
     state.checklists = state.checklists.filter((c) => c.id !== id);
     state.items = state.items.filter((i) => i.checklistId !== id);
-    store.markGone("list", id);
   } else {
     state.items = state.items.filter((i) => i.id !== id);
-    store.markGone("item", id);
   }
   pruneSelection();
 }
@@ -3282,7 +3243,7 @@ function removeEntity(kind, id) {
 /* ---------- editor ---------- */
 
 /* Typed text belongs to its row. A save renames, rolls back, or drops a nameless row. */
-function createEditor({ getState, find, textOf, listIdOf, draft, remove, onSaved, repaint, writeNow }) {
+function createEditor({ getState, find, patch, textOf, listIdOf, draft, remove, onSaved, repaint, writeNow }) {
   // True when the text landed.
   function commitText(kind, id, raw) {
     const text = raw.trim();
@@ -3297,11 +3258,7 @@ function createEditor({ getState, find, textOf, listIdOf, draft, remove, onSaved
       repaint();
       return false;
     }
-    const row = find(kind, id);
-    if (row) {
-      if (kind === "list") row.title = text;
-      else row.text = text;
-    }
+    patch(kind, id, kind === "list" ? { title: text } : { text });
     getState().ui.editing = null;
     onSaved(kind, id);
     // One row: a rebuild would kill the focused button and its click.
@@ -3371,11 +3328,9 @@ function makeEditor() {
     listIdOf: (edited) => (edited.kind === "item" ? (findItem(edited.id) ?? {}).checklistId : edited.id),
     draft: draftText,
     remove: removeEntity,
+    patch,
     // A running search counts the saved text, not the one its result was built on.
-    onSaved: (kind, id) => {
-      store.markDirty(kind, id);
-      search.refresh();
-    },
+    onSaved: () => search.refresh(),
     repaint: commit,
     writeNow: () => store.flushSave(),
   });
@@ -3383,40 +3338,29 @@ function makeEditor() {
 
 const editor = makeEditor();
 
-function archiveItemQuiet(id) {
-  const item = findItem(id);
-  if (!item) return;
-  item.archived = true;
-  item.archivedBy = "user";
-  store.markDirty("item", id);
-}
-
 function archiveMany(kind, ids) {
   const archive = kind === "list" ? archiveChecklistQuiet : archiveItemQuiet;
-  for (const id of ids) {
-    archive(id);
-  }
+  ids.forEach(id => archive(id));
   pruneSelection();
 }
 
 function archiveChecklistQuiet(id) {
-  const cl = findList(id);
-  if (!cl) return;
-  cl.archived = true;
-  store.markDirty("list", id);
-  for (const item of state.items) {
-    if (item.checklistId === id && !item.archived) {
-      item.archived = true;
-      item.archivedBy = "list";
-      store.markDirty("item", item.id);
-    }
+  if (!patch("list", id, { archived: true })) {
+    return;
   }
+  state.items = state.items.map((item) => (
+    item.checklistId === id && !item.archived
+      ? Object.freeze({ ...item, archived: true, archivedBy: "list" })
+      : item
+  ));
+}
+
+function archiveItemQuiet(id) {
+  patch("item", id, { archived: true, archivedBy: "user" });
 }
 
 function deleteMany(kind, ids) {
-  for (const id of ids) {
-    removeEntity(kind, id);
-  }
+  ids.forEach(id => removeEntity(kind, id));
 }
 
 function moveTo(kind, ids, where) {
@@ -3432,10 +3376,10 @@ function jumpTo(id) {
 }
 
 function setExpandedAll(open) {
-  for (const cl of visibleChecklists()) {
-    cl.expanded = open;
-    store.markDirty("list", cl.id);
-  }
+  const ids = new Set(visibleChecklists().map((cl) => cl.id));
+  state.checklists = state.checklists.map((cl) => (
+    ids.has(cl.id) ? Object.freeze({ ...cl, expanded: open }) : cl
+  ));
   commit();
 }
 
@@ -4076,16 +4020,12 @@ function positionPopup(node, anchor) {
 }
 
 function positionAnchored() {
-  for (const box of layerDialogs(".modal--anchored")) {
-    positionPopup(box, box.anchor);
-  }
+  layerDialogs(".modal--anchored").forEach(box => positionPopup(box, box.anchor));
 }
 
 // A sheet opened under the other breakpoint would be misplaced; closing beats re-anchoring it.
 function closePopovers() {
-  for (const box of layerDialogs()) {
-    box.close();
-  }
+  layerDialogs().forEach(box => box.close());
 }
 
 function actionRow(actions) {
@@ -4410,21 +4350,16 @@ function archivedItems() {
 function restore(kind, ids) {
   const key = kind === "list" ? "checklists" : "items";
   const picked = new Set(ids);
-  for (const row of state[key]) {
-    if (!picked.has(row.id)) continue;
-    row.archived = false;
-    store.markDirty(kind, row.id);
-  }
+  state[key] = state[key].map((row) => (picked.has(row.id) ? Object.freeze({ ...row, archived: false }) : row));
   order.place(kind, ids, "top");
   if (kind !== "list") {
     return;
   }
-  for (const item of state.items) {
-    if (picked.has(item.checklistId) && item.archived && item.archivedBy === "list") {
-      item.archived = false;
-      store.markDirty("item", item.id);
-    }
-  }
+  state.items = state.items.map((item) => (
+    picked.has(item.checklistId) && item.archived && item.archivedBy === "list"
+      ? Object.freeze({ ...item, archived: false })
+      : item
+  ));
 }
 
 function archiveRow(text, meta, on, onChange) {
@@ -4510,10 +4445,9 @@ function openArchive() {
     },
   ]));
   const paintActions = () => {
-    const count = view.sel.size;
-    for (const button of host.querySelectorAll("[data-count]")) {
-      button.disabled = count === 0;
-    }
+    host.querySelectorAll("[data-count]").forEach(
+      button => { button.disabled = view.sel.size === 0; }
+    );
   };
   paint();
 }
@@ -4591,13 +4525,11 @@ function seedRows(conn, ui) {
     const data = demoData();
     const lists = tx.objectStore("checklists");
     const items = tx.objectStore("items");
-    for (const name of STORES) {
-      tx.objectStore(name).clear();
-    }
-    for (const row of data.checklists) lists.put(row);
-    for (const row of data.items) items.put(row);
+    STORES.forEach(name => tx.objectStore(name).clear());
+    data.checklists.forEach(row => lists.put(row));
+    data.items.forEach(row => items.put(row));
     if (ui) {
-      tx.objectStore("doc").put({ key: UI_KEY, value: { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } } });
+      tx.objectStore("doc").put({ key: UI_KEY, value: uiDoc(ui) });
     }
   });
 }
@@ -4950,15 +4882,8 @@ function dragCopy(row) {
 }
 
 function dropItemsInto(ids, checklistId, refId) {
-  for (const id of ids) {
-    store.markDirty("item", id);
-  }
   order.place("item", ids, { into: checklistId, before: refId });
-  const target = findList(checklistId);
-  if (target) {
-    target.expanded = true;
-    store.markDirty("list", checklistId);
-  }
+  patch("list", checklistId, { expanded: true });
 }
 
 /* Where a released group lands, read off the marker and the card: a list moves among lists, an item
@@ -5076,8 +5001,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
     }
     drag.hoverId = null;
     clearHold(drag);
-    cl.expanded = true;
-    store.markDirty("list", id);
+    patch("list", id, { expanded: true });
     commit("list", id);
     // The layout moved: aim again, rendered or not.
     retarget();
@@ -5096,9 +5020,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
     if (rows.length) {
       navigator.vibrate?.(10);
       drag = dragBag(hit.kind, ids, hit);
-      for (const row of rows) {
-        row.classList.add("is-drag-src");
-      }
+      rows.forEach(row => row.classList.add("is-drag-src"));
       document.documentElement.classList.add("is-dragging");
       document.getSelection()?.removeAllRanges();
       retarget();
@@ -5158,9 +5080,9 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
   /* Reused nodes survive a render: the drag styling goes off every row and back onto the dragged ones,
      with the marker where the last aim left it. */
   function afterRender() {
-    for (const row of byId("lists").querySelectorAll(".is-drag-src")) {
-      row.classList.remove("is-drag-src");
-    }
+    byId("lists").querySelectorAll(".is-drag-src").forEach(
+      row => row.classList.remove("is-drag-src")
+    );
     if (!drag) return;
     for (const id of drag.ids) {
       const row = rowById(drag.kind, id);
@@ -5282,9 +5204,9 @@ function createPointer({ rowDrag, autoScroll, editor, ask, modalOpen }) {
     const dx = current.lastDx || 0;
     current.mover.style.transition = "";
     current.mover.style.transform = "";
-    for (const bg of current.handle.querySelectorAll(".swipe-bg")) {
-      bg.style.opacity = "0";
-    }
+    current.handle.querySelectorAll(".swipe-bg").forEach(
+      bg => { bg.style.opacity = "0"; }
+    );
     if (Math.abs(dx) < GESTURE.trigger) {
       return;
     }
@@ -5429,9 +5351,9 @@ function createPanelScreen() {
       const panel = byId("panel");
       panel.classList.toggle("is-row", row);
       panel.setAttribute("aria-orientation", row ? "horizontal" : "vertical");
-      for (const sep of panel.querySelectorAll(".panel__sep")) {
-        sep.setAttribute("aria-orientation", row ? "vertical" : "horizontal");
-      }
+      panel.querySelectorAll(".panel__sep").forEach(
+        sep => sep.setAttribute("aria-orientation", row ? "vertical" : "horizontal")
+      );
     },
     write({ left, top }) {
       const panel = byId("panel");
@@ -5569,7 +5491,6 @@ const panelDrag = createPanelDrag({
   persist: ({ side, topPct }) => {
     state.ui.panel.side = side;
     state.ui.panel.topPct = topPct;
-    store.markUi();
     store.flushSave();
   },
 });
@@ -5582,8 +5503,7 @@ function flipFlag(kind, id, prop) {
   if (!entity) {
     return;
   }
-  entity[prop] = !entity[prop];
-  store.markDirty(kind, id);
+  patch(kind, id, { [prop]: !entity[prop] });
   commit(kind, id);
 }
 

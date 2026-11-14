@@ -14,13 +14,10 @@ const harness = () => storeHarness({ actions: ACTIONS });
 
 const inList = (state, checklistId) => ids(state.items.filter((i) => i.checklistId === checklistId));
 
-/* Writes state as this tab wrote it: after this the order is on disk and known to the store. */
+/* Writes state as this tab wrote it: after this the rows and the order are on disk. */
 async function seed(h, groups) {
-  const state = h.state(groups.map(([id]) => list(id)),
+  h.state(groups.map(([id]) => list(id)),
     groups.flatMap(([id, rowIds]) => rowIds.map((itemId) => item(itemId, id))));
-  for (const cl of state.checklists) h.store.markDirty("list", cl.id);
-  for (const row of state.items) h.store.markDirty("item", row.id);
-  h.store.markUi();
   await h.store.flushSave();
 }
 
@@ -114,8 +111,7 @@ test("a drop into another list writes both order docs and only the row that move
 test("a row that only changed its text writes no order doc", async () => {
   const h = harness();
   await seed(h, [["c1", ["a"]]]);
-  h.current().items[0].text = "renamed";
-  h.store.markDirty("item", "a");
+  h.edit("item", "a", { text: "renamed" });
   await h.store.flushSave();
   const batch = h.storage.batches.at(-1);
   assert.deepEqual(ids(batch.items), ["a"]);

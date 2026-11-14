@@ -40,10 +40,7 @@ export const searchStub = (answers = {}) => ({
 });
 
 // Records every call and writes nothing, for hand-built sandboxes.
-export const storeStub = (marks = [], calls = marks) => ({
-  markDirty: (kind, id) => marks.push(`markDirty:${kind}:${id}`),
-  markGone: (kind, id) => marks.push(`markGone:${kind}:${id}`),
-  markUi: () => marks.push("markUi"),
+export const storeStub = (calls = []) => ({
   queueSave: () => calls.push("queueSave"),
   flushSave: () => calls.push("flushSave"),
   reloadWhenSafe: () => calls.push("reloadWhenSafe"),

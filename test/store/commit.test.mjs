@@ -53,7 +53,7 @@ test("a renamed row goes out in one write", async () => {
   };
   // The app's own wiring, over the live store.
   const api = sliceVm(["createEditor", "makeEditor", "commit", "repaintRow", "findList", "findItem",
-    "draftText", "entityText", "removeEntity", "pruneSelection"], ctx);
+    "draftText", "entityText", "patch", "removeEntity", "pruneSelection"], ctx);
   const editor = api.makeEditor();
   state.ui.editing = { kind: "list", id: "c1" };
   editor.save();

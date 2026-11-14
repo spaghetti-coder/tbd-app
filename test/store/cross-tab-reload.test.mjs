@@ -11,7 +11,6 @@ const idle = () => new Promise(setImmediate);
 test("a write from another tab picks up a save still in the debounce", async () => {
   const h = storeHarness();
   h.state([list("c1")], [item("i1", "c1")]);
-  h.store.markDirty("item", "i1");
   h.store.queueSave();
   h.echo.send("other");
   await idle();
@@ -50,7 +49,6 @@ test("a write waits for a safe moment, and is acted on when it comes", async () 
 test("after reloading for another tab nothing is written back", async () => {
   const h = storeHarness();
   h.state([list("c1")], []);
-  h.store.markDirty("list", "c1");
   h.store.queueSave();
   h.echo.send("other");
   await idle();

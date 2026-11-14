@@ -7,12 +7,9 @@ import { searchStub, storeStub } from "../../testkit/fixtures.mjs";
 
 function harness({ checklists = [], items = [], editing, search = searchStub() } = {}) {
   const calls = [];
-  const find = (rows) => (id) => rows.find((row) => row.id === id);
-  const { onRowAct } = sliceVm(["flipFlag", "ROW_ACTS", "onRowAct"], {
-    state: { ui: { editing } },
+  const { onRowAct } = sliceVm(["flipFlag", "patch", "findList", "findItem", "ROW_ACTS", "onRowAct"], {
+    state: { checklists, items, ui: { editing } },
     search,
-    findList: find(checklists),
-    findItem: find(items),
     store: storeStub(calls),
     commit: (kind, id) => calls.push(`commit:${kind}:${id}`),
     togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
@@ -22,35 +19,35 @@ function harness({ checklists = [], items = [], editing, search = searchStub() }
     commitEditor: () => calls.push("commitEditor"),
   });
   const row = {};
-  return { calls, onRowAct, row };
+  const find = (kind) => (id) => (kind === "list" ? checklists : items).find((r) => r.id === id);
+  return { calls, onRowAct, row, find };
 }
 
 const TRIGGER = { name: "trigger" };
 
 test("toggle flips a checklist and commits its row", () => {
-  const cl = { id: "c1", expanded: false };
-  const { calls, onRowAct, row } = harness({ checklists: [cl] });
+  const { calls, onRowAct, row, find } = harness({ checklists: [{ id: "c1", expanded: false }] });
   onRowAct("toggle", "list", "c1", row, TRIGGER);
-  assert.equal(cl.expanded, true);
-  assert.deepEqual(calls, ["markDirty:list:c1", "commit:list:c1"]);
+  assert.equal(find("list")("c1").expanded, true);
+  assert.deepEqual(calls, ["commit:list:c1"]);
   onRowAct("toggle", "list", "c1", row, TRIGGER);
-  assert.equal(cl.expanded, false);
+  assert.equal(find("list")("c1").expanded, false);
 });
 
 test("a list the search holds open is not toggled", () => {
-  const cl = { id: "c1", expanded: false };
-  const { calls, onRowAct, row } = harness({ checklists: [cl], search: searchStub({ expands: (id) => id === "c1" }) });
+  const { calls, onRowAct, row, find } = harness({
+    checklists: [{ id: "c1", expanded: false }], search: searchStub({ expands: (id) => id === "c1" }),
+  });
   onRowAct("toggle", "list", "c1", row, TRIGGER);
-  assert.equal(cl.expanded, false, "the saved state stays as the user left it");
+  assert.equal(find("list")("c1").expanded, false, "the saved state stays as the user left it");
   assert.deepEqual(calls, []);
 });
 
 test("toggle-done flips an item and commits its row", () => {
-  const item = { id: "i1", done: false };
-  const { calls, onRowAct, row } = harness({ items: [item] });
+  const { calls, onRowAct, row, find } = harness({ items: [{ id: "i1", done: false }] });
   onRowAct("toggle-done", "item", "i1", row, TRIGGER);
-  assert.equal(item.done, true);
-  assert.deepEqual(calls, ["markDirty:item:i1", "commit:item:i1"]);
+  assert.equal(find("item")("i1").done, true);
+  assert.deepEqual(calls, ["commit:item:i1"]);
 });
 
 test("a row whose entity is gone does nothing", () => {

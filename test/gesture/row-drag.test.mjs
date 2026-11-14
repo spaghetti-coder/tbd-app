@@ -65,7 +65,8 @@ const box = {
     documentElement: { classList: { add() {}, remove() {} } },
     getSelection: () => null,
   },
-  store: { markDirty: (kind, id) => calls.push(`mark:${kind}:${id}`), flushSave: () => calls.push("flush") },
+  store: { flushSave: () => calls.push("flush") },
+  patch: (kind, id, props) => (held[id] ? (held[id] = { ...held[id], ...props }) : null),
   order: { place: (kind, ids, where) => calls.push(`place:${kind}:${ids.join(",")}:${JSON.stringify(where)}`) },
   findList: (id) => held[id] ?? null,
   commit: (kind, id) => { calls.push(`commit:${kind ?? ""}:${id ?? ""}`); sync(); },
@@ -176,7 +177,7 @@ test("a drag aims where the ghost is, and drops there", () => {
   frame();
   calls.length = 0;
   rowDrag.release();
-  assert.deepEqual(calls, ["mark:item:i1", 'place:item:i1:{"into":"A","before":"i3"}', "mark:list:A", "commit::", "flush"]);
+  assert.deepEqual(calls, ['place:item:i1:{"into":"A","before":"i3"}', "commit::", "flush"]);
   assert.equal(rowDrag.active(), false);
 });
 

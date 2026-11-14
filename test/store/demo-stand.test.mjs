@@ -7,7 +7,7 @@ import { sliceVm } from "../../testkit/html-source.mjs";
 
 const { demoData, seedRows, UI_KEY } = sliceVm([
   "UI_KEY", "STORES", "DEMO_LISTS", "DEMO_SIZES", "DEMO_TASKS", "demoList", "demoItem", "demoData",
-  "withTx", "seedRows",
+  "withTx", "uiDoc", "seedRows",
 ]);
 
 // IDB connection stand-in: records store calls, keeps what reached the doc store,

@@ -49,7 +49,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
   };
   // The app's own wiring, over this state, store, search and commit.
   const api = sliceVm(["createEditor", "makeEditor", "commitEditor", "draftText", "findList", "findItem",
-    "entityText", "removeEntity", "pruneSelection", "setBulk", "addItem", "addChecklist"], ctx);
+    "entityText", "patch", "removeEntity", "pruneSelection", "setBulk", "addItem", "addChecklist"], ctx);
   ctx.editor = api.makeEditor();
   return { ...api, ...shape, ctx, editor: ctx.editor, saved, painted };
 }
@@ -129,7 +129,7 @@ test("a renamed entity goes out at once and its row alone is repainted", () => {
   assert.equal(ctx.state.checklists[0].title, "Groceries");
   assert.equal(ctx.state.ui.editing, null);
   assert.deepEqual(painted, ["list:L1"]);
-  assert.deepEqual(saved, ["markDirty:list:L1", "flushSave"], "the flush eats the queued save");
+  assert.deepEqual(saved, ["flushSave"], "the save goes out at once");
 });
 
 test("a first name is answered with the list to continue in", () => {
@@ -273,7 +273,7 @@ test("a blur arriving after the editor closed commits nothing", () => {
   editor.save();
   editor.blur({ kind: "item", id: "i1" }, "Milk");
   assert.equal(ctx.state.items[0].text, "Milk");
-  assert.equal(saved.filter((mark) => mark === "markDirty:item:i1").length, 1, "no second write");
+  assert.deepEqual(saved, ["flushSave"], "the trailing blur does not write again");
 });
 
 // onListBlur alone, with the editor as its only collaborator.
