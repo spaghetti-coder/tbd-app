@@ -41,7 +41,7 @@ test("a write waits for a safe moment, and is acted on when it comes", async () 
   assert.deepEqual(h.reloads, [], "no reload while work would be interrupted");
 
   safe.on = true;
-  h.store.reloadWhenSafe();
+  h.store.commit();
   await idle();
   assert.deepEqual(h.reloads, [1]);
 });

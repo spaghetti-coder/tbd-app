@@ -2333,7 +2333,7 @@ const DEMO_KEY = "varlog.tbd.stand";
 const UI_KEY = "ui";
 const STORES = ["checklists", "items", "doc"];
 
-/* Decided before anything touches storage: a demo session never opens the real database. */
+// Decided before anything touches storage: a demo session never opens the real database.
 function demoFlag() {
   try {
     return localStorage.getItem(DEMO_KEY) === "1";
@@ -2342,7 +2342,7 @@ function demoFlag() {
   }
 }
 
-/* False when the origin cannot keep the flag, which would drop the stand on the next reload. */
+// False when the origin cannot keep the flag, which would drop the stand on the next reload.
 function demoSet(on) {
   try {
     if (on) {
@@ -2417,7 +2417,7 @@ function defaults() {
   };
 }
 
-/* The search comes back from storage and may be any shape. */
+// The search comes back from storage and may be any shape.
 function normalizeSearch(search) {
   if (!search || typeof search !== "object") {
     return defaults().ui.search;
@@ -2429,7 +2429,7 @@ function normalizeSearch(search) {
   };
 }
 
-/* The selection comes back from storage and may be any shape. */
+// The selection comes back from storage and may be any shape.
 function validBulk(bulk) {
   return Boolean(bulk)
     && (bulk.kind === "list" || bulk.kind === "item")
@@ -2496,7 +2496,7 @@ function openDb(name) {
   });
 }
 
-/* One transaction over all stores, resolved when it commits. */
+// One transaction over all stores, resolved when it commits.
 function withTx(connection, mode, work) {
   return new Promise((resolve, reject) => {
     const tx = connection.transaction(STORES, mode);
@@ -2514,7 +2514,7 @@ function clearStores(connection) {
   });
 }
 
-/* The durable storage: the connection opens on first use, so no caller has to order itself around boot. */
+// The durable storage: the connection opens on first use, so no caller has to order itself around boot.
 function idbStorage(name) {
   let opening = null;
   const conn = () => (opening ??= openDb(name));
@@ -2526,7 +2526,7 @@ function idbStorage(name) {
       const [checklists, items, rows] = reqs.map((req) => req.result);
       return { checklists, items, docs: Object.fromEntries(rows.map((doc) => [doc.key, doc.value])) };
     },
-    /* A whole batch in one transaction, so a half-written batch is never readable. */
+    // A whole batch in one transaction, so a half-written batch is never readable.
     write(batch) {
       return run("readwrite", (tx) => {
         const lists = tx.objectStore("checklists");
@@ -2585,7 +2585,7 @@ function createStore({ storage, echo, order, getState, canReload, onError, paint
   const keyed = (rows) => new Map(rows.map((row) => [row.id, row]));
   const sameDoc = (doc, held) => JSON.stringify(doc) === JSON.stringify(held);
 
-  /* The whole store, read once at boot; from then on everything lives in memory. */
+  // The whole store, read once at boot; from then on everything lives in memory.
   async function load() {
     try {
       let { checklists, items, docs } = await storage.readAll();
@@ -2706,25 +2706,20 @@ function createStore({ storage, echo, order, getState, canReload, onError, paint
     }
     writtenElsewhere = false;
     // The pending save is newer than the other tab's write: it goes out before this tab reloads.
-    if (timer) {
-      await flushSave();
-    }
+    if (timer) { await flushSave(); }
     // From here this tab is on its way out: a late flush must not put an older state back.
     stopped = true;
     location.reload();
   }
 
-  /* Empties the stores rather than deleting the database, which other open tabs would block. */
+  // Empties the stores rather than deleting the database, which other open tabs would block.
   async function erase() {
     stopped = true;
-    try {
-      await storage.clear();
-    } catch {
-      // storage unavailable: nothing to clear
-    }
+    try { await storage.clear(); }
+    catch { /* storage unavailable: nothing to do */ }
   }
 
-  /* Every save echoes this tab's own id, so a tab never reloads over its own write. */
+  // Every save echoes this tab's own id, so a tab never reloads over its own write.
   echo.onMessage((id) => {
     if (id === tab) {
       return;
@@ -2734,28 +2729,28 @@ function createStore({ storage, echo, order, getState, canReload, onError, paint
   });
 
   return {
-    load, queueSave, flushSave, reloadWhenSafe, erase, commit,
+    load, queueSave, flushSave, erase, commit,
   };
 }
 
-/* Live picks are this tab's choice: they do not outlive it. */
+// Live picks are this tab's choice: they do not outlive it.
 function uiDoc(ui) {
   return { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } };
 }
 
-/* Rows shown under a list: the list's own, archived aside. */
+// Rows shown under a list: the list's own, archived aside.
 function withoutArchived(items, checklistId) {
   return items.filter((i) => i.checklistId === checklistId && !i.archived);
 }
 
 /* ---------- order ---------- */
 
-/* Two neighbour sets: lists — the query's result; items — their list's real rows. */
+// Two neighbour sets: lists — the query's result; items — their list's real rows.
 function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }) {
-  /* One order doc per list, plus one for the lists themselves. */
+  // One order doc per list, plus one for the lists themselves.
   const key = (listId) => `order:${listId}`;
 
-  /* Rows in the order doc's order; rows the doc does not name keep the order they came in. */
+  // Rows in the order doc's order; rows the doc does not name keep the order they came in.
   function byOrder(rows, ids) {
     const rest = new Map(rows.map((row) => [row.id, row]));
     const out = [];
@@ -2781,7 +2776,7 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
     return data;
   }
 
-  /* The order of every doc state can speak of: each list that has rows, and the lists themselves. */
+  // The order of every doc state can speak of: each list that has rows, and the lists themselves.
   function snapshot(state) {
     const live = new Map([["lists", state.checklists.map((c) => c.id)]]);
     for (const item of state.items) {
@@ -2812,13 +2807,13 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
     return { changed, cleared };
   }
 
-  /* The rows that stay and the group, each in the order the source holds them. */
+  // The rows that stay and the group, each in the order the source holds them.
   function split(rows, ids) {
     const picked = new Set(ids);
     return [rows.filter((row) => !picked.has(row.id)), rows.filter((row) => picked.has(row.id))];
   }
 
-  /* Splice the group into `rest` as one piece, at an index clamped to what is there. */
+  // Splice the group into `rest` as one piece, at an index clamped to what is there.
   function spliceInto(rest, group, index) {
     rest.splice(clamp(index, 0, rest.length), 0, ...group);
     return rest;
@@ -2871,7 +2866,7 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
     st.items = next;
   }
 
-  /* True when moving to `where` leaves the neighbours in the same order. */
+  // True when moving to `where` leaves the neighbours in the same order.
   function atEdge(kind, ids, where) {
     const st = getState();
     const peers = kind === "list"
@@ -2882,7 +2877,7 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
     return moved.every((row, index) => row.id === peers[index].id);
   }
 
-  /* The page that shows this list; 0 when the list is not on screen. */
+  // The page that shows this list; 0 when the list is not on screen.
   function pageFor(id) {
     const all = visibleChecklists();
     const index = all.findIndex((c) => c.id === id);
@@ -2912,10 +2907,10 @@ const store = createStore({
 
 /* ---------- search ---------- */
 
-/* Chars before a match that stays visible when the line is shifted to it. */
+// Chars before a match that stays visible when the line is shifted to it.
 const HIT_LEAD = 8;
 
-/* Phone: the field lives in a row of its own, opened by the search button. */
+// Phone: the field lives in a row of its own, opened by the search button.
 let searchPanel = false;
 let focusSearch = false;
 
@@ -2945,12 +2940,12 @@ function createSearch(getState) {
     return out;
   }
 
-  /* A token of only combining marks folds away to nothing: it must not stay in the query. */
+  // A token of only combining marks folds away to nothing: it must not stay in the query.
   function searchTokens(query) {
     return query.trim().toLowerCase().split(/\s+/).map((word) => fold(word).s).filter(Boolean);
   }
 
-  /* Whether every token lands in this text, in any order and at any offset; null = out. */
+  // Whether every token lands in this text, in any order and at any offset; null = out.
   function matchedFold(text, tokens) {
     const hit = fold(text);
     for (const token of tokens) {
@@ -2959,7 +2954,7 @@ function createSearch(getState) {
     return hit;
   }
 
-  /* Every occurrence of every token, merged. Costly per row, so only rows being painted ask for it. */
+  // Every occurrence of every token, merged. Costly per row, so only rows being painted ask for it.
   function mergeRanges({ s, map }, tokens) {
     const hits = [];
     for (const token of tokens) {
@@ -2976,7 +2971,7 @@ function createSearch(getState) {
     return merged;
   }
 
-  /* id → the folded text, for every live row whose text holds all the tokens. */
+  // id → the folded text, for every live row whose text holds all the tokens.
   function matchedRows(rows, textOf, tokens) {
     const out = new Map();
     for (const row of rows) {
@@ -3044,7 +3039,7 @@ function createSearch(getState) {
 
 const search = createSearch(() => state);
 
-/* Matches become <mark>; from > 0 shifts the line to a match that fell past the ellipsis. */
+// Matches become <mark>; from > 0 shifts the line to a match that fell past the ellipsis.
 function paintText(node, text, ranges, from = 0) {
   if (!ranges) {
     node.textContent = text;
@@ -3075,7 +3070,7 @@ function fitMatches() {
   }
 }
 
-/* Leaving the search: the query goes, the scope picks with it. */
+// Leaving the search: the query goes, the scope picks with it.
 function clearSearch() {
   state.ui.search = { text: "", lists: true, items: true };
   searchPanel = false;
@@ -3089,7 +3084,7 @@ function setSearchScope(key) {
   store.commit();
 }
 
-/* Leave the search, then reveal the row for real: an item behind a collapsed list would be lost. */
+// Leave the search, then reveal the row for real: an item behind a collapsed list would be lost.
 function gotoHit(kind, id) {
   const item = kind === "item" ? findItem(id) : null;
   const cl = item ? findList(item.checklistId) : findList(id);
@@ -3167,7 +3162,7 @@ function findItem(id) {
   return state.items.find((i) => i.id === id);
 }
 
-/* Rows are values: a change puts another object; the save diffs identity. */
+// Rows are values: a change puts another object; the save diffs identity.
 function patch(kind, id, props) {
   const rows = kind === "list" ? state.checklists : state.items;
   const at = rows.findIndex((row) => row.id === id);
@@ -3220,7 +3215,7 @@ function addItem(checklistId) {
   store.commit();
 }
 
-/* Text in the editing row's input; null when it is off screen. */
+// Text in the editing row's input; null when it is off screen.
 function draftText() {
   const editing = state.ui.editing;
   const row = editing && rowById(editing.kind, editing.id);
@@ -3240,7 +3235,7 @@ function removeEntity(kind, id) {
 
 /* ---------- editor ---------- */
 
-/* Typed text belongs to its row. A save renames, rolls back, or drops a nameless row. */
+// Typed text belongs to its row. A save renames, rolls back, or drops a nameless row.
 function createEditor({ getState, find, patch, textOf, listIdOf, draft, remove, onSaved, repaint, writeNow }) {
   // True when the text landed.
   function commitText(kind, id, raw) {
@@ -3383,7 +3378,7 @@ function setExpandedAll(open) {
 
 /* ---------- bulk ---------- */
 
-/* An empty id list is no selection: kind goes with it. */
+// An empty id list is no selection: kind goes with it.
 function setBulk(kind, ids) {
   state.ui.bulk = { kind: ids.length > 0 ? kind : null, ids };
 }
@@ -3401,7 +3396,7 @@ function cancelBulk() {
   store.commit();
 }
 
-/* A picked row that is gone — deleted or archived — leaves the selection; the rest survives. */
+// A picked row that is gone — deleted or archived — leaves the selection; the rest survives.
 function pruneSelection() {
   const bulk = state.ui.bulk;
   if (!bulk.ids.length) return;
@@ -3412,7 +3407,7 @@ function pruneSelection() {
   }));
 }
 
-/* Items live in one list each: a selection spread over lists has no single top or bottom. */
+// Items live in one list each: a selection spread over lists has no single top or bottom.
 function spansLists(bulk) {
   return bulk.kind === "item" && new Set(bulk.ids.map((id) => (findItem(id) ?? {}).checklistId)).size > 1;
 }
@@ -3438,7 +3433,7 @@ function togglePick(kind, id) {
 
 let needFocus = false;
 
-/* Icon-only buttons get their aria-label as a tooltip too: the fallback glyphs are not self-explanatory. */
+// Icon-only buttons get their aria-label as a tooltip too: the fallback glyphs are not self-explanatory.
 function labelNode(node, key) {
   const text = t(key);
   node.setAttribute("aria-label", text);
@@ -3657,7 +3652,7 @@ function paintRowEditor(node, kind, id, text) {
   }
 }
 
-/* phKey === null closes the editor: the row goes back to its plain state. */
+// phKey === null closes the editor: the row goes back to its plain state.
 function paintEditor(row, text, phKey) {
   const field = row.querySelector(".row-edit");
   const label = row.querySelector(".card__title, .item__text");
@@ -3684,7 +3679,7 @@ function buildItem(item) {
   return node;
 }
 
-/* A bulk row swaps its own control for the pick; null means the selection is about the other kind. */
+// A bulk row swaps its own control for the pick; null means the selection is about the other kind.
 function showPick(main, pick, selected, label) {
   const on = selected !== null;
   main.hidden = on;
@@ -3900,7 +3895,7 @@ function toTop() {
   }
 }
 
-/* A jump from the search holds the flash twice as long: the eye has just travelled here. */
+// A jump from the search holds the flash twice as long: the eye has just travelled here.
 const FLASH = 900;
 const JUMP_FLASH = FLASH * 2;
 const flashTimers = new WeakMap();
@@ -3927,14 +3922,14 @@ function applyScrollTarget() {
 
 /* ---------- modal layer ---------- */
 
-/* Every dialog is appended to #layer; mods narrows to a variant class, e.g. ".modal--dropdown". */
+// Every dialog is appended to #layer; mods narrows to a variant class, e.g. ".modal--dropdown".
 const layerDialogs = (mods = "") => document.querySelectorAll(`#layer dialog${mods}[open]`);
 
 function modalOpen() {
   return layerDialogs().length > 0;
 }
 
-/* Dialog order in the DOM is open order, so the last one is the one the top layer shows. */
+// Dialog order in the DOM is open order, so the last one is the one the top layer shows.
 function closeModal() {
   const open = layerDialogs();
   open[open.length - 1]?.close();
@@ -3986,7 +3981,7 @@ function openModal(opts) {
   byId("layer").append(box);
   document.documentElement.classList.add("is-locked");
   box.showModal();
-  /* Positioning runs after showModal: the scroll lock can move the viewport edge. */
+  // Positioning runs after showModal: the scroll lock can move the viewport edge.
   if (opts.anchor && (opts.picker || opts.dropdown || wide.matches)) {
     box.classList.add("modal--anchored");
     box.anchor = opts.anchor;
@@ -4040,7 +4035,7 @@ function actionRow(actions) {
   return row;
 }
 
-/* Tab bars are kept, not rebuilt on click: rebuilding would drop focus back to the dialog. */
+// Tab bars are kept, not rebuilt on click: rebuilding would drop focus back to the dialog.
 function tabBar(pairs, onSelect) {
   const bar = el("div", "tabs");
   const buttons = pairs.map(([key, labelKey]) => {
@@ -4331,7 +4326,7 @@ function archivedLists() {
   return state.checklists.filter((c) => c.archived);
 }
 
-/* One block per checklist, in the order the lists show in the panel; items of a lost checklist last. */
+// One block per checklist, in the order the lists show in the panel; items of a lost checklist last.
 function archivedItems() {
   const rank = new Map(state.checklists.map((c, i) => [c.id, i]));
   return state.items.filter((i) => {
@@ -4662,7 +4657,7 @@ function openHelp() {
 
 let bannerTimer = 0;
 
-/* A fresh text node every call: the same message twice is only announced twice if the DOM really changed. */
+// A fresh text node every call: the same message twice is only announced twice if the DOM really changed.
 function showToast(text) {
   byId("banner-text").replaceChildren(document.createTextNode(text));
   byId("banner").classList.add("is-shown");
@@ -4767,12 +4762,12 @@ function rubber(dx) {
   return Math.sign(dx) * (GESTURE.trigger + over * 0.35);
 }
 
-/* Rows a drag can count: the marker and the dragged rows are not in the way. */
+// Rows a drag can count: the marker and the dragged rows are not in the way.
 function liveRows(rows, drag) {
   return rows.filter((node) => node !== drag.gap && !drag.ids.includes(node.dataset.id));
 }
 
-/* Index among live rows: how many of their midpoints y has passed. */
+// Index among live rows: how many of their midpoints y has passed.
 function indexAt(rows, y) {
   let index = 0;
   for (const row of rows) {
@@ -4820,7 +4815,7 @@ function containerAt(y, screen) {
   return best ? screen.body(best).node : null;
 }
 
-/* Where the marker and the hold go: all aiming rules over one screen snapshot, nothing written. */
+// Where the marker and the hold go: all aiming rules over one screen snapshot, nothing written.
 function aim(drag, screen) {
   const y = drag.y - drag.dy + drag.cardHalf;
   const hover = drag.kind === "item" && !screen.moved() ? headAt(y, drag.hoverId, screen.heads()) : null;
@@ -4829,7 +4824,7 @@ function aim(drag, screen) {
   return { container, index, hover };
 }
 
-/* What a drag reads, never writes. One screen per aim pass, so all its rects read one layout. */
+// What a drag reads, never writes. One screen per aim pass, so all its rects read one layout.
 function createDragScreen() {
   return {
     moved: () => autoScroll.moved(),
@@ -5284,7 +5279,7 @@ function createPanelLayout(screen) {
     return clamp(Math.round(min + clamp(pct, 0, 1) * (baseMax - min)), min, ceiling(s, s.height, min));
   };
 
-  /* Mode decided standing (the row layout hides the height it is about), position taken in the mode chosen. */
+  // Mode decided standing (the row layout hides the height it is about), position taken in the mode chosen.
   function place(side, pct) {
     screen.setRow(false);
     const row = !fits(screen.measure());
@@ -5494,7 +5489,7 @@ const panelDrag = createPanelDrag({
 
 /* ---------- actions ---------- */
 
-/* Expanded and done are the same rule on different rows. */
+// Expanded and done are the same rule on different rows.
 function flipFlag(kind, id, prop) {
   const entity = kind === "list" ? findList(id) : findItem(id);
   if (!entity) {
