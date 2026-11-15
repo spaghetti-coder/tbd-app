@@ -2582,6 +2582,8 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   let stopped = false;
   let writtenElsewhere = false;
   const tab = uid();
+  const keyed = (rows) => new Map(rows.map((row) => [row.id, row]));
+  const sameDoc = (doc, held) => JSON.stringify(doc) === JSON.stringify(held);
 
   /* The whole store, read once at boot; from then on everything lives in memory. */
   async function load() {
@@ -2628,6 +2630,21 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   function empty(batch) {
     return !batch.lists.length && !batch.items.length && !batch.order.length && !batch.goneOrder.length
       && !batch.goneLists.length && !batch.goneItems.length && !batch.ui;
+  }
+
+  function writes(batch) {
+    const docs = batch.order.map(([id, ids]) => ({ key: order.key(id), value: ids }));
+    if (batch.ui) {
+      docs.push({ key: UI_KEY, value: batch.ui });
+    }
+    return {
+      checklists: batch.lists,
+      items: batch.items,
+      docs,
+      goneItems: batch.goneItems,
+      goneChecklists: batch.goneLists,
+      goneDocs: batch.goneOrder.map((id) => order.key(id)),
+    };
   }
 
   function save() {
@@ -2715,28 +2732,9 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   };
 }
 
-const keyed = (rows) => new Map(rows.map((row) => [row.id, row]));
-
 /* Live picks are this tab's choice: they do not outlive it. */
 function uiDoc(ui) {
   return { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } };
-}
-
-const sameDoc = (doc, held) => JSON.stringify(doc) === JSON.stringify(held);
-
-function writes(batch) {
-  const docs = batch.order.map(([id, ids]) => ({ key: order.key(id), value: ids }));
-  if (batch.ui) {
-    docs.push({ key: UI_KEY, value: batch.ui });
-  }
-  return {
-    checklists: batch.lists,
-    items: batch.items,
-    docs,
-    goneItems: batch.goneItems,
-    goneChecklists: batch.goneLists,
-    goneDocs: batch.goneOrder.map((id) => order.key(id)),
-  };
 }
 
 /* A change is one call: save it, paint it, offer the reload. A named row paints alone. */

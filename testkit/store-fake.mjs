@@ -5,7 +5,7 @@ import { wireOrder } from "./state.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
-  "createStore", "createOrder", "createSearch", "writes", "uiDoc", "sameDoc", "keyed", "patch", "clamp", "UI_KEY",
+  "createStore", "createOrder", "createSearch", "uiDoc", "patch", "clamp", "UI_KEY",
   "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived",
   "visibleChecklists", "pageCount",
 ];
@@ -122,8 +122,6 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const search = api.createSearch(() => state);
   globals.search = search;
   const order = wireOrder(api, () => state);
-  // writes() reads the order docs' keys off the module, the way the app does.
-  globals.order = order;
   const store = api.createStore({
     storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
   });
