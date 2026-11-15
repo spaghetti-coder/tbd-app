@@ -44,4 +44,5 @@ export const storeStub = (calls = []) => ({
   queueSave: () => calls.push("queueSave"),
   flushSave: () => calls.push("flushSave"),
   reloadWhenSafe: () => calls.push("reloadWhenSafe"),
+  commit: (kind, id) => calls.push(kind ? `commit:${kind}:${id}` : "commit"),
 });

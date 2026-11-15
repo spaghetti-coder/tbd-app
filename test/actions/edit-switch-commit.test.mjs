@@ -36,7 +36,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
       items,
       ui: { page: 1, pageSize: 20, bulk: { kind: null, ids: [] }, search: { text: "", lists: true, items: true }, ...ui },
     },
-    store: storeStub(saved),
+    store: { ...storeStub(saved), commit: (kind, id) => painted.push(kind ? `${kind}:${id}` : "all") },
     search,
     pruneSelection: () => {},
     jumpTo: () => {},
@@ -44,10 +44,9 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
     scrollTarget: null,
     uid: () => "i2",
     order: { place: () => {} },
-    commit: (kind, id) => painted.push(kind ? `${kind}:${id}` : "all"),
     rowById: (kind, id) => (onScreen ? shape.rows[id] : null) ?? null,
   };
-  // The app's own wiring, over this state, store, search and commit.
+  // The app's own wiring, over this state, store and search.
   const api = sliceVm(["createEditor", "makeEditor", "commitEditor", "draftText", "findList", "findItem",
     "entityText", "patch", "removeEntity", "pruneSelection", "setBulk", "addItem", "addChecklist"], ctx);
   ctx.editor = api.makeEditor();

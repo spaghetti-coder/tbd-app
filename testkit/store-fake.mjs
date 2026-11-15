@@ -105,6 +105,7 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const clock = clockFake();
   const errors = [];
   const reloads = [];
+  const painted = [];
   const globals = {
     demo,
     // Read through the harness' own state, so assign() reaches the sliced functions too.
@@ -124,6 +125,7 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const order = wireOrder(api, () => state);
   const store = api.createStore({
     storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
+    paint: (kind, id) => painted.push(kind ? `${kind}:${id}` : "all"),
   });
   // App actions over the same state.
   const actBox = { ...globals, store, order };
@@ -135,7 +137,7 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
     return value;
   };
   return {
-    store, storage, echo, clock, errors, reloads, api, order, actions: act,
+    store, storage, echo, clock, errors, reloads, painted, api, order, actions: act,
     load: async () => assign(await store.load()),
     edit: (kind, id, props) => api.patch(kind, id, props),
     state: (checklists, items, ui) => assign({

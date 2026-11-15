@@ -20,10 +20,10 @@ test("a handler that swaps the result set goes to the top before rendering", () 
     ["search-input", "input"],
     ["search-clear", "click"],
   ]) {
-    assert.match(handler(id, type), /toTop\(\);\s*commit\(\);/, `"${id}" renders without going up`);
+    assert.match(handler(id, type), /toTop\(\);\s*store\.commit\(\);/, `"${id}" renders without going up`);
   }
 });
 
 test("Esc leaves the search from the top", () => {
-  assert.match(slice("onKey"), /clearSearch\(\);\s*toTop\(\);\s*commit\(\);/);
+  assert.match(slice("onKey"), /clearSearch\(\);\s*toTop\(\);\s*store\.commit\(\);/);
 });

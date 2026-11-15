@@ -10,7 +10,7 @@ function harness(ids, kind = "item") {
   const state = { ui: { panel: { collapsed: false }, bulk: { kind, ids } } };
   const { onPanelAct } = sliceVm(["PANEL_ACTS", "BULK_ACTS", "onPanelAct"], {
     state,
-    commit: () => calls.push("commit"),
+    store: { commit: () => calls.push("commit") },
     setExpandedAll: (open) => calls.push(`setExpandedAll:${open}`),
     cancelBulk: () => calls.push("cancelBulk"),
     moveTo: (k, picked, where) => calls.push(`moveTo:${k}:${picked.join(",")}:${where}`),

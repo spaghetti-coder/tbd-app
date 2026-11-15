@@ -9,29 +9,36 @@ import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const idle = () => new Promise(setImmediate);
 
-const box = () => {
-  const calls = [];
-  const commit = sliceVm(["commit"], {
-    store: {
-      queueSave: () => calls.push("queueSave"),
-      reloadWhenSafe: () => calls.push("reloadWhenSafe"),
-    },
-    render: () => calls.push("render"),
-    repaintRow: (kind, id) => calls.push(`repaintRow:${kind}:${id}`),
-  }).commit;
-  return { calls, commit };
-};
-
-test("a commit saves, rebuilds the screen, then offers the reload", () => {
-  const { calls, commit } = box();
-  commit();
-  assert.deepEqual(calls, ["queueSave", "render", "reloadWhenSafe"]);
+test("a commit repaints the screen and queues the write", async () => {
+  const h = storeHarness();
+  h.state([list("c1")], []);
+  h.store.commit();
+  assert.deepEqual(h.painted, ["all"]);
+  assert.deepEqual(h.storage.batches, [], "the save waits for its debounce");
+  h.clock.run();
+  await idle();
+  assert.equal(h.storage.batches.length, 1, "and then goes out");
 });
 
-test("a commit naming a row paints that row alone, and still offers the reload", () => {
-  const { calls, commit } = box();
-  commit("list", "c1");
-  assert.deepEqual(calls, ["queueSave", "repaintRow:list:c1", "reloadWhenSafe"]);
+test("a commit naming a row paints that row alone", () => {
+  const h = storeHarness();
+  h.state([list("c1")], []);
+  h.store.commit("list", "c1");
+  assert.deepEqual(h.painted, ["list:c1"]);
+});
+
+test("a change made while another tab waits goes out before this tab reloads", async () => {
+  let safe = false;
+  const h = storeHarness({ canReload: () => safe });
+  h.state([list("c1", { title: "old" })], []);
+  h.echo.send("other");
+  assert.deepEqual(h.reloads, [], "a busy tab keeps its screen");
+  h.edit("list", "c1", { title: "new" });
+  safe = true;
+  h.store.commit("list", "c1");
+  await idle();
+  assert.deepEqual(h.reloads, [1]);
+  assert.equal(h.storage.batches[0].checklists[0].title, "new", "the write goes out first");
 });
 
 test("a renamed row goes out in one write", async () => {
@@ -52,7 +59,7 @@ test("a renamed row goes out in one write", async () => {
     paintRow: () => true,
   };
   // The app's own wiring, over the live store.
-  const api = sliceVm(["createEditor", "makeEditor", "commit", "repaintRow", "findList", "findItem",
+  const api = sliceVm(["createEditor", "makeEditor", "repaintRow", "findList", "findItem",
     "draftText", "entityText", "patch", "removeEntity", "pruneSelection"], ctx);
   const editor = api.makeEditor();
   state.ui.editing = { kind: "list", id: "c1" };

@@ -21,7 +21,6 @@ export function stateHarness(names) {
     scrollTarget: null,
     lastToast: null,
     calls: [],
-    commit: (kind, id) => sandbox.calls.push(kind ? `commit:${kind}:${id}` : "commit"),
     // The scroll a sliced function asks for lands in the same call log.
     scrollY: 0,
     matchMedia: () => ({ matches: false }),

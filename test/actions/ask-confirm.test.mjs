@@ -12,7 +12,7 @@ const harness = () => {
     archiveMany: (kind, ids) => done.push(`archive ${kind} ${ids.join("+")}`),
     confirmModal: (message, yesLabel, onYes) => asked.push({ message, yesLabel, onYes }),
     deleteMany: (kind, ids) => done.push(`delete ${kind} ${ids.join("+")}`),
-    commit: () => done.push("commit"),
+    store: { commit: () => done.push("commit") },
     showToast: (key) => done.push(key),
     t: (key) => key,
   }).ask;

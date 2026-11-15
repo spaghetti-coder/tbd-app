@@ -117,7 +117,6 @@ const created = {
   editor: { flush: () => {} },
   store: storeStub(),
   jumpTo: () => {},
-  commit: () => {},
 };
 
 const { addChecklist } = sliceVm(["clearSearch", "addChecklist", "findList"], created);
@@ -160,9 +159,7 @@ function emptyHarness(search, checklists) {
     el: (tag, className, text) => ({ tag, className, text, listeners: {}, addEventListener(type, fn) { this.listeners[type] = fn; } }),
     t: (key) => key,
     state: { checklists, ui: { page: 9, search: { text: "нет", lists: true, items: false } } },
-    commit: () => {
-      env.commits += 1;
-    },
+    store: { commit: () => { env.commits += 1; } },
     search,
     commits: 0,
   };

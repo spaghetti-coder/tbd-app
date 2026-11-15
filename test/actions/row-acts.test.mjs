@@ -11,7 +11,6 @@ function harness({ checklists = [], items = [], editing, search = searchStub() }
     state: { checklists, items, ui: { editing } },
     search,
     store: storeStub(calls),
-    commit: (kind, id) => calls.push(`commit:${kind}:${id}`),
     togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
     editor: { open: (kind, id) => calls.push(`open:${kind}:${id}`) },
     addItem: (id) => calls.push(`addItem:${id}`),

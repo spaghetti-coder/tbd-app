@@ -2570,7 +2570,7 @@ const dark = matchMedia("(prefers-color-scheme: dark)");
 const wide = matchMedia("(width > 560px)");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)");
 
-function createStore({ storage, echo, order, getState, canReload, onError }) {
+function createStore({ storage, echo, order, getState, canReload, onError, paint }) {
   /* What the last write left on disk: order docs, row objects, the ui doc. State is diffed against
      these; a row that is not that very object changed, an id state no longer holds is deleted. */
   let written = new Map();
@@ -2694,6 +2694,12 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
     return save();
   }
 
+  function commit(kind, id) {
+    queueSave();
+    paint(kind, id);
+    reloadWhenSafe();
+  }
+
   async function reloadWhenSafe() {
     if (!writtenElsewhere || !canReload()) {
       return;
@@ -2728,21 +2734,13 @@ function createStore({ storage, echo, order, getState, canReload, onError }) {
   });
 
   return {
-    load, queueSave, flushSave, reloadWhenSafe, erase,
+    load, queueSave, flushSave, reloadWhenSafe, erase, commit,
   };
 }
 
 /* Live picks are this tab's choice: they do not outlive it. */
 function uiDoc(ui) {
   return { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } };
-}
-
-/* A change is one call: save it, paint it, offer the reload. A named row paints alone. */
-function commit(kind, id) {
-  store.queueSave();
-  if (kind) repaintRow(kind, id);
-  else render();
-  store.reloadWhenSafe();
 }
 
 /* Rows shown under a list: the list's own, archived aside. */
@@ -2909,6 +2907,7 @@ const store = createStore({
   getState: () => state,
   canReload: safeToReload,
   onError: () => showToast(t("storage_error")),
+  paint: (kind, id) => (kind ? repaintRow(kind, id) : render()),
 });
 
 /* ---------- search ---------- */
@@ -3087,7 +3086,7 @@ function setSearchScope(key) {
   state.ui.search[key] = !state.ui.search[key];
   state.ui.page = 1;
   toTop();
-  commit();
+  store.commit();
 }
 
 /* Leave the search, then reveal the row for real: an item behind a collapsed list would be lost. */
@@ -3096,7 +3095,7 @@ function gotoHit(kind, id) {
   const cl = item ? findList(item.checklistId) : findList(id);
   clearSearch();
   if (!cl || cl.archived) {
-    commit();
+    store.commit();
     return;
   }
   if (kind === "item") {
@@ -3104,7 +3103,7 @@ function gotoHit(kind, id) {
   }
   jumpTo(cl.id);
   scrollTarget = { kind, id, flash: JUMP_FLASH };
-  commit();
+  store.commit();
 }
 
 function renderSearch() {
@@ -3197,7 +3196,7 @@ function addChecklist() {
   }
   state.ui.editing = { kind: "list", id: cl.id };
   jumpTo(cl.id);
-  commit();
+  store.commit();
 }
 
 function addItem(checklistId) {
@@ -3218,7 +3217,7 @@ function addItem(checklistId) {
   order.place("item", [item.id], state.ui.newItem === "top" ? "top" : "bottom");
   state.ui.editing = { kind: "item", id: item.id };
   scrollTarget = { kind: "item", id: item.id };
-  commit();
+  store.commit();
 }
 
 /* Text in the editing row's input; null when it is off screen. */
@@ -3330,7 +3329,7 @@ function makeEditor() {
     patch,
     // A running search counts the saved text, not the one its result was built on.
     onSaved: () => search.refresh(),
-    repaint: commit,
+    repaint: store.commit,
     writeNow: () => store.flushSave(),
   });
 }
@@ -3364,7 +3363,7 @@ function deleteMany(kind, ids) {
 
 function moveTo(kind, ids, where) {
   order.place(kind, ids, where);
-  commit();
+  store.commit();
 }
 
 function jumpTo(id) {
@@ -3379,7 +3378,7 @@ function setExpandedAll(open) {
   state.checklists = state.checklists.map((cl) => (
     ids.has(cl.id) ? Object.freeze({ ...cl, expanded: open }) : cl
   ));
-  commit();
+  store.commit();
 }
 
 /* ---------- bulk ---------- */
@@ -3394,12 +3393,12 @@ function startBulk(kind, id) {
   setBulk(kind, [id]);
   state.ui.editing = null;
   state.ui.panel.collapsed = false;
-  commit();
+  store.commit();
 }
 
 function cancelBulk() {
   setBulk(null, []);
-  commit();
+  store.commit();
 }
 
 /* A picked row that is gone — deleted or archived — leaves the selection; the rest survives. */
@@ -3429,9 +3428,9 @@ function togglePick(kind, id) {
   setBulk(kind, picked);
   // Inside a running selection only this row and the panel change; starting or ending one repaints every row.
   if (inBulk && state.ui.bulk.kind === kind) {
-    commit(kind, id);
+    store.commit(kind, id);
   } else {
-    commit();
+    store.commit();
   }
 }
 
@@ -3575,7 +3574,7 @@ function renderEmpty(shown) {
       state.ui.search.lists = true;
       state.ui.search.items = true;
       state.ui.page = 1;
-      commit();
+      store.commit();
     });
     empty.append(button);
   }
@@ -4098,7 +4097,7 @@ function ask(kind, ids, verb, anchor, after) {
   const run = verb === "delete" ? deleteMany : archiveMany;
   confirmModal(actionMessage(kind, ids.length, verb), t(`a_${verb}`), () => {
     run(kind, ids);
-    commit();
+    store.commit();
     showToast(t(verb === "delete" ? "toast_deleted" : "toast_archived"));
     if (after) {
       after();
@@ -4255,7 +4254,7 @@ function openSettings() {
       ui.theme,
       (value) => {
         state.ui.theme = value;
-        commit();
+        store.commit();
       },
     )),
     field("set_lang", pickerControl(
@@ -4264,7 +4263,7 @@ function openSettings() {
       ui.lang,
       (value) => {
         state.ui.lang = value;
-        commit();
+        store.commit();
         // Relabel in the new language: the dialog is rebuilt, not patched in place.
         layerDialogs(".modal--dropdown")[0]?.close();
         openSettings();
@@ -4277,7 +4276,7 @@ function openSettings() {
       (value) => {
         state.ui.pageSize = value === "all" ? "all" : Number(value);
         state.ui.page = 1;
-        commit();
+        store.commit();
       },
     )),
   );
@@ -4285,7 +4284,7 @@ function openSettings() {
   for (const [fieldKey, name, key] of [["set_new_list", "posList", "newChecklist"], ["set_new_item", "posItem", "newItem"]]) {
     body.append(field(fieldKey, segmentControl(name, ui[key], POS, (value) => {
       ui[key] = value;
-      commit();
+      store.commit();
     })));
   }
   const archive = el("button", "btn btn--wide btn--hold");
@@ -4424,7 +4423,7 @@ function openArchive() {
       onClick: withSelection((ids) => {
         restore(view.tab === "lists" ? "list" : "item", ids);
         view.sel.clear();
-        commit();
+        store.commit();
         paint();
       }),
     },
@@ -4968,7 +4967,7 @@ function armHover(drag, head, onHold) {
 
 /* A held row: aim a drop marker, expand a closed list under the hold, land the group. The bag lives
    here; only the screen knows where the marker got to. */
-function createRowDrag({ getState, commit, render, search, autoScroll, order, store, findList, screen }) {
+function createRowDrag({ getState, render, search, autoScroll, order, store, findList, screen }) {
   let drag = null;
 
   function placeGap() {
@@ -5001,7 +5000,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
     drag.hoverId = null;
     clearHold(drag);
     patch("list", id, { expanded: true });
-    commit("list", id);
+    store.commit("list", id);
     // The layout moved: aim again, rendered or not.
     retarget();
   }
@@ -5072,7 +5071,7 @@ function createRowDrag({ getState, commit, render, search, autoScroll, order, st
         dropItemsInto(current.ids, plan.into, plan.before);
       }
     }
-    commit();
+    store.commit();
     store.flushSave();
   }
 
@@ -5230,7 +5229,6 @@ const rowDrag = createRowDrag({
   getState: () => state,
   order,
   store,
-  commit,
   render,
   search,
   findList,
@@ -5503,7 +5501,7 @@ function flipFlag(kind, id, prop) {
     return;
   }
   patch(kind, id, { [prop]: !entity[prop] });
-  commit(kind, id);
+  store.commit(kind, id);
 }
 
 const ROW_ACTS = {
@@ -5530,7 +5528,7 @@ function onRowAct(act, kind, id, row, trigger) {
 const PANEL_ACTS = {
   "panel-toggle": () => {
     state.ui.panel.collapsed = !state.ui.panel.collapsed;
-    commit();
+    store.commit();
   },
   "expand-all": () => setExpandedAll(true),
   "collapse-all": () => setExpandedAll(false),
@@ -5629,7 +5627,7 @@ function onKey(event) {
   byId("search-input").blur();
   clearSearch();
   toTop();
-  commit();
+  store.commit();
 }
 
 let resizeTimer = 0;
@@ -5673,13 +5671,13 @@ function bind() {
     byId("search-input").blur();
     clearSearch();
     toTop();
-    commit();
+    store.commit();
   });
   byId("search-input").addEventListener("input", (event) => {
     state.ui.search.text = event.target.value;
     state.ui.page = 1;
     toTop();
-    commit();
+    store.commit();
   });
   byId("scope-lists").addEventListener("click", () => setSearchScope("lists"));
   byId("scope-items").addEventListener("click", () => setSearchScope("items"));
@@ -5691,12 +5689,12 @@ function bind() {
   byId("page-prev").addEventListener("click", () => {
     state.ui.page -= 1;
     toTop();
-    commit();
+    store.commit();
   });
   byId("page-next").addEventListener("click", () => {
     state.ui.page += 1;
     toTop();
-    commit();
+    store.commit();
   });
   const lists = byId("lists");
   lists.addEventListener("click", onListClick);
