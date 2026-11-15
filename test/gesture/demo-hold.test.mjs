@@ -1,12 +1,12 @@
-// Hold-to-enter on the Archive row: a short press taps, a full hold lands once, and the trailing
-// click of any hold - finished or broken mid-fill - is swallowed.
+// Hold-to-enter on the Archive row: a short press taps, a full hold lands once,
+// the trailing click of any hold (finished / broken mid-fill) is swallowed.
 
 import assert from "node:assert/strict";
 import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
-// Virtual clock: timers fire only when advanced, in due order.
+// Virtual clock: fires only on advance, in due order.
 function clock() {
   let now = 0;
   let seq = 0;
@@ -45,7 +45,7 @@ function control() {
       }
       listeners.get(type).push(fn);
     },
-    // Returns whether any handler prevented the default.
+    // -> whether a handler prevented default.
     fire(type, event = {}) {
       let prevented = false;
       for (const fn of listeners.get(type) ?? []) {
@@ -88,8 +88,8 @@ test("the fill starts when the silent window ends", () => {
   assert.equal(filling(r), true);
 });
 
-// [press event, release event, note] - the pointer and the keyboard path take the same shape.
-test("released mid-fill is a cancelled hold: the bar resets, and it is neither a tap nor a hold", () => {
+// [press, release, note] - pointer & keyboard take the same shape.
+test("released mid-fill cancels the hold: bar resets, no tap & no hold", () => {
   const rows = [
     ["pointerup", null, "letting go"],
     ["pointerleave", null, "leaving the button"],

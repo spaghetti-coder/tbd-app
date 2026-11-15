@@ -10,8 +10,8 @@ const { demoData, seedRows, UI_KEY } = sliceVm([
   "withTx", "uiDoc", "seedRows",
 ]);
 
-// IDB connection stand-in: records store calls, keeps what reached the doc store,
-// completes the tx after the caller wires the handlers.
+// IDB conn stand-in: records store calls, keeps doc-store writes,
+// completes tx once the caller wires the handlers.
 function fakeConn() {
   const calls = [];
   const docs = [];
@@ -82,7 +82,7 @@ test("the archive holds one checklist, and three items of their own", () => {
     assert.equal(item.archived, true);
     assert.equal(item.archivedBy, "list");
   }
-  // Items listed under the Items tab have to live outside the archived checklist.
+  // Items-tab picks must live outside the archived checklist.
   const own = data.items.filter((item) => item.archived && item.archivedBy === "user");
   assert.equal(own.length, 3);
   for (const item of own) {
@@ -91,8 +91,8 @@ test("the archive holds one checklist, and three items of their own", () => {
   }
 });
 
-/* A fresh stand db holds no order docs: getAll returns rows by key, so ids must sort into the
-   shown order. */
+// A fresh stand db holds no order docs: getAll sorts by key -> ids must sort
+// into the shown order.
 test("row keys sort into the intended order", () => {
   const keys = ids(data.checklists);
   assert.equal([...keys].sort().join(), keys.join());

@@ -1,4 +1,5 @@
-// The single confirm-then-run helper: wording, plural, verb dispatch, commit, toast, follow-up.
+// The single confirm-then-run helper: wording, plural, verb dispatch, commit,
+// toast, follow-up.
 
 import assert from "node:assert/strict";
 import test from "node:test";

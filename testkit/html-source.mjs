@@ -1,5 +1,5 @@
-// Single file, no build: code under test is sliced out of index.html by name and run in a VM.
-// Declarations are parser-located, so formatting does not matter.
+// Single file, no build: code under test is sliced out of index.html by name,
+// run in a VM. Declarations are parser-located -> formatting does not matter.
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
 import { parse } from "acorn";
@@ -7,13 +7,14 @@ import { inlineScripts } from "../scripts/inline-scripts.mjs";
 
 export const vm = (lines, globals = {}) => runInContext(lines.join("\n"), createContext(globals));
 
-// One sandbox for `names`, each sliced out of index.html and returned bound.
+// One sandbox: `names` sliced out of index.html, returned bound.
 export const sliceVm = (names, globals = {}) =>
   vm([...names.map(slice), `({ ${names.join(", ")} })`], globals);
 
 export const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
-// shortcut: top-level declarations only; walk nested scopes if a tested helper ever moves into a block.
+// shortcut: top-level declarations only; walk nested scopes if a tested helper
+// ever moves into a block.
 const declared = new Map();
 for (const body of inlineScripts(html)) {
   const program = parse(body, { ecmaVersion: "latest", sourceType: "module" });

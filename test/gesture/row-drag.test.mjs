@@ -1,4 +1,4 @@
-// What a held row does: ghost, marker, the hold that opens a closed list, the drop.
+// Held row: ghost, marker, hold-to-open a closed list, the drop.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -105,7 +105,7 @@ const { createRowDrag, armHover, dropPlan } = sliceVm(
 
 const rowDrag = createRowDrag(box);
 
-// A finished drag leaves markers and `is-drag-src` behind: start every test clean.
+// Finished drags leave markers & `is-drag-src`: start each test clean.
 const reset = () => {
   rowDrag.cancel();
   calls.length = 0;
@@ -226,7 +226,7 @@ test("a hold arms on the aimed head, once, and comes off with it", () => {
   assert.equal(drag.collapsedId, null);
 });
 
-test("dropping onto a closed list opens it for the item and takes the hold bar off", () => {
+test("dropping onto a closed list opens it for the item & drops the hold bar", () => {
   reset();
   rowDrag.start(hitItem());
   timers.armed.length = 0;
@@ -260,7 +260,7 @@ test("a rebuilt list parks the marker and the styling back under the drag", () =
   frame();
   const gap = bodyA.children.find((node) => node.classes.has("drop-gap"));
   assert.ok(gap, "the marker sits in the list");
-  // A render keeps data rows only, so the marker goes with everything else it does not know.
+  // A render keeps data rows only -> the marker drops with the unknowns.
   gap.remove();
   for (const node of items) {
     node.classes.delete("is-drag-src");

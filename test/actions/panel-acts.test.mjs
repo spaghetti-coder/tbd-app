@@ -1,4 +1,4 @@
-// Panel buttons dispatch through a table; bulk actions stay dead without a selection.
+// Panel buttons dispatch through a table: bulk acts die without a selection.
 
 import assert from "node:assert/strict";
 import test from "node:test";

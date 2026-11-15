@@ -1,5 +1,6 @@
-// Scroll stops at the visible band. Centring puts a row under the keyboard and pans the visual
-// viewport, pushing the sticky header off screen. A new result set starts at the page top.
+// Scroll stops at the visible band; centring puts a row under the keyboard &
+// pans the visual viewport, pushing the sticky header off screen. New results
+// start at the page top.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,10 +9,10 @@ import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const { revealDelta, revealTop } = sliceVm(["revealDelta", "revealTop"]);
 
-// The header line a card head sticks to, and the band that starts 8px under it.
+// Header line a card head sticks to, band starting 8px under it.
 const band = { header: 56, top: 64, bottom: 500 };
 
-// The row to reveal in a card whose head paints at `head`: a list row is the card itself.
+// Row to reveal in a card whose head paints at `head`: a list row is the card.
 const rowUnder = (kind, head) => {
   const item = fakeNode({ kind: "item" });
   const card = fakeNode({
@@ -37,7 +38,7 @@ test("a row is scrolled just far enough to sit inside the band", () => {
   }
 });
 
-// A card head sticks under the header and paints over the top of the band.
+// A stuck head paints over the top of the band.
 test("an item revealed at the top clears the stuck head of its list", () => {
   assert.equal(revealTop(rowUnder("item", { top: 56, bottom: 108 }), band), 108);
 });

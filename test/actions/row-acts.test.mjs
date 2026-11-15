@@ -1,4 +1,4 @@
-// Row buttons dispatch through a table; every act must reach exactly its own helper.
+// Row buttons dispatch through a table: each act must reach exactly its helper.
 
 import assert from "node:assert/strict";
 import test from "node:test";

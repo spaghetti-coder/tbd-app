@@ -1,4 +1,4 @@
-// What a stored doc is allowed to say: anything else falls back to defaults.
+// Stored docs: anything illegal falls back to defaults.
 
 import assert from "node:assert/strict";
 import test from "node:test";

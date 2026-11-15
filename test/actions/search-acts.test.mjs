@@ -1,4 +1,4 @@
-// What the search controls do: leaving it, jumping to a hit, and the empty state in between.
+// Search controls: exit, jump to a hit, empty state.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -105,7 +105,7 @@ test("both switches off stops filtering without erasing the query", () => {
   assert.deepEqual(api.visibleChecklists().map((cl) => cl.id), ["l1", "l2", "l3"]);
 });
 
-/* addChecklist runs over its own globals: creation needs a uid, no render loop. */
+// addChecklist gets its own globals: creation needs a uid, no render loop.
 const created = {
   searchPanel: false,
   state: {
@@ -137,7 +137,7 @@ test("a searched screen has nothing to drag: its order is the query's, not the u
   assert.equal(rowDrag.start({ kind: "list", id: "l1" }), false, "the hold never becomes a drag");
 });
 
-/* ---------- the empty state ---------- */
+/* --- the empty state --- */
 
 const ONE = () => [list("l1", { title: "Работа" })];
 

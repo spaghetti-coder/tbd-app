@@ -1,4 +1,4 @@
-// The aiming rules, the screen answered by data.
+// Aiming rules as data.
 
 import assert from "node:assert/strict";
 import test from "node:test";

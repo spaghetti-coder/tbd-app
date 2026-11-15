@@ -1,4 +1,5 @@
-// Edge auto-scroll: the ramp, the frame hook, and the flag that keeps a moving page off arming a hold.
+// Edge auto-scroll: ramp, frame hook, flag that blocks hold arming while the
+// page moves.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -23,7 +24,7 @@ let held = true;
 const { createAutoScroll } = sliceVm(["GESTURE", "clamp", "ramp", "createAutoScroll"], box);
 const scroll = createAutoScroll(() => fired.push("frame"), () => held);
 
-// Stop first: a test must not inherit a frame from the previous one.
+// Stop first: no frame inheritance across tests.
 const fresh = () => {
   held = true;
   scroll.stop();

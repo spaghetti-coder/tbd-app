@@ -1,4 +1,4 @@
-// The archive: what the "Items" tab lists, and where restored rows land.
+// The archive: what the "Items" tab lists / where restores land.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -22,7 +22,7 @@ function archivedTab(checklists, items) {
 }
 
 // [what, checklists, items, expected ids]
-test("the Items tab: the user's own archived items, grouped in the order of the checklists", () => {
+test("the Items tab: the user's own archived items, in checklist order", () => {
   const rows = [
     ["grouped by checklist, in the checklist order",
       [list("a"), list("b")],

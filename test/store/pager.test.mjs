@@ -1,4 +1,4 @@
-// Pager visibility + page math: the pager stays out of the way unless there is more than one page.
+// Pager visibility + page math: hidden unless >1 page.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -57,7 +57,7 @@ test("a stale page number is clamped back into range", () => {
   assert.equal(render(25, 10, 9).page, 3);
 });
 
-/* ---------- page math ---------- */
+/* --- page math --- */
 
 const { api, store, scrollTargetOf } = stateHarness([
   "pageCount",

@@ -1,4 +1,4 @@
-// The mode machine: what a press turns into, and what a release leaves behind.
+// Mode machine: what a press becomes / what a release leaves.
 
 import assert from "node:assert/strict";
 import test from "node:test";

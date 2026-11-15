@@ -1,4 +1,4 @@
-// Which pointerdown starts a row drag, and which controls keep their own pointer.
+// Which pointerdown starts a row drag / which controls keep their own pointer.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -7,7 +7,7 @@ import { fakeNode } from "../../testkit/fake-dom.mjs";
 
 const { rowHandle } = sliceVm(["rowHandle"]);
 
-// Mirrors the real row markup: one card head, one item, each with a mover row, controls and a
+// Mirrors real row markup: card head + item, each with a mover, controls and a
 // hidden editor. `id: null` builds the row without its data-id.
 function board({ listId = "L1", itemId = "i1" } = {}) {
   const editor = (children) => fakeNode({ classes: ["row-edit"], children });

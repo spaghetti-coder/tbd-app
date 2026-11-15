@@ -1,4 +1,5 @@
-// Bulk mode: what a selection accepts, what survives a delete or an archive, and what it does to the panel.
+// Bulk: what a selection accepts / survives delete & archive / does to the
+// panel.
 
 import assert from "node:assert/strict";
 import test from "node:test";

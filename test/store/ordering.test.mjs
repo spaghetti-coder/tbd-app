@@ -1,4 +1,5 @@
-// Placement: where a group lands, which rows hold an edge, which page shows a list.
+// Placement: where a group lands / which rows hold an edge / which page shows a
+// list.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -7,7 +8,7 @@ import { stateHarness } from "../../testkit/state.mjs";
 
 const { order, store } = stateHarness([]);
 
-test("a group of lists goes to either edge and keeps its order through it", () => {
+test("a group of lists goes to either edge, keeping its order", () => {
   const state = store([list("1"), list("2"), list("3"), list("4"), list("5"), list("6"), list("7")], []);
   order.place("list", ["3", "7"], "top");
   assert.deepEqual(ids(state.checklists), ["3", "7", "1", "2", "4", "5", "6"]);
@@ -31,7 +32,7 @@ test("a neighbour target lands where the gap was", () => {
   assert.deepEqual(ids(state.checklists), ["b", "c", "a"]);
 });
 
-test("a neighbour that vanished falls back to the row behind the gap, and past both to the end", () => {
+test("a vanished neighbour falls back to the row behind the gap, past both -> end", () => {
   const state = store([list("a"), list("b"), list("c")], []);
   order.place("list", ["a"], { before: "gone", after: "c" });
   assert.deepEqual(ids(state.checklists), ["b", "c", "a"]);
@@ -64,7 +65,7 @@ test("into another list re-parents the group, at its end or at a neighbour", () 
   assert.deepEqual(ids(state.items), ["p", "a", "b", "q", "r"]);
 });
 
-test("a group spanning lists is placed once per list, each at the top of its own", () => {
+test("a group spanning lists is placed once per list, each at its top", () => {
   const state = store([list("c1"), list("c2")],
     [item("a", "c1"), item("b", "c1"), item("p", "c2"), item("q", "c2")]);
   order.place("item", ["b", "p"], "top");
@@ -116,7 +117,7 @@ test("an item's edges ignore the query: they are its list's real rows", () => {
   assert.equal(order.atEdge("item", ["p"], "bottom"), false, "the list still has a row below");
 });
 
-test("atEdge is false for a bulk group that still has room, even when one row holds the edge", () => {
+test("atEdge is false for a bulk group with room, even when a row holds the edge", () => {
   store([list("a"), list("b"), list("c")], [item("p", "c1"), item("q", "c1"), item("r", "c1")]);
   assert.equal(order.atEdge("item", ["p", "r"], "top"), false, "the last one moves up past the middle");
   assert.equal(order.atEdge("item", ["p", "r"], "bottom"), false, "the first one moves down past the middle");
@@ -128,7 +129,7 @@ test("atEdge is false for a bulk group that still has room, even when one row ho
   assert.equal(order.atEdge("item", ["p", "q", "r"], "bottom"), true);
 });
 
-test("pageFor is the page a list shows on, and 0 when it is not on screen", () => {
+test("pageFor is the page a list shows on, 0 off screen", () => {
   store([list("a"), list("b"), list("c")], [], { pageSize: 2, page: 1 });
   assert.equal(order.pageFor("a"), 1);
   assert.equal(order.pageFor("c"), 2);
@@ -144,7 +145,7 @@ test("the bottom of a move is the last page of the result", () => {
   assert.equal(state.ui.page, 2, "3 hits, 2 per page");
 });
 
-test("pageFor is the page inside the result, and 0 for a row the query hides", () => {
+test("pageFor is the page inside the result, 0 for a row the query hides", () => {
   store([list("a", { title: "plain" }), list("b", { title: "x one" }), list("c", { title: "x two" }),
     list("d", { title: "x three" })],
   [], { pageSize: 2, page: 1, search: { text: "x", lists: true, items: false } });

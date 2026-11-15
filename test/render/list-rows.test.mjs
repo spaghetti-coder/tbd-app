@@ -1,5 +1,5 @@
-// A list render repaints rows that stayed instead of swapping nodes: a row rebuilt under the
-// finger loses the swipe.
+// List render repaints rows that stayed instead of swapping nodes: a row
+// rebuilt under the finger loses the swipe.
 
 import assert from "node:assert/strict";
 import test from "node:test";

@@ -1,4 +1,4 @@
-// Order lives in the order docs alone: rows carry no ordinal, a round trip rebuilds it.
+// Order lives in order docs alone: rows carry no ordinal, a reload rebuilds it.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -14,7 +14,7 @@ const harness = () => storeHarness({ actions: ACTIONS });
 
 const inList = (state, checklistId) => ids(state.items.filter((i) => i.checklistId === checklistId));
 
-/* Writes state as this tab wrote it: after this the rows and the order are on disk. */
+// Writes through the real store: rows + order docs land on disk.
 async function seed(h, groups) {
   h.state(groups.map(([id]) => list(id)),
     groups.flatMap(([id, rowIds]) => rowIds.map((itemId) => item(itemId, id))));

@@ -1,4 +1,4 @@
-// The write protocol: every change saves, paints what it touched, and offers the cross-tab reload.
+// The write protocol: save, paint what changed, offer cross-tab reload.
 
 import assert from "node:assert/strict";
 import test from "node:test";

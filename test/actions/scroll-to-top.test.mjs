@@ -1,5 +1,5 @@
-// A new result set starts at its top. These are toTop() call sites in page listeners, out of a
-// sandbox's reach, so the source is asserted.
+// A new result set starts at its top. toTop() call sites live in page
+// listeners, out of a sandbox's reach: assert the source.
 
 import assert from "node:assert/strict";
 import test from "node:test";

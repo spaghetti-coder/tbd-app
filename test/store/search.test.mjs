@@ -1,4 +1,4 @@
-// The search module through its interface: what a query lets through, what it opens, what it lights up.
+// Search through its interface: what a query matches / opens / highlights.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +8,7 @@ import { stateHarness } from "../../testkit/state.mjs";
 
 const { createSearch } = sliceVm(["createSearch"]);
 
-// Real module over a board; refresh once, then ask as render does.
+// Real module over a board: refresh once, then ask like render.
 function searched(checklists, items, ui = {}) {
   const state = { checklists, items, ui: { search: { text: "", lists: true, items: true }, ...ui } };
   const search = createSearch(() => state);
@@ -87,9 +87,10 @@ test("archived rows are not searched, but a narrow miss still reports the wider 
   assert.deepEqual(ask(wide), { active: true, any: true, lists: ["l2"], items: ["i1"], expanded: ["l2"] });
 });
 
-/* ---------- what gets lit up ---------- */
+/* --- what gets lit up --- */
 
-// [query, text, expected ranges, note?] - a piece may sit anywhere, in any order, at any distance.
+// [query, text, expected ranges, note?] - pieces match anywhere, any
+// order/distance.
 test("every query piece has to be found, and the hits merge", () => {
   const rows = [
     ["ку", "стояла курица", [[7, 9]]],
@@ -118,7 +119,7 @@ test("a query of bare combining marks leaves no token and matches nothing", () =
   assert.equal(marks.rangesFor("l1"), null);
 });
 
-/* ---------- how the app wires it ---------- */
+/* --- how the app wires it --- */
 
 // Painters read the last refresh: render must build it first.
 test("render rebuilds the answer before it paints anything", () => {
@@ -127,7 +128,7 @@ test("render rebuilds the answer before it paints anything", () => {
   assert.ok(body.indexOf("search.refresh()") < body.indexOf("renderChrome()"), "before the painters read it");
 });
 
-/* ---------- what storage is allowed to say ---------- */
+/* --- what storage is allowed to say --- */
 
 const { api } = stateHarness(["normalizeSearch", "defaults"]);
 

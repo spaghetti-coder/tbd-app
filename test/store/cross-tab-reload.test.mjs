@@ -1,4 +1,4 @@
-// What one tab does when another writes: flush the pending save, then reload.
+// Another tab wrote: flush the pending save, then reload.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -57,7 +57,6 @@ test("after reloading for another tab nothing is written back", async () => {
   assert.equal(h.storage.batches.length, writes, "a late flush must not put an older state back");
 });
 
-// Reload safety conditions in isolation.
 const safeWhen = ({ editing = null, held = false, dialogs = false } = {}) =>
   sliceVm(["safeToReload"], {
     state: { ui: { editing } }, pointer: { active: () => held }, modalOpen: () => dialogs,

@@ -5,8 +5,8 @@ import test from "node:test";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 
-// docks 100/900 with width 120 -> dock centres 160/960, so a switch costs 33% of the span: 264.
-// band: the panel's own, base: the collapsed pill's.
+// docks 100/900 with width 120 -> dock centres 160/960, so a switch costs 33%
+// of the span: 264. band: the panel's own, base: the collapsed pill's.
 const geometry = ({ left = 400, docks = { left: 100, right: 900 }, band = [80, 600], base = [100, 500] } = {}) => ({
   left, top: 200, width: 120, height: 300, docks,
   clampTop: (y) => Math.min(Math.max(y, band[0]), band[1]),

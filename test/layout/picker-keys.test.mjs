@@ -1,4 +1,4 @@
-// Keyboard navigation in the settings pickers: arrows, Home/End and type-ahead.
+// Settings pickers, keyboard: arrows, Home/End, type-ahead.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -36,7 +36,7 @@ test("a typed letter moves to the next label starting with it", () => {
     [LANGS, "z", 2, 2, "no match keeps the focus"],
     [LANGS, "б", 0, 2],
     [LANGS, "E", 0, 3, "case is ignored"],
-    // Decomposed labels (macOS keyboards) answer to the composed letter.
+    // Decomposed labels (macOS) match the composed letter.
     [["A\u030Angstrom", "Tok"], "\u00E5", 1, 0],
   ];
   for (const [labels, typed, at, want, note] of rows) {

@@ -1,4 +1,4 @@
-// The `state` shim store-level functions run against: real code sliced into one sandbox.
+// `state` shim for store-level tests: real code sliced into one sandbox.
 import { sliceVm } from "./html-source.mjs";
 import { storeStub } from "./fixtures.mjs";
 
@@ -14,14 +14,15 @@ export const wireOrder = (api, getState) => api.createOrder({
 const ORDER = ["createOrder", "clamp", "withoutArchived", "visibleChecklists", "pageCount"];
 
 export function stateHarness(names) {
-  // The globals the sliced functions reach for; assigning one (search, scrollTarget) writes back here.
+  // Globals the sliced functions reach; assigning one (search, scrollTarget)
+  // writes back here.
   const sandbox = {
     state: null,
     search: null,
     scrollTarget: null,
     lastToast: null,
     calls: [],
-    // The scroll a sliced function asks for lands in the same call log.
+    // scrollY is set by tests; scrollTo logs like every other call.
     scrollY: 0,
     matchMedia: () => ({ matches: false }),
     scrollTo: () => sandbox.calls.push("toTop"),
@@ -34,7 +35,7 @@ export function stateHarness(names) {
   sandbox.store = storeStub(sandbox.calls);
   const base = ["PAGE_SIZES", "defaults", "createSearch", "patch", "normalizeSearch", ...ORDER];
   const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
-  // Real search over the same state the actions write: a test refreshes, then asks it.
+  // Real search over the state the actions write: refresh, then ask.
   sandbox.search = api.createSearch(() => sandbox.state);
   sandbox.order = wireOrder(api, () => sandbox.state);
 

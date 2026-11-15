@@ -5,7 +5,8 @@ import test from "node:test";
 import { plain } from "../../testkit/fixtures.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 
-/* Topbar ends at 68 -> band starts at 80; a 52px pill reaches 824 behind a 24px inset, 836 with the plain gap. */
+// Topbar ends at 68 -> band starts at 80; a 52px pill reaches 824 behind a 24px
+// inset, 836 with the plain gap.
 const SCREEN = {
   left: 400, top: 200, width: 120, height: 52, collapsed: 52,
   topbar: 68, bottomInset: 24, innerW: 1000, innerH: 900,

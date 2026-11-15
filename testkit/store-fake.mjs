@@ -1,9 +1,8 @@
-// The store over a map-backed adapter: real createStore, real batch arithmetic; a test asserts on
-// what lands in the adapter.
+// The store over a map-backed adapter: real createStore & batch arithmetic;
+// tests assert what lands in the adapter.
 import { sliceVm } from "./html-source.mjs";
 import { wireOrder } from "./state.mjs";
 
-// The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
   "createStore", "createOrder", "createSearch", "uiDoc", "patch", "clamp", "UI_KEY",
   "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived",
@@ -71,7 +70,8 @@ export function storageFake({ checklists = [], items = [], docs = {} } = {}) {
   };
 }
 
-// The other tabs: `send` is a message arriving, `posts` is what this tab echoed.
+// The other tabs: `send` is a message arriving, `posts` is what this tab
+// echoed.
 export function echoFake() {
   const posts = [];
   let hand = null;
@@ -98,7 +98,7 @@ export function clockFake() {
   };
 }
 
-// A live store: real code, with storage, timers and tabs under the test's hand.
+// A live store: real code, storage/timers/tabs under the test's hand.
 export function storeHarness({ disk = {}, canReload = () => true, demo = false, actions = [] } = {}) {
   const storage = storageFake(disk);
   const echo = echoFake();
@@ -108,7 +108,8 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const painted = [];
   const globals = {
     demo,
-    // Read through the harness' own state, so assign() reaches the sliced functions too.
+    // Read through the harness' own state, so assign() reaches the sliced
+    // functions too.
     get state() {
       return state;
     },
@@ -119,7 +120,6 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   };
   const api = sliceVm(STORE, globals);
   let state = api.defaults();
-  // A live query, as in the app.
   const search = api.createSearch(() => state);
   globals.search = search;
   const order = wireOrder(api, () => state);

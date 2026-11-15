@@ -1,4 +1,4 @@
-// Editing: draft ownership per row, what a save writes, the blur that trails it.
+// Editing: draft ownership per row / what a save writes / the trailing blur.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -25,7 +25,7 @@ function board() {
   return { listInput, itemInput, rows: { L1: card, i1: row } };
 }
 
-/* The real editor over the real lookups; `saved`/`painted` record what it asked for. */
+// Real editor over real lookups; `saved`/`painted` record its calls.
 function box({ lists = [], items = [], ui = {}, onScreen = true, search = searchStub() } = {}) {
   const shape = board();
   const saved = [];
@@ -46,7 +46,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
     order: { place: () => {} },
     rowById: (kind, id) => (onScreen ? shape.rows[id] : null) ?? null,
   };
-  // The app's own wiring, over this state, store and search.
+  // The app's own wiring over this state/store/search.
   const api = sliceVm(["createEditor", "makeEditor", "commitEditor", "draftText", "findList", "findItem",
     "entityText", "patch", "removeEntity", "pruneSelection", "setBulk", "addItem", "addChecklist"], ctx);
   ctx.editor = api.makeEditor();
@@ -60,7 +60,7 @@ const typing = () => box({
   ui: { editing: { kind: "item", id: "i1" } },
 });
 
-/* ---------- the draft belongs to the row it was typed in ---------- */
+/* --- the draft belongs to the row it was typed in --- */
 
 test("a draft is committed to the row that owns it", () => {
   const { ctx, itemInput, editor } = typing();
@@ -89,7 +89,7 @@ test("nothing is committed when the edited row is no longer on screen", () => {
   assert.equal(ctx.state.ui.editing.kind, "item", "the editor stays open, unwritten");
 });
 
-/* ---------- opening a row ---------- */
+/* --- opening a row --- */
 
 test("starting another edit saves the draft and opens the new row", () => {
   const { ctx, itemInput, editor, painted } = typing();
@@ -116,7 +116,7 @@ test("no editor opens on a nameless row the save just dropped", () => {
   assert.deepEqual(painted, ["all"], "only the save rendered");
 });
 
-/* ---------- what a save writes, rolls back or drops ---------- */
+/* --- what a save writes, rolls back or drops --- */
 
 test("a renamed entity goes out at once and its row alone is repainted", () => {
   const { ctx, listInput, editor, saved, painted } = box({
@@ -209,7 +209,7 @@ test("cancelling discards a new entity and keeps a named one", () => {
   assert.equal(named.ctx.state.ui.editing, null);
 });
 
-/* ---------- a running search counts the saved text ---------- */
+/* --- a running search counts the saved text --- */
 
 test("a save inside a search recounts the result", () => {
   const b = box({
@@ -251,7 +251,7 @@ test("a saved name that keeps the match moves the highlight", () => {
   assert.deepEqual(plain(b.ctx.search.rangesFor("i1")), [[7, 13]]);
 });
 
-/* ---------- the blur ---------- */
+/* --- the blur --- */
 
 test("a blur from the edited row commits it", () => {
   const { ctx, editor } = typing();
@@ -275,7 +275,7 @@ test("a blur arriving after the editor closed commits nothing", () => {
   assert.deepEqual(saved, ["flushSave"], "the trailing blur does not write again");
 });
 
-// onListBlur alone, with the editor as its only collaborator.
+// onListBlur alone, editor as its only collaborator.
 const blur = (editor) => sliceVm(["onListBlur"], { editor }).onListBlur;
 
 test("a blur handed to the save button commits nothing", () => {
@@ -299,7 +299,7 @@ test("a blur from the edited row reaches the editor with its owner", () => {
   assert.equal(ctx.state.items[0].text, "BBB");
 });
 
-/* ---------- a row added over an open draft ---------- */
+/* --- a row added over an open draft --- */
 
 test("adding a row saves the draft that was still open", () => {
   const { ctx, itemInput, addItem } = typing();

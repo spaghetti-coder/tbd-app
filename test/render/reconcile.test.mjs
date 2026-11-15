@@ -1,4 +1,4 @@
-// A re-render leaves the row under the pointer alone: rows are moved, never rebuilt.
+// A re-render leaves the row under the pointer alone: rows move, never rebuild.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +8,7 @@ import { idsOf, rowNode } from "../../testkit/render.mjs";
 
 const { reconcile } = sliceVm(["reconcile"]);
 
-// A move out of nowhere (a fresh row) is not a removal; only leaving the list counts.
+// A fresh row (no prev) is not a removal; only leaving the list counts.
 function logged(host, nodes) {
   const log = [];
   const insertBefore = host.insertBefore.bind(host);

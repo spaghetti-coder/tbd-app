@@ -1,4 +1,4 @@
-// paintChecklist over a real fakeNode graph: one card, its item host and the empty hint.
+// paintChecklist over a real fakeNode graph: card, item host, empty hint.
 import { fakeNode } from "./fake-dom.mjs";
 import { searchStub } from "./fixtures.mjs";
 import { sliceVm } from "./html-source.mjs";

@@ -21,7 +21,7 @@ test("a save with nothing owed leaves the store alone", async () => {
   assert.deepEqual(h.echo.posts, [], "no echo to the other tabs");
 });
 
-test("a save carries the rows the disk has never seen, the order they imply, and a ui doc with only the query", async () => {
+test("a save carries unseen rows, the order they imply & a ui doc with only the query", async () => {
   const h = storeHarness();
   const state = h.state([list("c1", { title: "l" })], [item("i1", "c1")],
     { search: { text: "milk", lists: false, items: true } });
@@ -88,7 +88,7 @@ test("a rejected write is reported once and stays owed", async () => {
   assert.deepEqual(ids(h.storage.batches[1].items), ["i1"], "the failed row went out again");
 });
 
-test("one write runs at a time, and a change made during it goes out as soon as it closes", async () => {
+test("one write at a time; a change made during it goes out once it closes", async () => {
   const h = await booted({ checklists: [list("c1")], items: [item("i1", "c1")] });
   h.storage.hold(true);
   h.edit("item", "i1", { done: true });

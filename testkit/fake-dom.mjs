@@ -69,7 +69,8 @@ export function fakeNode({ classes = [], id, kind, tag, rect, height = 0, width 
       node.parentElement = this;
       return node;
     },
-    // shortcut: descendant parts are matched by "any ancestor", no child/sibling combinators; add them when a test needs one.
+    // shortcut: descendant parts are matched by "any ancestor", no
+    // child/sibling combinators; add them when a test needs one.
     matches(selectors) {
       return selectors.replace(/:scope\s*>\s*/g, "").split(",").some((selector) => {
         const parts = selector.trim().split(/\s+/).reverse();

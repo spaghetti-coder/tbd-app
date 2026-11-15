@@ -1,4 +1,5 @@
-// Anchored popover placement: below, flipped above, or pinned to the edge when neither fits.
+// Popover placement: below / flipped above / pinned to the edge when neither
+// fits.
 
 import assert from "node:assert/strict";
 import test from "node:test";

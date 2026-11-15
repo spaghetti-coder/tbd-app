@@ -1,5 +1,6 @@
-// Painting a search result: only matching items survive in the body, the card opens without
-// touching what the user left it as, and a match past the ellipsis pulls the line to it.
+// Painting a search result: only matching items survive in the body, the card
+// opens without touching user state, a match past the ellipsis pulls the line
+// to it.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -67,7 +68,7 @@ test("an empty body says what is empty", () => {
   assert.equal(none.hint.textContent, "empty_items", "the list itself is empty");
 });
 
-/* ---------- the line itself ---------- */
+/* --- the line itself --- */
 
 const text = (n) => "x".repeat(n);
 
@@ -148,7 +149,7 @@ test("with no search there is nothing to fit", () => {
   delete nodes.m;
 });
 
-/* ---------- one row under a running search ---------- */
+/* --- one row under a running search --- */
 
 function rowHarness(search) {
   const hit = { id: "i1", checklistId: "L1", text: "молоко" };
