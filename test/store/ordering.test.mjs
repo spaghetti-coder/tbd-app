@@ -100,6 +100,22 @@ test("atEdge counts only visible siblings: its own list's rows, archived aside",
   assert.equal(order.atEdge("item", ["only"], "bottom"), true);
 });
 
+test("a list's edges are the result's, not the whole order's", () => {
+  store([list("a", { title: "plain" }), list("b", { title: "x one" }), list("c", { title: "x two" })],
+    [], { search: { text: "x", lists: true, items: false } });
+  assert.equal(order.atEdge("list", ["b"], "top"), true, "first in the result holds the top");
+  assert.equal(order.atEdge("list", ["b"], "bottom"), false);
+  assert.equal(order.atEdge("list", ["c"], "bottom"), true, "last in the result holds the bottom");
+  assert.equal(order.atEdge("list", ["a"], "top"), true, "outside the result: nowhere to move");
+});
+
+test("an item's edges ignore the query: they are its list's real rows", () => {
+  store([list("c1")], [item("p", "c1", { text: "plain" }), item("q", "c1", { text: "x two" })],
+    { search: { text: "x", lists: false, items: true } });
+  assert.equal(order.atEdge("item", ["p"], "top"), true, "the screen shows only q");
+  assert.equal(order.atEdge("item", ["p"], "bottom"), false, "the list still has a row below");
+});
+
 test("atEdge is false for a bulk group that still has room, even when one row holds the edge", () => {
   store([list("a"), list("b"), list("c")], [item("p", "c1"), item("q", "c1"), item("r", "c1")]);
   assert.equal(order.atEdge("item", ["p", "r"], "top"), false, "the last one moves up past the middle");
@@ -117,6 +133,25 @@ test("pageFor is the page a list shows on, and 0 when it is not on screen", () =
   assert.equal(order.pageFor("a"), 1);
   assert.equal(order.pageFor("c"), 2);
   assert.equal(order.pageFor("gone"), 0);
+});
+
+test("the bottom of a move is the last page of the result", () => {
+  const state = store(
+    [list("a", { title: "plain" }), list("b", { title: "x one" }), list("c", { title: "x two" }),
+      list("d", { title: "x three" })],
+    [], { pageSize: 2, page: 1, search: { text: "x", lists: true, items: false } });
+  order.place("list", ["a"], "bottom");
+  assert.equal(state.ui.page, 2, "3 hits, 2 per page");
+});
+
+test("pageFor is the page inside the result, and 0 for a row the query hides", () => {
+  store([list("a", { title: "plain" }), list("b", { title: "x one" }), list("c", { title: "x two" }),
+    list("d", { title: "x three" })],
+  [], { pageSize: 2, page: 1, search: { text: "x", lists: true, items: false } });
+  assert.equal(order.pageFor("b"), 1);
+  assert.equal(order.pageFor("c"), 1);
+  assert.equal(order.pageFor("d"), 2);
+  assert.equal(order.pageFor("a"), 0);
 });
 
 test("pageFor leaves the page where it is while everything fits on one", () => {

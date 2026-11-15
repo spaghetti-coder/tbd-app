@@ -2754,9 +2754,8 @@ function withoutArchived(items, checklistId) {
 
 /* ---------- order ---------- */
 
-/* Where a group of rows lands & what that does to the page. Callers say where — an edge, a
-   neighbour, another list — never an index. An item's edges are its own list's, archived rows aside. */
-function createOrder(getState) {
+/* Two neighbour sets: lists — the query's result; items — their list's real rows. */
+function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }) {
   /* One order doc per list, plus one for the lists themselves. */
   const key = (listId) => `order:${listId}`;
 
@@ -2876,12 +2875,12 @@ function createOrder(getState) {
     st.items = next;
   }
 
-  /* True when moving this group to `where` would leave its visible siblings in the same order. */
+  /* True when moving to `where` leaves the neighbours in the same order. */
   function atEdge(kind, ids, where) {
     const st = getState();
     const peers = kind === "list"
       ? visibleChecklists()
-      : withoutArchived(st.items, (findItem(ids[0]) ?? {}).checklistId);
+      : withoutArchived(st.items, st.items.find((i) => i.id === ids[0])?.checklistId);
     const [rest, group] = split(peers, ids);
     const moved = spliceInto(rest, group, where === "top" ? 0 : rest.length);
     return moved.every((row, index) => row.id === peers[index].id);
@@ -2899,7 +2898,9 @@ function createOrder(getState) {
   return { key, read, snapshot, changes, place, atEdge, pageFor };
 }
 
-const order = createOrder(() => state);
+const order = createOrder({
+  getState: () => state, visibleChecklists, withoutArchived, pageCount,
+});
 
 const safeToReload = () => !state.ui.editing && !pointer.active() && !modalOpen();
 

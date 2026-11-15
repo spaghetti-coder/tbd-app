@@ -4,8 +4,14 @@ import { storeStub } from "./fixtures.mjs";
 
 export const searchOver = (getState) => sliceVm(["createSearch"], {}).createSearch(getState);
 
-// What the order module reaches for; it runs for real over the same state the actions write.
-const ORDER = ["createOrder", "clamp", "withoutArchived", "findItem", "visibleChecklists", "pageCount"];
+export const wireOrder = (api, getState) => api.createOrder({
+  getState,
+  visibleChecklists: api.visibleChecklists,
+  withoutArchived: api.withoutArchived,
+  pageCount: api.pageCount,
+});
+
+const ORDER = ["createOrder", "clamp", "withoutArchived", "visibleChecklists", "pageCount"];
 
 export function stateHarness(names) {
   // The globals the sliced functions reach for; assigning one (search, scrollTarget) writes back here.
@@ -27,11 +33,11 @@ export function stateHarness(names) {
     editor: { flush: () => {}, open: () => {}, save: () => null, cancel: () => {}, blur: () => {} },
   };
   sandbox.store = storeStub(sandbox.calls);
-  const base = ["PAGE_SIZES", "createSearch", "patch", ...ORDER];
+  const base = ["PAGE_SIZES", "defaults", "createSearch", "patch", "normalizeSearch", ...ORDER];
   const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
   // Real search over the same state the actions write: a test refreshes, then asks it.
   sandbox.search = api.createSearch(() => sandbox.state);
-  sandbox.order = api.createOrder(() => sandbox.state);
+  sandbox.order = wireOrder(api, () => sandbox.state);
 
   return {
     api,
@@ -57,8 +63,8 @@ export function stateHarness(names) {
           page: 1,
           panel: { side: "right", topPct: 0.35, collapsed: false },
           bulk: { kind: null, ids: [] },
-          search: { text: "", lists: true, items: true },
           ...ui,
+          search: api.normalizeSearch(ui?.search),
         },
       };
       sandbox.search.refresh();

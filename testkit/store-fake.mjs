@@ -1,11 +1,12 @@
 // The store over a map-backed adapter: real createStore, real batch arithmetic; a test asserts on
 // what lands in the adapter.
 import { sliceVm } from "./html-source.mjs";
+import { wireOrder } from "./state.mjs";
 
 // The slice store tests run: createStore and the pure helpers around it.
 export const STORE = [
-  "createStore", "createOrder", "writes", "uiDoc", "sameDoc", "keyed", "patch", "clamp", "UI_KEY",
-  "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived", "findItem",
+  "createStore", "createOrder", "createSearch", "writes", "uiDoc", "sameDoc", "keyed", "patch", "clamp", "UI_KEY",
+  "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived",
   "visibleChecklists", "pageCount",
 ];
 
@@ -106,8 +107,6 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const reloads = [];
   const globals = {
     demo,
-    // The page maths inside the order module asks what is visible; here nothing is filtered.
-    search: { allowsList: () => true },
     // Read through the harness' own state, so assign() reaches the sliced functions too.
     get state() {
       return state;
@@ -119,7 +118,10 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   };
   const api = sliceVm(STORE, globals);
   let state = api.defaults();
-  const order = api.createOrder(() => state);
+  // A live query, as in the app.
+  const search = api.createSearch(() => state);
+  globals.search = search;
+  const order = wireOrder(api, () => state);
   // writes() reads the order docs' keys off the module, the way the app does.
   globals.order = order;
   const store = api.createStore({
@@ -131,6 +133,7 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   const assign = (value) => {
     state = value;
     actBox.state = value;
+    search.refresh();
     return value;
   };
   return {
@@ -138,7 +141,8 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
     load: async () => assign(await store.load()),
     edit: (kind, id, props) => api.patch(kind, id, props),
     state: (checklists, items, ui) => assign({
-      checklists, items, ui: { pageSize: 20, page: 1, search: { text: "" }, bulk: { kind: null, ids: [] }, ...ui },
+      checklists, items,
+      ui: { pageSize: 20, page: 1, bulk: { kind: null, ids: [] }, ...ui, search: api.normalizeSearch(ui?.search) },
     }),
     setState: assign,
     current: () => state,
