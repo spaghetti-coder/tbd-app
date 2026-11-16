@@ -54,6 +54,7 @@ test("a renamed row goes out in one write", async () => {
     store: h.store,
     search: searchStub(),
     rowById: () => card,
+    rowView: { parts: (row) => ({ input: row.querySelector(".row-edit input") }) },
     render: () => {},
     renderPanel: () => {},
     paintRow: () => true,

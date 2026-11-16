@@ -3312,7 +3312,7 @@ function addItem(checklistId) {
 function draftText() {
   const editing = state.ui.editing;
   const row = editing && rowById(editing.kind, editing.id);
-  const input = row && row.querySelector(".row-edit input");
+  const input = row && rowView.parts(row).input;
   return input ? input.value : null;
 }
 
@@ -3528,6 +3528,181 @@ function togglePick(kind, id) {
   }
 }
 
+/* --- row view --- */
+
+// One row: identity, parts, painting. The template's shape lives here.
+function createRowView({ getState, search, askFocus }) {
+  // Kind from shape: an item names its list.
+  const kindOf = (row) => (row.checklistId === undefined ? "list" : "item");
+  // Rows are reused, not rebuilt: resolve parts once per node.
+  const resolved = new WeakMap();
+
+  // Unanchored fields = first subtree match: card head must precede body.
+  function parts(node) {
+    let found = resolved.get(node);
+    if (!found) {
+      found = {
+        zone: node.querySelector(":scope > .card__head, :scope > .item__row") ?? node,
+        title: node.querySelector(".card__title, .item__text"),
+        mark: node.querySelector(".mark--toggle, .mark--check"),
+        pick: node.querySelector(".mark--bulk"),
+        editor: node.querySelector(".row-edit"),
+        input: node.querySelector(".row-edit input"),
+        save: node.querySelector(".act--save"),
+        menu: node.querySelector(".act--menu"),
+        goto: node.querySelector(".act--goto"),
+        edit: node.querySelector(".act--edit"),
+        add: node.querySelector(".act--add"),
+        body: node.querySelector(".card__body"),
+        items: node.querySelector(".items"),
+        hint: node.querySelector(".card__empty"),
+      };
+      resolved.set(node, found);
+    }
+    return found;
+  }
+
+  function checkBox(node, on, label) {
+    node.setAttribute("role", "checkbox");
+    node.setAttribute("aria-checked", on ? "true" : "false");
+    node.setAttribute("aria-label", label);
+    node.classList.toggle("is-on", on);
+    const box = node.querySelector(".mark__box");
+    box.replaceChildren();
+    if (on) box.append(...iconPair("check"));
+  }
+
+  // The pick replaces the row's own control; null = the other kind is selected.
+  function showPick(main, pick, selected, label) {
+    const on = selected !== null;
+    main.hidden = on;
+    pick.hidden = !on;
+    if (on) checkBox(pick, selected, label);
+  }
+
+  // phKey === null closes the editor.
+  function paintEditor(node, text, phKey) {
+    const p = parts(node);
+    if (phKey === null) {
+      p.editor.hidden = true;
+      p.title.hidden = false;
+      if (p.edit) p.edit.hidden = false;
+      return;
+    }
+    p.title.hidden = true;
+    if (p.edit) p.edit.hidden = true;
+    p.editor.hidden = false;
+    p.input.value = text;
+    p.input.placeholder = t(phKey);
+    p.input.setAttribute("aria-label", t(phKey));
+    labelNode(p.save, "a_save");
+  }
+
+  function paintRowEditor(node, kind, id, text) {
+    const editing = getState().ui.editing;
+    if (editing && editing.kind === kind && editing.id === id) {
+      paintEditor(node, text, text ? `edit_${kind}_ph` : `new_${kind}_ph`);
+      askFocus();
+    } else {
+      paintEditor(node, text, null);
+    }
+  }
+
+  function paintHead(node, cl, open) {
+    const p = parts(node);
+    const toggle = p.mark;
+    const icon = toggle.querySelector(".ic");
+    const alt = toggle.querySelector(".ic-alt");
+    icon.classList.toggle("ic--chevron-down", open);
+    icon.classList.toggle("ic--chevron-right", !open);
+    alt.textContent = ICONS[open ? "chevron-down" : "chevron-right"][1];
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
+    // Opened by the search, not the user: collapsing would hide the match.
+    toggle.disabled = search.expands(cl.id);
+    labelNode(p.add, "add_item");
+    p.add.hidden = !open;
+    labelNode(p.edit, "a_edit");
+    labelNode(p.menu, "a_menu");
+    paintText(p.title, cl.title || t("new_list_ph"), search.rangesFor(cl.id));
+    p.goto.hidden = search.rangesFor(cl.id) === null;
+    labelNode(p.goto, "a_goto");
+    const bulk = getState().ui.bulk;
+    showPick(toggle, p.pick, bulk.kind === "list" ? bulk.ids.includes(cl.id) : null,
+      cl.title || t("new_list_ph"));
+    paintRowEditor(node, "list", cl.id, cl.title);
+  }
+
+  function paintItem(node, item) {
+    const p = parts(node);
+    node.dataset.kind = "item";
+    node.dataset.id = item.id;
+    node.classList.toggle("is-done", item.done);
+    paintText(p.title, item.text || t("new_item_ph"), search.rangesFor(item.id));
+    checkBox(p.mark, item.done, item.text || t("new_item_ph"));
+    labelNode(p.menu, "a_menu");
+    p.goto.hidden = search.rangesFor(item.id) === null;
+    labelNode(p.goto, "a_goto");
+    const bulk = getState().ui.bulk;
+    showPick(p.mark, p.pick, bulk.kind === "item" ? bulk.ids.includes(item.id) : null,
+      item.text || t("new_item_ph"));
+    paintRowEditor(node, "item", item.id, item.text);
+  }
+
+  function paintList(node, cl) {
+    const all = withoutArchived(getState().items, cl.id);
+    const open = Boolean(cl.expanded) || search.expands(cl.id);
+    const p = parts(node);
+    node.dataset.kind = "list";
+    node.dataset.id = cl.id;
+    node.classList.toggle("is-open", open);
+    node.classList.toggle("is-muted", isMuted(all));
+    paintHead(node, cl, open);
+    p.body.hidden = !open;
+    if (!open) return;
+    const shown = all.filter((item) => search.allowsItem(item.id));
+    p.hint.hidden = shown.length > 0;
+    // Items exist, none matches: say that, not "empty list".
+    p.hint.textContent = shown.length === 0 && all.length > 0
+      ? t("empty_items_match")
+      : t("empty_items");
+    sync(p.items, shown);
+  }
+
+  // A node already standing for a row is kept: the row keeps its gesture.
+  function sync(host, rows) {
+    const held = new Map([...host.children].map((node) => [node.dataset.id, node]));
+    reconcile(host, rows.map((row) => {
+      const node = held.get(row.id);
+      return node ? paint(node, row) : build(row);
+    }));
+  }
+
+  function paint(node, row) {
+    if (kindOf(row) === "list") {
+      paintList(node, row);
+    } else {
+      paintItem(node, row);
+    }
+    return node;
+  }
+
+  function build(row) {
+    const tpl = kindOf(row) === "list" ? "tpl-checklist" : "tpl-item";
+    return paint(byId(tpl).content.firstElementChild.cloneNode(true), row);
+  }
+
+  return { parts, sync, paint };
+}
+
+const rowView = createRowView({
+  getState: () => state,
+  search,
+  askFocus: () => {
+    needFocus = true;
+  },
+});
+
 /* --- render --- */
 
 let needFocus = false;
@@ -3574,7 +3749,7 @@ function usable(node) {
 }
 
 function rowZone(row) {
-  return row.querySelector(":scope > .card__head, :scope > .item__row") ?? row;
+  return rowView.parts(row).zone;
 }
 
 function listRowFocus(want) {
@@ -3644,13 +3819,7 @@ function reconcile(host, nodes) {
 }
 
 function renderLists() {
-  const existing = new Map([...byId("lists").children].map((node) => [node.dataset.id, node]));
-  const rows = pagedChecklists().map((cl) => {
-    const node = existing.get(cl.id) || byId("tpl-checklist").content.firstElementChild.cloneNode(true);
-    paintChecklist(node, cl);
-    return node;
-  });
-  reconcile(byId("lists"), rows);
+  rowView.sync(byId("lists"), pagedChecklists());
   renderEmpty(visibleChecklists().length);
 }
 
@@ -3679,133 +3848,6 @@ function renderEmpty(shown) {
 
 function isMuted(items) {
   return items.length > 0 && items.every((i) => i.done);
-}
-
-function paintChecklist(node, cl) {
-  const all = withoutArchived(state.items, cl.id);
-  const open = Boolean(cl.expanded) || search.expands(cl.id);
-  node.dataset.kind = "list";
-  node.dataset.id = cl.id;
-  node.classList.toggle("is-open", open);
-  node.classList.toggle("is-muted", isMuted(all));
-  paintHead(node, cl, open);
-  const body = node.querySelector(".card__body");
-  body.hidden = !open;
-  if (!open) return;
-  const items = all.filter((item) => search.allowsItem(item.id));
-  const hint = body.querySelector(".card__empty");
-  hint.hidden = items.length > 0;
-  hint.textContent = items.length === 0 && all.length > 0 ? t("empty_items_match") : t("empty_items");
-  const host = body.querySelector(".items");
-  const existing = new Map([...host.children].map((row) => [row.dataset.id, row]));
-  reconcile(host, items.map((item) => {
-    const row = existing.get(item.id);
-    if (row) {
-      paintItem(row, item);
-      return row;
-    }
-    return buildItem(item);
-  }));
-}
-
-function paintHead(node, cl, open) {
-  const toggle = node.querySelector(".mark--toggle");
-  const icon = toggle.querySelector(".ic");
-  const alt = toggle.querySelector(".ic-alt");
-  icon.classList.toggle("ic--chevron-down", open);
-  icon.classList.toggle("ic--chevron-right", !open);
-  alt.textContent = ICONS[open ? "chevron-down" : "chevron-right"][1];
-  toggle.setAttribute("aria-expanded", open ? "true" : "false");
-  toggle.setAttribute("aria-label", cl.title || t("new_list_ph"));
-  // Opened by the search rather than by the user: collapsing it would hide the
-  // match they looked for.
-  toggle.disabled = search.expands(cl.id);
-  const add = node.querySelector(".act--add");
-  labelNode(add, "add_item");
-  add.hidden = !open;
-  labelNode(node.querySelector(".act--edit"), "a_edit");
-  labelNode(node.querySelector(".act--menu"), "a_menu");
-  paintText(node.querySelector(".card__title"), cl.title || t("new_list_ph"), search.rangesFor(cl.id));
-  const jump = node.querySelector(".act--goto");
-  jump.hidden = search.rangesFor(cl.id) === null;
-  labelNode(jump, "a_goto");
-  const bulk = state.ui.bulk;
-  showPick(node.querySelector(".mark--toggle"), node.querySelector(".mark--bulk"),
-    bulk.kind === "list" ? bulk.ids.includes(cl.id) : null, cl.title || t("new_list_ph"));
-  paintRowEditor(node, "list", cl.id, cl.title);
-}
-
-function checkBox(node, on, label) {
-  node.setAttribute("role", "checkbox");
-  node.setAttribute("aria-checked", on ? "true" : "false");
-  node.setAttribute("aria-label", label);
-  node.classList.toggle("is-on", on);
-  const box = node.querySelector(".mark__box");
-  box.replaceChildren();
-  if (on) box.append(...iconPair("check"));
-}
-
-function paintRowEditor(node, kind, id, text) {
-  const editing = state.ui.editing;
-  if (editing && editing.kind === kind && editing.id === id) {
-    paintEditor(node, text, text ? `edit_${kind}_ph` : `new_${kind}_ph`);
-    needFocus = true;
-  } else {
-    paintEditor(node, text, null);
-  }
-}
-
-// phKey === null closes the editor.
-function paintEditor(row, text, phKey) {
-  const field = row.querySelector(".row-edit");
-  const label = row.querySelector(".card__title, .item__text");
-  const editAct = row.querySelector(".act--edit");
-  if (phKey === null) {
-    field.hidden = true;
-    label.hidden = false;
-    if (editAct) editAct.hidden = false;
-    return;
-  }
-  label.hidden = true;
-  if (editAct) editAct.hidden = true;
-  field.hidden = false;
-  const input = field.querySelector("input");
-  input.value = text;
-  input.placeholder = t(phKey);
-  input.setAttribute("aria-label", t(phKey));
-  labelNode(field.querySelector(".act--save"), "a_save");
-}
-
-function buildItem(item) {
-  const node = byId("tpl-item").content.firstElementChild.cloneNode(true);
-  paintItem(node, item);
-  return node;
-}
-
-// A bulk row swaps its own control for the pick; null means the selection is
-// about the other kind.
-function showPick(main, pick, selected, label) {
-  const on = selected !== null;
-  main.hidden = on;
-  pick.hidden = !on;
-  if (on) checkBox(pick, selected, label);
-}
-
-function paintItem(node, item) {
-  node.dataset.kind = "item";
-  node.dataset.id = item.id;
-  node.classList.toggle("is-done", item.done);
-  paintText(node.querySelector(".item__text"), item.text || t("new_item_ph"), search.rangesFor(item.id));
-  const check = node.querySelector(".mark--check");
-  checkBox(check, item.done, item.text || t("new_item_ph"));
-  labelNode(node.querySelector(".act--menu"), "a_menu");
-  const jump = node.querySelector(".act--goto");
-  jump.hidden = search.rangesFor(item.id) === null;
-  labelNode(jump, "a_goto");
-  const bulk = state.ui.bulk;
-  showPick(check, node.querySelector(".mark--bulk"),
-    bulk.kind === "item" ? bulk.ids.includes(item.id) : null, item.text || t("new_item_ph"));
-  paintRowEditor(node, "item", item.id, item.text);
 }
 
 function renderPager() {
@@ -3903,7 +3945,7 @@ function paintRow(row, kind, id) {
   if (kind === "list") {
     const cl = findList(id);
     if (!cl || !search.allowsList(id)) return false;
-    paintChecklist(row, cl);
+    rowView.paint(row, cl);
     return true;
   }
   const item = findItem(id);
@@ -3917,7 +3959,7 @@ function paintRow(row, kind, id) {
   if (!search.allowsItem(id)) {
     return false;
   }
-  paintItem(row, item);
+  rowView.paint(row, item);
   card.classList.toggle("is-muted", isMuted(withoutArchived(state.items, cl.id)));
   return true;
 }
@@ -3935,7 +3977,7 @@ function afterRender() {
 
 function focusEditor(kind, id) {
   const row = rowById(kind, id);
-  const input = row && row.querySelector(":scope > .card__head .input, :scope > .item__row .input");
+  const input = row && rowView.parts(row).input;
   if (!input) return;
   input.focus({ preventScroll: true });
   const end = input.value.length;

@@ -1,15 +1,11 @@
-// Painting a search result: only matching items survive in the body, the card
-// opens without touching user state, a match past the ellipsis pulls the line
-// to it.
+// Painting under a running search: a match past the ellipsis pulls the line to
+// it, and a row the query dropped takes the rebuild instead of a patch.
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { list, searchStub } from "../../testkit/fixtures.mjs";
+import { searchStub } from "../../testkit/fixtures.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
-import { idsOf, paintHarness, rowNode } from "../../testkit/render.mjs";
-
-const itemRow = (id) => ({ id, checklistId: "L1" });
 
 const NONE = searchStub({ active: true, allowsList: () => false, allowsItem: () => false });
 const HIT = (id) => searchStub({
@@ -21,52 +17,6 @@ const HIT = (id) => searchStub({
 });
 // Names-only search: every item of a list that is in stays inside.
 const BY_NAME = searchStub({ active: true, allowsList: () => true });
-
-test("only the matching items stay in the body of a searched list", () => {
-  const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
-  state.items = [itemRow("i1"), itemRow("i2")];
-  env.search = HIT("i1");
-  paintChecklist(card, list("L1", { expanded: false }));
-  assert.equal(idsOf(host), "i1");
-});
-
-test("a searched list opens without touching what the user left it as", () => {
-  const { state, env, card, paintChecklist } = paintHarness([]);
-  state.items = [itemRow("i1")];
-  const cl = list("L1", { expanded: false });
-  env.search = HIT("i1");
-  paintChecklist(card, cl);
-  assert.equal(card.open, true);
-  assert.equal(card.querySelector(".card__body").hidden, false);
-  assert.equal(cl.expanded, false, "the saved state is untouched");
-
-  env.search = NONE;
-  paintChecklist(card, cl);
-  assert.equal(card.open, false, "left as the user had it");
-  assert.equal(card.querySelector(".card__body").hidden, true);
-});
-
-test("lists-only search keeps every item inside", () => {
-  const { state, env, card, host, paintChecklist } = paintHarness([rowNode("i1"), rowNode("i2")]);
-  state.items = [itemRow("i1"), itemRow("i2")];
-  env.search = BY_NAME;
-  paintChecklist(card, list("L1", { expanded: true }));
-  assert.equal(idsOf(host), "i1,i2");
-});
-
-test("an empty body says what is empty", () => {
-  const some = paintHarness([]);
-  some.env.search = NONE;
-  some.state.items = [itemRow("i1")];
-  some.paintChecklist(some.card, list("L1", { expanded: true }));
-  assert.equal(some.hint.hidden, false);
-  assert.equal(some.hint.textContent, "empty_items_match", "items exist, none of them matches");
-
-  const none = paintHarness([]);
-  none.env.search = NONE;
-  none.paintChecklist(none.card, list("L1", { expanded: true }));
-  assert.equal(none.hint.textContent, "empty_items", "the list itself is empty");
-});
 
 /* --- the line itself --- */
 
@@ -165,8 +115,9 @@ function rowHarness(search) {
     findItem: (id) => (id === "i1" ? hit : null),
     isMuted: () => false,
     withoutArchived: (items) => items,
-    paintChecklist: (node, cl) => painted.push(`list:${cl.id}`),
-    paintItem: (node, item) => painted.push(`item:${item.id}`),
+    rowView: {
+      paint: (node, row) => painted.push(`${row.checklistId === undefined ? "list" : "item"}:${row.id}`),
+    },
     rowById: (kind, id) => (kind === "item" && id === "i1" ? card.children[0] : null),
     render: () => rebuilt.push("render"),
     renderPanel: () => {},

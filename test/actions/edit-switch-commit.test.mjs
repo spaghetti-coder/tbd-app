@@ -45,6 +45,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
     uid: () => "i2",
     order: { place: () => {} },
     rowById: (kind, id) => (onScreen ? shape.rows[id] : null) ?? null,
+    rowView: { parts: (row) => ({ input: row.querySelector(".row-edit input") }) },
   };
   // The app's own wiring over this state/store/search.
   const api = sliceVm(["createEditor", "makeEditor", "commitEditor", "draftText", "findList", "findItem",
