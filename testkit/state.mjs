@@ -4,14 +4,14 @@ import { storeStub } from "./fixtures.mjs";
 
 export const searchOver = (getState) => sliceVm(["createSearch"], {}).createSearch(getState);
 
-export const wireOrder = (api, getState) => api.createOrder({
+export const wireOrder = (api, getState, pages) => api.createOrder({
   getState,
   visibleChecklists: api.visibleChecklists,
   withoutArchived: api.withoutArchived,
-  pageCount: api.pageCount,
+  pages,
 });
 
-const ORDER = ["createOrder", "clamp", "withoutArchived", "visibleChecklists", "pageCount"];
+const ORDER = ["createOrder", "createPager", "clamp", "withoutArchived", "visibleChecklists"];
 
 export function stateHarness(names) {
   // Globals the sliced functions reach; assigning one (search, scrollTarget)
@@ -37,12 +37,18 @@ export function stateHarness(names) {
   const api = sliceVm([...base, ...names.filter((name) => !base.includes(name))], sandbox);
   // Real search over the state the actions write: refresh, then ask.
   sandbox.search = api.createSearch(() => sandbox.state);
-  sandbox.order = wireOrder(api, () => sandbox.state);
+  sandbox.pager = api.createPager({
+    visible: api.visibleChecklists,
+    top: () => sandbox.calls.push("toTop"),
+    repaint: (kind, id) => sandbox.store.commit(kind, id),
+  });
+  sandbox.order = wireOrder(api, () => sandbox.state, () => sandbox.pager.pages());
 
   return {
     api,
     search: sandbox.search,
     order: sandbox.order,
+    pager: sandbox.pager,
     scrollTargetOf: () => sandbox.scrollTarget,
     resetScroll: () => { sandbox.scrollTarget = null; },
     setScroll: (y) => { sandbox.scrollY = y; },

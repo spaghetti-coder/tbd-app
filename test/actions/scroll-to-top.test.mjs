@@ -1,5 +1,4 @@
-// A new result set starts at its top. toTop() call sites live in page
-// listeners, out of a sandbox's reach: assert the source.
+// Swaps live in page listeners, out of a sandbox's reach: assert the source.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -20,10 +19,15 @@ test("a handler that swaps the result set goes to the top before rendering", () 
     ["search-input", "input"],
     ["search-clear", "click"],
   ]) {
-    assert.match(handler(id, type), /toTop\(\);\s*store\.commit\(\);/, `"${id}" renders without going up`);
+    assert.match(handler(id, type), /pager\.goTo\(/, `"${id}" swaps the result without the pager`);
   }
 });
 
+// A shorthand here binds window.top: silent until scrolling breaks.
+test("the pager gets the scroll and the paint", () => {
+  assert.match(html, /createPager\(\{ visible: visibleChecklists, top: toTop, repaint: store\.commit \}\)/);
+});
+
 test("Esc leaves the search from the top", () => {
-  assert.match(slice("onKey"), /clearSearch\(\);\s*toTop\(\);\s*store\.commit\(\);/);
+  assert.match(slice("onKey"), /clearSearch\(\);\s*pager\.goTo\(1\);/);
 });

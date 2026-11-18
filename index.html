@@ -2823,7 +2823,7 @@ function withoutArchived(items, checklistId) {
 
 // Two neighbour sets: lists — the query's result; items — their list's real
 // rows.
-function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }) {
+function createOrder({ getState, visibleChecklists, withoutArchived, pages }) {
   // One order doc per list, plus one for the lists themselves.
   const key = (listId) => `order:${listId}`;
 
@@ -2923,7 +2923,7 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
       const [rest, group] = split(st.checklists, ids);
       st.checklists = spliceInto(rest, group, landing(rest, rest, target));
       if (target === "top") st.ui.page = 1;
-      if (target === "bottom") st.ui.page = pageCount(visibleChecklists().length);
+      if (target === "bottom") st.ui.page = pages();
       return;
     }
     placeItems(st, ids, target);
@@ -2970,7 +2970,7 @@ function createOrder({ getState, visibleChecklists, withoutArchived, pageCount }
 }
 
 const order = createOrder({
-  getState: () => state, visibleChecklists, withoutArchived, pageCount,
+  getState: () => state, visibleChecklists, withoutArchived, pages: () => pager.pages(),
 });
 
 const safeToReload = () => !state.ui.editing && !pointer.active() && !modalOpen();
@@ -3167,9 +3167,7 @@ function clearSearch() {
 
 function setSearchScope(key) {
   state.ui.search[key] = !state.ui.search[key];
-  state.ui.page = 1;
-  toTop();
-  store.commit();
+  pager.goTo(1);
 }
 
 // Leave the search, then reveal the row for real: an item behind a collapsed
@@ -3232,19 +3230,33 @@ function visibleChecklists() {
   return state.checklists.filter((c) => !c.archived && search.allowsList(c.id));
 }
 
-function pageCount(total) {
-  const size = state.ui.pageSize;
-  if (size === "all") return 1;
-  return Math.max(1, Math.ceil(total / size));
+// A new result set starts at its top: page, scroll & paint move together.
+function createPager({ visible, top, repaint }) {
+  const pages = () => {
+    const size = state.ui.pageSize;
+    if (size === "all") return 1;
+    return Math.max(1, Math.ceil(visible().length / size));
+  };
+  const page = () => clamp(state.ui.page, 1, pages());
+  return {
+    pages,
+    page,
+    rows() {
+      const all = visible();
+      const size = state.ui.pageSize;
+      if (size === "all") return all;
+      const start = (clamp(state.ui.page, 1, Math.ceil(all.length / size)) - 1) * size;
+      return all.slice(start, start + size);
+    },
+    goTo(n) {
+      state.ui.page = clamp(n, 1, pages());
+      top();
+      repaint();
+    },
+  };
 }
 
-function pagedChecklists() {
-  const all = visibleChecklists();
-  const size = state.ui.pageSize;
-  if (size === "all") return all;
-  const start = (clamp(state.ui.page, 1, pageCount(all.length)) - 1) * size;
-  return all.slice(start, start + size);
-}
+const pager = createPager({ visible: visibleChecklists, top: toTop, repaint: store.commit });
 
 function findList(id) {
   return state.checklists.find((c) => c.id === id);
@@ -3819,7 +3831,7 @@ function reconcile(host, nodes) {
 }
 
 function renderLists() {
-  rowView.sync(byId("lists"), pagedChecklists());
+  rowView.sync(byId("lists"), pager.rows());
   renderEmpty(visibleChecklists().length);
 }
 
@@ -3839,8 +3851,7 @@ function renderEmpty(shown) {
     button.addEventListener("click", () => {
       state.ui.search.lists = true;
       state.ui.search.items = true;
-      state.ui.page = 1;
-      store.commit();
+      pager.goTo(1);
     });
     empty.append(button);
   }
@@ -3851,14 +3862,12 @@ function isMuted(items) {
 }
 
 function renderPager() {
-  const total = visibleChecklists().length;
-  const pages = pageCount(total);
-  const pager = byId("pager");
-  pager.hidden = state.ui.pageSize === "all" || pages <= 1;
-  document.documentElement.style.setProperty("--pager-h", pager.hidden ? "0px" : `${pager.offsetHeight}px`);
-  if (pager.hidden) return;
-  const page = clamp(state.ui.page, 1, pages);
-  state.ui.page = page;
+  const pages = pager.pages();
+  const bar = byId("pager");
+  bar.hidden = pages <= 1;
+  document.documentElement.style.setProperty("--pager-h", bar.hidden ? "0px" : `${bar.offsetHeight}px`);
+  if (bar.hidden) return;
+  const page = pager.page();
   byId("page-info").textContent = t("page_of", { n: page, m: pages });
   byId("page-prev").disabled = page <= 1;
   byId("page-next").disabled = page >= pages;
@@ -4433,8 +4442,7 @@ function openSettings() {
       ui.pageSize,
       (value) => {
         state.ui.pageSize = value === "all" ? "all" : Number(value);
-        state.ui.page = 1;
-        store.commit();
+        pager.goTo(1);
       },
     )),
   );
@@ -4583,7 +4591,7 @@ function openArchive() {
       onClick: withSelection((ids) => {
         restore(view.tab === "lists" ? "list" : "item", ids);
         view.sel.clear();
-        store.commit();
+        pager.goTo(1);
         paint();
       }),
     },
@@ -5804,8 +5812,7 @@ function onKey(event) {
   }
   byId("search-input").blur();
   clearSearch();
-  toTop();
-  store.commit();
+  pager.goTo(1);
 }
 
 let resizeTimer = 0;
@@ -5849,14 +5856,11 @@ function bind() {
   byId("search-clear").addEventListener("click", () => {
     byId("search-input").blur();
     clearSearch();
-    toTop();
-    store.commit();
+    pager.goTo(1);
   });
   byId("search-input").addEventListener("input", (event) => {
     state.ui.search.text = event.target.value;
-    state.ui.page = 1;
-    toTop();
-    store.commit();
+    pager.goTo(1);
   });
   byId("scope-lists").addEventListener("click", () => setSearchScope("lists"));
   byId("scope-items").addEventListener("click", () => setSearchScope("items"));
@@ -5866,14 +5870,10 @@ function bind() {
   byId("btn-help").addEventListener("click", openHelp);
   byId("banner-close").addEventListener("click", hideToast);
   byId("page-prev").addEventListener("click", () => {
-    state.ui.page -= 1;
-    toTop();
-    store.commit();
+    pager.goTo(pager.page() - 1);
   });
   byId("page-next").addEventListener("click", () => {
-    state.ui.page += 1;
-    toTop();
-    store.commit();
+    pager.goTo(pager.page() + 1);
   });
   const lists = byId("lists");
   lists.addEventListener("click", onListClick);

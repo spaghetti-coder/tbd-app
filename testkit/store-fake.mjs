@@ -6,7 +6,7 @@ import { wireOrder } from "./state.mjs";
 export const STORE = [
   "createStore", "createOrder", "createSearch", "uiDoc", "patch", "clamp", "UI_KEY",
   "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived",
-  "visibleChecklists", "pageCount",
+  "visibleChecklists", "createPager",
 ];
 
 // Reads sorted by key, like getAll: rows carry no ordinal.
@@ -122,13 +122,17 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
   let state = api.defaults();
   const search = api.createSearch(() => state);
   globals.search = search;
-  const order = wireOrder(api, () => state);
+  // No screen here: scroll a no-op, repaint real.
+  const pager = api.createPager({
+    visible: api.visibleChecklists, top: () => {}, repaint: (kind, id) => store.commit(kind, id),
+  });
+  const order = wireOrder(api, () => state, () => pager.pages());
   const store = api.createStore({
     storage, echo, order, getState: () => state, canReload, onError: () => errors.push("storage_error"),
     paint: (kind, id) => painted.push(kind ? `${kind}:${id}` : "all"),
   });
   // App actions over the same state.
-  const actBox = { ...globals, store, order };
+  const actBox = { ...globals, store, order, pager };
   const act = sliceVm([...new Set(["patch", ...actions])], actBox);
   const assign = (value) => {
     state = value;

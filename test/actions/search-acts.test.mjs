@@ -160,6 +160,7 @@ function emptyHarness(search, checklists) {
     t: (key) => key,
     state: { checklists, ui: { page: 9, search: { text: "нет", lists: true, items: false } } },
     store: { commit: () => { env.commits += 1; } },
+    pager: { goTo: (n) => { env.state.ui.page = n; env.commits += 1; } },
     search,
     commits: 0,
   };

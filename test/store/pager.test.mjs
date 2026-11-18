@@ -1,4 +1,4 @@
-// Pager visibility + page math: hidden unless >1 page.
+// Pager: page math & going to a page.
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -6,30 +6,38 @@ import { ids, list } from "../../testkit/fixtures.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { stateHarness } from "../../testkit/state.mjs";
 
+/* --- the bar --- */
+
 const nodes = {};
-const pagerEnv = {
+const barEnv = {
   state: { ui: { page: 1, pageSize: 20 }, checklists: [] },
   byId: (id) => (nodes[id] ??= { hidden: false, disabled: false, textContent: "" }),
   t: (key, vars) => `${key} ${vars.n}/${vars.m}`,
-  visibleChecklists: () => pagerEnv.state.checklists,
   document: { documentElement: { style: { setProperty() {} } } },
+  tops: [],
+  commits: [],
 };
-const { renderPager } = sliceVm(["clamp", "pageCount", "renderPager"], pagerEnv);
+const { createPager, renderPager } = sliceVm(["clamp", "createPager", "renderPager"], barEnv);
+barEnv.pager = createPager({
+  visible: () => barEnv.state.checklists,
+  top: () => barEnv.tops.push(1),
+  repaint: (kind) => barEnv.commits.push(kind ?? "all"),
+});
 
 const render = (count, pageSize, page) => {
-  pagerEnv.state.checklists = Array.from({ length: count }, (_, i) => ({ id: `l${i}` }));
-  pagerEnv.state.ui.pageSize = pageSize;
-  pagerEnv.state.ui.page = page;
+  barEnv.state.checklists = Array.from({ length: count }, (_, i) => ({ id: `l${i}` }));
+  barEnv.state.ui.pageSize = pageSize;
+  barEnv.state.ui.page = page;
   for (const node of Object.values(nodes)) {
     node.hidden = false;
     node.disabled = false;
     node.textContent = "";
   }
   renderPager();
-  return { ...nodes, page: pagerEnv.state.ui.page };
+  return { ...nodes, page: barEnv.state.ui.page };
 };
 
-test("a second page shows the pager", () => {
+test("a second page shows the bar", () => {
   const out = render(21, 20, 1);
   assert.equal(out.pager.hidden, false);
   assert.equal(out["page-info"].textContent, "page_of 1/2");
@@ -44,52 +52,73 @@ test("the last page has no next", () => {
   assert.equal(out["page-next"].disabled, true);
 });
 
-test("one page hides the pager", () => {
+test("one page hides the bar", () => {
   assert.equal(render(20, 20, 1).pager.hidden, true, "exactly one page");
   assert.equal(render(0, 20, 1).pager.hidden, true, "nothing at all");
 });
 
-test("\"all\" hides the pager", () => {
+test("\"all\" hides the bar", () => {
   assert.equal(render(100, "all", 1).pager.hidden, true);
 });
 
-test("a stale page number is clamped back into range", () => {
-  assert.equal(render(25, 10, 9).page, 3);
+test("painting clamps a stale page and writes nothing", () => {
+  const out = render(25, 10, 9);
+  assert.equal(out["page-info"].textContent, "page_of 3/3", "shown as the last page");
+  assert.equal(out["page-next"].disabled, true);
+  assert.equal(barEnv.state.ui.page, 9, "paint does not fix the number");
 });
 
-/* --- page math --- */
+/* --- going to a page --- */
 
-const { api, store, scrollTargetOf } = stateHarness([
-  "pageCount",
-  "pagedChecklists",
-  "jumpTo",
-  "visibleChecklists",
-  "clamp",
-]);
+const { api, pager, store, scrollTargetOf, calls, resetCalls } = stateHarness(["jumpTo"]);
 
-test("pageCount rounds up, never drops below one page and ignores totals for \"all\"", () => {
-  const state = store([], []);
-  state.ui.pageSize = 20;
-  assert.equal(api.pageCount(0), 1);
-  assert.equal(api.pageCount(20), 1);
-  assert.equal(api.pageCount(21), 2);
+const shelf = (count, ui) => store(Array.from({ length: count }, (_, i) => list(`l${i}`)), [], ui);
+
+test("pages rounds up, never below one, ignores the total for \"all\"", () => {
+  shelf(0, { pageSize: 20 });
+  assert.equal(pager.pages(), 1, "an empty shelf is one page");
+  shelf(20, { pageSize: 20 });
+  assert.equal(pager.pages(), 1);
+  const state = shelf(21, { pageSize: 20 });
+  assert.equal(pager.pages(), 2);
   state.ui.pageSize = "all";
-  assert.equal(api.pageCount(999), 1);
+  assert.equal(pager.pages(), 1);
 });
 
-test("pagedChecklists pages the visible checklists and clamps the page index", () => {
-  const state = store(
-    [list("c1"), list("c2", { archived: true }), list("c3"), list("c4"), list("c5")], [], { pageSize: 2 });
-  assert.deepEqual(ids(api.pagedChecklists()), ["c1", "c3"]);
+test("rows takes the current page, clamped", () => {
+  const state = shelf(5, { pageSize: 2 });
+  state.checklists[1].archived = true;
+  assert.deepEqual(ids(pager.rows()), ["l0", "l2"]);
   state.ui.page = 2;
-  assert.deepEqual(ids(api.pagedChecklists()), ["c4", "c5"]);
+  assert.deepEqual(ids(pager.rows()), ["l3", "l4"]);
   state.ui.page = 9;
-  assert.deepEqual(ids(api.pagedChecklists()), ["c4", "c5"], "past the last page shows the last page");
+  assert.deepEqual(ids(pager.rows()), ["l3", "l4"], "past the end shows the last page");
   state.ui.page = 0;
-  assert.deepEqual(ids(api.pagedChecklists()), ["c1", "c3"]);
+  assert.deepEqual(ids(pager.rows()), ["l0", "l2"]);
   state.ui.pageSize = "all";
-  assert.deepEqual(ids(api.pagedChecklists()), ["c1", "c3", "c4", "c5"]);
+  assert.deepEqual(ids(pager.rows()), ["l0", "l2", "l3", "l4"]);
 });
+
+test("going to a page moves page, scroll & paint together", () => {
+  const state = shelf(50, { pageSize: 10, page: 1 });
+  resetCalls();
+  pager.goTo(3);
+  assert.equal(state.ui.page, 3);
+  assert.equal(calls(), "toTop,commit");
+  pager.goTo(99);
+  assert.equal(state.ui.page, 5, "clamped to the last page");
+  pager.goTo(0);
+  assert.equal(state.ui.page, 1, "and to the first");
+});
+
+test("a new set on the current page still starts at the top", () => {
+  shelf(50, { pageSize: 10, page: 1 });
+  resetCalls();
+  pager.goTo(1);
+  assert.equal(calls(), "toTop,commit", "no early return");
+});
+
+/* --- jumping to a row --- */
 
 test("jumpTo moves to the page that holds the checklist", () => {
   const state = store([list("c1"), list("c2"), list("c3"), list("c4"), list("c5")], [], { pageSize: 2, page: 1 });
