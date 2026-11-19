@@ -70,7 +70,7 @@ test("painting clamps a stale page and writes nothing", () => {
 
 /* --- going to a page --- */
 
-const { api, pager, store, scrollTargetOf, calls, resetCalls } = stateHarness(["jumpTo"]);
+const { api, pager, store, revealTo, calls, resetCalls } = stateHarness(["jumpTo"]);
 
 const shelf = (count, ui) => store(Array.from({ length: count }, (_, i) => list(`l${i}`)), [], ui);
 
@@ -124,7 +124,7 @@ test("jumpTo moves to the page that holds the checklist", () => {
   const state = store([list("c1"), list("c2"), list("c3"), list("c4"), list("c5")], [], { pageSize: 2, page: 1 });
   api.jumpTo("c1");
   assert.equal(state.ui.page, 1);
-  assert.deepEqual({ ...scrollTargetOf() }, { kind: "list", id: "c1" });
+  assert.deepEqual(revealTo(), { kind: "list", id: "c1", flash: "normal" });
   api.jumpTo("c4");
   assert.equal(state.ui.page, 2);
   api.jumpTo("c5");

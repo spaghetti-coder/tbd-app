@@ -14,12 +14,17 @@ export const wireOrder = (api, getState, pages) => api.createOrder({
 const ORDER = ["createOrder", "createPager", "clamp", "withoutArchived", "visibleChecklists"];
 
 export function stateHarness(names) {
-  // Globals the sliced functions reach; assigning one (search, scrollTarget)
-  // writes back here.
+  // The last ask is the pending one.
+  const revealed = [];
+  // Globals the sliced functions reach; assigning one (search) writes back here.
   const sandbox = {
     state: null,
     search: null,
-    scrollTarget: null,
+    reveal: {
+      to: (kind, id, { flash = "normal" } = {}) => revealed.push({ kind, id, flash }),
+      row: () => {},
+      afterPaint: () => {},
+    },
     lastToast: null,
     calls: [],
     // scrollY is set by tests; scrollTo logs like every other call.
@@ -49,8 +54,10 @@ export function stateHarness(names) {
     search: sandbox.search,
     order: sandbox.order,
     pager: sandbox.pager,
-    scrollTargetOf: () => sandbox.scrollTarget,
-    resetScroll: () => { sandbox.scrollTarget = null; },
+    revealTo: () => revealed[revealed.length - 1] ?? null,
+    resetReveal: () => {
+      revealed.length = 0;
+    },
     setScroll: (y) => { sandbox.scrollY = y; },
     toastOf: () => sandbox.lastToast,
     calls: () => sandbox.calls.join(","),
@@ -61,6 +68,7 @@ export function stateHarness(names) {
     // Rebuilt with each state: no stale query from a previous test.
     store: (checklists, items, ui) => {
       sandbox.calls.length = 0;
+      revealed.length = 0;
       sandbox.state = {
         checklists,
         items,

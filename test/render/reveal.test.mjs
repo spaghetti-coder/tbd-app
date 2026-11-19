@@ -1,9 +1,8 @@
-// Scroll stops at the visible band; centring puts a row under the keyboard &
-// pans the visual viewport, pushing the sticky header off screen. New results
-// start at the page top.
+// Reveal stops at the visible band; an ask dies on the next paint.
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { clockFake } from "../../testkit/store-fake.mjs";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { fakeNode } from "../../testkit/fake-dom.mjs";
 
@@ -76,4 +75,96 @@ test("reduced motion reaches the top at once", () => {
 
 test("already at the top - nothing runs", () => {
   assert.equal(topScroll(0, false), "");
+});
+
+/* --- who is revealed --- */
+
+const REVEAL = [
+  "reduce", "scrollBehavior", "visibleBand", "revealDelta", "revealTop",
+  "FLASH", "LONG_FLASH", "flashTimers", "createReveal",
+];
+
+// A screen: header to 56, pager 44, viewport 800 -> band 64..740.
+const stage = (rect) => {
+  const clock = clockFake();
+  const scrolls = [];
+  const topbar = fakeNode({ rect: { top: 0, bottom: 56 } });
+  const pager = fakeNode({ classes: ["pager"], height: 44 });
+  const zone = fakeNode({ classes: ["card__row"], rect });
+  const row = fakeNode({
+    classes: ["card"], kind: "list", id: "L1",
+    children: [fakeNode({ classes: ["card__head"], rect: { top: 56, bottom: 100 } }), zone],
+  });
+  const props = {};
+  row.style = {
+    setProperty: (name, value) => {
+      props[name] = value;
+    },
+    removeProperty: (name) => {
+      delete props[name];
+    },
+  };
+  const reveal = sliceVm(REVEAL, {
+    matchMedia: () => ({ matches: false }),
+    document: { querySelector: (selectors) => (selectors === ".topbar" ? topbar : null) },
+    byId: (id) => (id === "pager" ? pager : null),
+    visualViewport: { height: 800, offsetTop: 0 },
+    scrollBy: (opts) => scrolls.push(`${opts.top} ${opts.behavior}`),
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+  }).createReveal({
+    rowById: (kind, id) => (id === "L1" ? row : null),
+    parts: () => ({ zone }),
+  });
+  return { reveal, scrolls, row, props, clock };
+};
+
+// 204px of scroll reach the bottom edge.
+const below = { top: 900, bottom: 944 };
+
+test("a jump is revealed by the paint that brings it, once", () => {
+  const { reveal, scrolls } = stage(below);
+  reveal.afterPaint();
+  assert.deepEqual(scrolls, [], "nothing asked for yet");
+  reveal.to("list", "L1");
+  reveal.afterPaint();
+  assert.deepEqual(scrolls, ["204 smooth"]);
+  reveal.afterPaint();
+  assert.equal(scrolls.length, 1, "spent on the paint it waited for");
+});
+
+test("a revealed row flashes and stops on its own", () => {
+  const { reveal, row, props, clock } = stage(below);
+  reveal.to("list", "L1");
+  reveal.afterPaint();
+  assert.equal(props["--flash"], "900ms");
+  assert.ok(row.classes.has("is-flash"));
+  clock.run();
+  assert.equal(props["--flash"], undefined);
+  assert.ok(!row.classes.has("is-flash"));
+});
+
+test("a jump across screens flashes twice as long", () => {
+  const { reveal, props } = stage(below);
+  reveal.to("item", "L1", { flash: "long" });
+  reveal.afterPaint();
+  assert.equal(props["--flash"], "1800ms");
+});
+
+test("a row the paint did not bring is dropped, not held", () => {
+  const { reveal, scrolls } = stage(below);
+  reveal.to("item", "gone");
+  reveal.afterPaint();
+  assert.deepEqual(scrolls, []);
+  reveal.to("list", "L1");
+  reveal.afterPaint();
+  assert.deepEqual(scrolls, ["204 smooth"], "the next ask still lands");
+});
+
+test("a keyboard re-flow re-reveals, nothing flashes", () => {
+  const { reveal, row, props, scrolls } = stage(below);
+  reveal.row(row);
+  reveal.row(row);
+  assert.deepEqual(scrolls, ["204 smooth", "204 smooth"]);
+  assert.equal(props["--flash"], undefined);
 });

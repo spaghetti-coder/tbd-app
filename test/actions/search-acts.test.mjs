@@ -7,8 +7,6 @@ import { sliceVm } from "../../testkit/html-source.mjs";
 import { searchOver, stateHarness } from "../../testkit/state.mjs";
 
 const NAMES = [
-  "FLASH",
-  "JUMP_FLASH",
   "gotoHit",
   "clearSearch",
   "reduce",
@@ -22,7 +20,7 @@ const NAMES = [
   "clamp",
 ];
 
-const { api, store, search, scrollTargetOf, resetScroll, setScroll, calls, resetCalls } = stateHarness(NAMES);
+const { api, store, search, revealTo, resetReveal, setScroll, calls, resetCalls } = stateHarness(NAMES);
 
 const rows = () => ([
   list("l1", { title: "Молоко" }),
@@ -39,28 +37,30 @@ const typed = (text, ui) => store(rows(), items(), { search: { text, lists: true
 test("jumping to an item leaves the search and opens its list for real", () => {
   const state = typed("молоко");
   resetCalls();
+  resetReveal();
   api.gotoHit("item", "i1");
   assert.equal(state.ui.search.text, "");
   assert.equal(state.checklists.find((cl) => cl.id === "l2").expanded, true);
-  assert.deepEqual(plain(scrollTargetOf()), { kind: "item", id: "i1", flash: 1800 }, "the item is revealed, flash held");
+  assert.deepEqual(plain(revealTo()), { kind: "item", id: "i1", flash: "long" }, "the item is revealed, flash held");
   assert.equal(calls(), "commit");
 });
 
 test("jumping to a list lands on the page that holds it", () => {
   const state = typed("молоко", { pageSize: 2 });
+  resetReveal();
   api.gotoHit("list", "l3");
   assert.equal(state.ui.search.text, "");
   assert.equal(state.ui.page, 2, "l3 is 3rd of 3, 2 per page");
-  assert.deepEqual(plain(scrollTargetOf()), { kind: "list", id: "l3", flash: 1800 });
+  assert.deepEqual(plain(revealTo()), { kind: "list", id: "l3", flash: "long" });
 });
 
 test("a hit that is gone closes the search without moving the screen", () => {
   const state = typed("молоко");
-  resetScroll();
+  resetReveal();
   resetCalls();
   api.gotoHit("item", "nope");
   assert.equal(state.ui.search.text, "");
-  assert.equal(scrollTargetOf(), null);
+  assert.equal(revealTo(), null);
   assert.equal(calls(), "commit");
 });
 
@@ -68,10 +68,10 @@ test("an archived list is not scrolled to", () => {
   const state = store(rows(), items(), { search: { text: "молоко", lists: true, items: true } });
   state.checklists[1].archived = true;
   search.refresh();
-  resetScroll();
+  resetReveal();
   resetCalls();
   api.gotoHit("item", "i1");
-  assert.equal(scrollTargetOf(), null);
+  assert.equal(revealTo(), null);
   assert.equal(state.ui.search.text, "");
 });
 

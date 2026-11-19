@@ -40,7 +40,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
     search,
     jumpTo: () => {},
     clearSearch: () => {},
-    scrollTarget: null,
+    reveal: { to: () => {}, row: () => {}, afterPaint: () => {} },
     uid: () => "i2",
     order: { place: () => {} },
     rowById: (kind, id) => (onScreen ? shape.rows[id] : null) ?? null,

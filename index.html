@@ -3175,7 +3175,7 @@ function gotoHit(kind, id) {
     patch("list", cl.id, { expanded: true });
   }
   jumpTo(cl.id);
-  scrollTarget = { kind, id, flash: JUMP_FLASH };
+  reveal.to(kind, id, { flash: "long" });
   store.commit();
 }
 
@@ -3272,8 +3272,6 @@ function entityText(kind, id) {
 
 /* --- entities --- */
 
-let scrollTarget = null;
-
 function addChecklist() {
   editor.flush();
   // A fresh empty row never matches the query on screen, so the query goes
@@ -3307,7 +3305,7 @@ function addItem(checklistId) {
   state.items.push(item);
   order.place("item", [item.id], state.ui.newItem === "top" ? "top" : "bottom");
   state.ui.editing = { kind: "item", id: item.id };
-  scrollTarget = { kind: "item", id: item.id };
+  reveal.to("item", item.id);
   store.commit();
 }
 
@@ -3462,7 +3460,7 @@ function jumpTo(id) {
   const page = order.pageFor(id);
   if (!page) return;
   state.ui.page = page;
-  scrollTarget = { kind: "list", id };
+  reveal.to("list", id);
 }
 
 function setExpandedAll(open) {
@@ -3734,14 +3732,10 @@ const rowView = createRowView({
   getState: () => state,
   search,
   selection,
-  askFocus: () => {
-    needFocus = true;
-  },
+  askFocus: () => focus.ask(),
 });
 
 /* --- render --- */
-
-let needFocus = false;
 
 // Icon-only buttons get their aria-label as a tooltip too: the fallback glyphs
 // are not self-explanatory.
@@ -3751,67 +3745,104 @@ function labelNode(node, key) {
   node.title = text;
 }
 
-let focusWanted = null;
+/* --- focus --- */
 
-function captureFocus() {
-  focusWanted = null;
-  const node = document.activeElement;
-  if (!node || node === document.body || node.tagName === "INPUT" || node.tagName === "SELECT") {
-    return;
+// A rebuild eats the focused button.
+function createFocusKeeper({ getState, rowById, parts }) {
+  let wanted = null;
+  let asked = false;
+
+  function usable(node) {
+    return node && !node.disabled && node.getClientRects().length > 0 ? node : null;
   }
-  const act = node.getAttribute("data-act");
-  if (!act) return;
-  if (node.closest("#panel")) {
-    focusWanted = { scope: "panel", act };
-    return;
+
+  function successor(want) {
+    const host = want.listId
+      ? rowById("list", want.listId)?.querySelector(".items")
+      : byId("lists");
+    const row = host ? host.children[want.index] : null;
+    return row ? parts(row).zone.querySelector(`[data-act="${want.act}"]`) : null;
   }
-  const row = node.closest("#lists [data-kind][data-id]");
-  if (!row) {
-    return;
+
+  function resolve(want) {
+    if (want.scope === "panel") {
+      return document.querySelector(`#panel [data-act="${want.act}"]`);
+    }
+    const row = rowById(want.kind, want.id);
+    return row ? parts(row).zone.querySelector(`[data-act="${want.act}"]`) : successor(want);
   }
-  const card = row.parentElement ? row.parentElement.closest("[data-kind='list']") : null;
-  focusWanted = {
-    scope: "lists",
-    kind: row.dataset.kind,
-    id: row.dataset.id,
-    act,
-    listId: card ? card.dataset.id : null,
-    index: [...row.parentElement.children].indexOf(row),
-  };
-}
 
-function usable(node) {
-  return node && !node.disabled && node.getClientRects().length > 0 ? node : null;
-}
-
-function rowZone(row) {
-  return rowView.parts(row).zone;
-}
-
-function listRowFocus(want) {
-  const row = rowById(want.kind, want.id);
-  if (row) {
-    return rowZone(row).querySelector(`[data-act="${want.act}"]`);
+  function focusEditor(kind, id) {
+    const row = rowById(kind, id);
+    const input = row && parts(row).input;
+    if (!input) {
+      return;
+    }
+    input.focus({ preventScroll: true });
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
   }
-  const host = want.listId
-    ? rowById("list", want.listId)?.querySelector(".items")
-    : byId("lists");
-  const successor = host ? host.children[want.index] : null;
-  return successor ? rowZone(successor).querySelector(`[data-act="${want.act}"]`) : null;
+
+  function capture() {
+    wanted = null;
+    const node = document.activeElement;
+    if (!node || node === document.body || node.tagName === "INPUT" || node.tagName === "SELECT") {
+      return;
+    }
+    const act = node.getAttribute("data-act");
+    if (!act) return;
+    if (node.closest("#panel")) {
+      wanted = { scope: "panel", act };
+      return;
+    }
+    const row = node.closest("#lists [data-kind][data-id]");
+    if (!row) {
+      return;
+    }
+    const card = row.parentElement ? row.parentElement.closest("[data-kind='list']") : null;
+    wanted = {
+      scope: "lists",
+      kind: row.dataset.kind,
+      id: row.dataset.id,
+      act,
+      listId: card ? card.dataset.id : null,
+      index: [...row.parentElement.children].indexOf(row),
+    };
+  }
+
+  // One-shot: spent by the next restore.
+  function ask() {
+    asked = true;
+  }
+
+  function restore() {
+    const want = wanted;
+    wanted = null;
+    if (want) {
+      const node = usable(resolve(want));
+      (node ?? byId("lists")).focus({ preventScroll: true });
+    }
+    if (!asked) {
+      return;
+    }
+    asked = false;
+    const editing = getState().ui.editing;
+    if (editing) {
+      focusEditor(editing.kind, editing.id);
+    }
+  }
+
+  return { capture, ask, restore };
 }
 
-function restoreFocus() {
-  const want = focusWanted;
-  focusWanted = null;
-  if (!want) return;
-  const node = usable(want.scope === "panel"
-    ? document.querySelector(`#panel [data-act="${want.act}"]`)
-    : listRowFocus(want));
-  (node ?? byId("lists")).focus({ preventScroll: true });
-}
+const focus = createFocusKeeper({
+  getState: () => state,
+  rowById,
+  parts: rowView.parts,
+});
 
 function render() {
-  captureFocus();
+  focus.capture();
   search.refresh();
   selection.current();
   renderChrome();
@@ -3997,23 +4028,10 @@ function paintRow(row, kind, id) {
 }
 
 function afterRender() {
-  restoreFocus();
+  focus.restore();
   fitMatches();
-  if (needFocus && state.ui.editing) {
-    focusEditor(state.ui.editing.kind, state.ui.editing.id);
-  }
-  needFocus = false;
-  if (scrollTarget) applyScrollTarget();
+  reveal.afterPaint();
   rowDrag.afterRender();
-}
-
-function focusEditor(kind, id) {
-  const row = rowById(kind, id);
-  const input = row && rowView.parts(row).input;
-  if (!input) return;
-  input.focus({ preventScroll: true });
-  const end = input.value.length;
-  input.setSelectionRange(end, end);
 }
 
 // What the user can actually see: under the header (its rect carries the
@@ -4058,17 +4076,60 @@ function revealTop(row, band) {
   return Math.abs(rect.top - band.header) < 1 ? band.header : band.top;
 }
 
-// Scrolling has to stay on the document: when the row cannot be centred there,
-// Chrome pans the visual viewport instead, and the sticky header rides out of
-// sight with it.
-function revealRow(row) {
-  const band = visibleBand();
-  band.top = revealTop(row, band);
-  const delta = revealDelta(rowZone(row).getBoundingClientRect(), band);
-  if (delta) {
-    scrollBy({ top: delta, behavior: scrollBehavior() });
+// 2x: the eye just travelled across screens.
+const FLASH = 900;
+const LONG_FLASH = FLASH * 2;
+const flashTimers = new WeakMap();
+
+// An ask is spent by the next afterPaint; row() never flashes.
+function createReveal({ rowById, parts }) {
+  let pending = null;
+
+  // Document scroll: a viewport pan drags the sticky header off screen.
+  function revealRow(row) {
+    const band = visibleBand();
+    band.top = revealTop(row, band);
+    const delta = revealDelta(parts(row).zone.getBoundingClientRect(), band);
+    if (delta) {
+      scrollBy({ top: delta, behavior: scrollBehavior() });
+    }
   }
+
+  function flashRow(row, ms) {
+    clearTimeout(flashTimers.get(row));
+    row.style.setProperty("--flash", `${ms}ms`);
+    row.classList.remove("is-flash");
+    // Force a re-read: re-adding the class alone would not restart it.
+    void row.offsetWidth;
+    row.classList.add("is-flash");
+    flashTimers.set(row, setTimeout(() => {
+      row.classList.remove("is-flash");
+      row.style.removeProperty("--flash");
+      flashTimers.delete(row);
+    }, ms));
+  }
+
+  return {
+    row: revealRow,
+    to(kind, id, { flash = "normal" } = {}) {
+      pending = { kind, id, ms: flash === "long" ? LONG_FLASH : FLASH };
+    },
+    afterPaint() {
+      if (!pending) {
+        return;
+      }
+      const target = pending;
+      pending = null;
+      const row = rowById(target.kind, target.id);
+      if (row) {
+        revealRow(row);
+        flashRow(row, target.ms);
+      }
+    },
+  };
 }
+
+const reveal = createReveal({ rowById, parts: rowView.parts });
 
 // A new result set — query, scope, page — starts at the top: deep in the old
 // scroll it stays off screen.
@@ -4076,33 +4137,6 @@ function toTop() {
   if (scrollY > 0) {
     scrollTo({ top: 0, behavior: scrollBehavior() });
   }
-}
-
-// A jump from the search holds the flash twice as long: the eye has just
-// travelled here.
-const FLASH = 900;
-const JUMP_FLASH = FLASH * 2;
-const flashTimers = new WeakMap();
-
-function applyScrollTarget() {
-  const target = scrollTarget;
-  scrollTarget = null;
-  const row = rowById(target.kind, target.id);
-  if (!row) return;
-  revealRow(row);
-  const ms = target.flash || FLASH;
-  clearTimeout(flashTimers.get(row));
-  row.style.setProperty("--flash", `${ms}ms`);
-  row.classList.remove("is-flash");
-  // Re-read the layout: re-adding the class of a still-flashing row would not
-  // restart the animation.
-  void row.offsetWidth;
-  row.classList.add("is-flash");
-  flashTimers.set(row, setTimeout(() => {
-    row.classList.remove("is-flash");
-    row.style.removeProperty("--flash");
-    flashTimers.delete(row);
-  }, ms));
 }
 
 /* --- modal layer --- */
@@ -5877,7 +5911,7 @@ function onViewportChange() {
   }
   const row = rowById(editing.kind, editing.id);
   if (row) {
-    revealRow(row);
+    reveal.row(row);
   }
 }
 
