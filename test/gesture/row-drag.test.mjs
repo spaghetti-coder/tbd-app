@@ -91,8 +91,9 @@ const box = {
     },
     rows: (container) => [...container.children],
   }),
+  // The drag only reads what it is handed.
+  selection: { current: () => box.picked ?? null },
   getState: () => ({
-    ui: { bulk: box.bulk ?? { kind: null, ids: [] } },
     checklists: [{ id: "A" }, { id: "C" }],
     items: [{ id: "i1", checklistId: "A" }, { id: "i2", checklistId: "A" }, { id: "i3", checklistId: "A" }],
   }),
@@ -113,7 +114,7 @@ const reset = () => {
   frames.length = 0;
   clones.length = 0;
   box.scrolling = false;
-  box.bulk = null;
+  box.picked = null;
   held.C.expanded = false;
   sync();
   cardC.classes.delete("is-drop-hover");
@@ -156,7 +157,7 @@ test("a lone row rides as one card, the marker as tall as it", () => {
 
 test("a picked group rides as a deck, blank edges under the held card", () => {
   reset();
-  box.bulk = { kind: "item", ids: ["i3", "i1"] };
+  box.picked = { kind: "item", ids: ["i3", "i1"] };
   assert.deepEqual(deckOf(hitItem()), {
     edges: ["rotate(-1.3deg)"], width: "300px", height: "47px", lean: false, top: "i1", marker: "47px",
   });
@@ -164,7 +165,7 @@ test("a picked group rides as a deck, blank edges under the held card", () => {
 
 test("the deck stays a deck however big the group is", () => {
   reset();
-  box.bulk = { kind: "item", ids: ["i1", "i2", "i3", "i9"] };
+  box.picked = { kind: "item", ids: ["i1", "i2", "i3", "i9"] };
   const seen = deckOf(hitItem());
   assert.deepEqual(seen.edges, ["rotate(-2.6deg)", "rotate(-1.3deg)"],
     "the edges are decoration, not a headcount");

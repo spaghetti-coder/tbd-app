@@ -68,7 +68,6 @@ export function stateHarness(names) {
           pageSize: 20,
           page: 1,
           panel: { side: "right", topPct: 0.35, collapsed: false },
-          bulk: { kind: null, ids: [] },
           ...ui,
           search: api.normalizeSearch(ui?.search),
         },

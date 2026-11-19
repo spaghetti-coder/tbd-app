@@ -78,7 +78,8 @@ test("a dropped row paints no marks", () => {
 });
 
 test("bulk mode swaps the checkbox for the pick", () => {
-  const { view } = rowHarness({ checklists: [GARAGE], items: [], ui: ui({ bulk: { kind: "item", ids: ["i1"] } }) });
+  const { view, selection } = rowHarness({ checklists: [GARAGE], items: [I1, I2], ui: ui() });
+  selection.pick("item", "i1");
   const picked = view.paint(itemNode(), I1);
   assert.equal(q(picked, ".mark--bulk").hidden, false);
   assert.equal(q(picked, ".mark--check").hidden, true, "the real checkbox is out");
@@ -86,8 +87,21 @@ test("bulk mode swaps the checkbox for the pick", () => {
   assert.equal(q(view.paint(itemNode(), I2), ".mark--bulk").getAttribute("aria-checked"), "false");
 });
 
+test("a selection whose picks all went leaves the rows alone", () => {
+  const h = rowHarness({ checklists: [GARAGE], items: [{ ...I1 }, { ...I2 }], ui: ui() });
+  h.selection.pick("item", "i1");
+  h.state.items[0].archived = true;
+  // as render does: current() before marks
+  assert.equal(h.selection.current(), null);
+  const row = h.view.paint(itemNode(), h.state.items[1]);
+  assert.equal(q(row, ".mark--check").hidden, false, "the real checkbox is back");
+  assert.equal(q(row, ".mark--bulk").hidden, true);
+  assert.equal(q(row, ".mark--check").getAttribute("aria-checked"), "true", "done shows as done");
+});
+
 test("the other kind's selection leaves the row alone", () => {
-  const { view } = rowHarness({ checklists: [GARAGE], items: [], ui: ui({ bulk: { kind: "list", ids: ["L1"] } }) });
+  const { view, selection } = rowHarness({ checklists: [GARAGE], items: [I1], ui: ui() });
+  selection.pick("list", "L1");
   const row = view.paint(itemNode(), I1);
   assert.equal(q(row, ".mark--bulk").hidden, true);
   assert.equal(q(row, ".mark--check").hidden, false);

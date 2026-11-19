@@ -7,13 +7,13 @@ const doc = new JSDOM(html).window.document;
 // Sliced from index.html, not faked.
 const DEPS = [
   "el", "byId", "ICONS", "iconPair", "labelNode", "paintText", "reconcile",
-  "isMuted", "withoutArchived", "createSearch", "createRowView",
+  "isMuted", "withoutArchived", "createSearch", "createSelection", "createRowView",
 ];
 
 export const ui = (extra = {}) => ({
   pageSize: 20,
   page: 1,
-  bulk: { kind: null, ids: [] },
+  panel: { side: "right", topPct: 0.5, collapsed: false },
   search: { text: "", lists: true, items: true },
   editing: null,
   ...extra,
@@ -24,12 +24,20 @@ export function rowHarness(state = { checklists: [], items: [], ui: ui() }) {
   const sandbox = { document: doc, state, t: (key) => key, needFocus: false };
   const api = sliceVm(DEPS, sandbox);
   const search = api.createSearch(() => sandbox.state);
+  // Real picks: only the paint path is under test.
+  const selection = api.createSelection({
+    getState: () => sandbox.state,
+    order: { atEdge: () => false },
+    editor: { flush: () => {} },
+  });
   return {
     state,
     search,
+    selection,
     view: api.createRowView({
       getState: () => sandbox.state,
       search,
+      selection,
       askFocus: () => {
         sandbox.needFocus = true;
       },

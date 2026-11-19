@@ -34,11 +34,10 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
     state: {
       checklists: lists,
       items,
-      ui: { page: 1, pageSize: 20, bulk: { kind: null, ids: [] }, search: { text: "", lists: true, items: true }, ...ui },
+      ui: { page: 1, pageSize: 20, search: { text: "", lists: true, items: true }, ...ui },
     },
     store: { ...storeStub(saved), commit: (kind, id) => painted.push(kind ? `${kind}:${id}` : "all") },
     search,
-    pruneSelection: () => {},
     jumpTo: () => {},
     clearSearch: () => {},
     scrollTarget: null,
@@ -49,7 +48,7 @@ function box({ lists = [], items = [], ui = {}, onScreen = true, search = search
   };
   // The app's own wiring over this state/store/search.
   const api = sliceVm(["createEditor", "makeEditor", "commitEditor", "draftText", "findList", "findItem",
-    "entityText", "patch", "removeEntity", "pruneSelection", "setBulk", "addItem", "addChecklist"], ctx);
+    "entityText", "patch", "removeEntity", "addItem", "addChecklist"], ctx);
   ctx.editor = api.makeEditor();
   return { ...api, ...shape, ctx, editor: ctx.editor, saved, painted };
 }

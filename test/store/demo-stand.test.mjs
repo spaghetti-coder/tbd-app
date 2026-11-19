@@ -123,10 +123,10 @@ test("a seeded stand carries the given settings, and only them", async () => {
     page: 3,
     panel: { side: "left", topPct: 0.5, collapsed: true },
     search: { text: "ку", lists: false, items: true },
-    bulk: { kind: "list", ids: ["somewhere-else"] },
   });
   assert.deepEqual(conn.docs.map((doc) => doc.key), [UI_KEY]);
-  const { bulk, ...carried } = plain(conn.docs[0].value);
+  const carried = plain(conn.docs[0].value);
+  assert.equal("bulk" in carried, false, "a pick of other data is not carried in its settings");
   assert.deepEqual(carried, {
     theme: "dark",
     lang: "ru",
@@ -137,7 +137,6 @@ test("a seeded stand carries the given settings, and only them", async () => {
     panel: { side: "left", topPct: 0.5, collapsed: true },
     search: { text: "ку" },
   });
-  assert.deepEqual(bulk, { kind: null, ids: [] }, "a selection of other data is no selection here");
 });
 
 test("with nothing to carry, the stand keeps the doc store to itself", async () => {

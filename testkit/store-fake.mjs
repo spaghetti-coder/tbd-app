@@ -5,7 +5,7 @@ import { wireOrder } from "./state.mjs";
 
 export const STORE = [
   "createStore", "createOrder", "createSearch", "uiDoc", "patch", "clamp", "UI_KEY",
-  "PAGE_SIZES", "defaults", "normalizeSearch", "validBulk", "normalize", "withoutArchived",
+  "PAGE_SIZES", "defaults", "normalizeSearch", "normalize", "withoutArchived",
   "visibleChecklists", "createPager",
 ];
 
@@ -146,7 +146,7 @@ export function storeHarness({ disk = {}, canReload = () => true, demo = false, 
     edit: (kind, id, props) => api.patch(kind, id, props),
     state: (checklists, items, ui) => assign({
       checklists, items,
-      ui: { pageSize: 20, page: 1, bulk: { kind: null, ids: [] }, ...ui, search: api.normalizeSearch(ui?.search) },
+      ui: { pageSize: 20, page: 1, ...ui, search: api.normalizeSearch(ui?.search) },
     }),
     setState: assign,
     current: () => state,

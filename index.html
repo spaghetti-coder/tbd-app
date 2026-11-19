@@ -2477,7 +2477,6 @@ function defaults() {
       page: 1,
       panel: { side: "right", topPct: 0.35, collapsed: false },
       editing: null,
-      bulk: { kind: null, ids: [] },
       search: { text: "", lists: true, items: true },
     },
   };
@@ -2493,12 +2492,6 @@ function normalizeSearch(search) {
     lists: search.lists !== false,
     items: search.items !== false,
   };
-}
-
-function validBulk(bulk) {
-  return Boolean(bulk)
-    && (bulk.kind === "list" || bulk.kind === "item")
-    && Array.isArray(bulk.ids);
 }
 
 function normalize(data) {
@@ -2534,9 +2527,8 @@ function normalize(data) {
   }
   out.ui.panel.topPct = clamp(Number(out.ui.panel.topPct) || 0, 0, 1);
   out.ui.panel.collapsed = out.ui.panel.collapsed === true;
-  if (!validBulk(out.ui.bulk)) {
-    out.ui.bulk = { kind: null, ids: [] };
-  }
+  // Picks are not stored.
+  delete out.ui.bulk;
   out.ui.search = normalizeSearch(out.ui.search);
   if (!["system", "dark", "light"].includes(out.ui.theme)) {
     out.ui.theme = "system";
@@ -2810,9 +2802,8 @@ function createStore({ storage, echo, order, getState, canReload, onError, paint
   };
 }
 
-// Live picks are this tab's choice: they do not outlive it.
 function uiDoc(ui) {
-  return { ...ui, search: { text: ui.search.text }, bulk: { kind: null, ids: [] } };
+  return { ...ui, search: { text: ui.search.text } };
 }
 
 function withoutArchived(items, checklistId) {
@@ -3335,7 +3326,6 @@ function removeEntity(kind, id) {
   } else {
     state.items = state.items.filter((i) => i.id !== id);
   }
-  pruneSelection();
 }
 
 /* --- editor --- */
@@ -3442,7 +3432,6 @@ const editor = makeEditor();
 function archiveMany(kind, ids) {
   const archive = kind === "list" ? archiveChecklistQuiet : archiveItemQuiet;
   ids.forEach(id => archive(id));
-  pruneSelection();
 }
 
 function archiveChecklistQuiet(id) {
@@ -3484,66 +3473,104 @@ function setExpandedAll(open) {
   store.commit();
 }
 
-/* --- bulk --- */
+/* --- bulk mode --- */
 
-// An empty id list is no selection: kind goes with it.
-function setBulk(kind, ids) {
-  state.ui.bulk = { kind: ids.length > 0 ? kind : null, ids };
-}
+// Rows Bulk mode acts on: one kind at a time, live rows only.
+// Dead picks drop out on their own: the set is derived, never pruned.
+function createSelection({ getState, order, editor }) {
+  // Set order = order a moved group keeps.
+  let kind = null;
+  const picked = new Set();
 
-function startBulk(kind, id) {
-  editor.flush();
-  setBulk(kind, [id]);
-  state.ui.editing = null;
-  state.ui.panel.collapsed = false;
-  store.commit();
-}
-
-function cancelBulk() {
-  setBulk(null, []);
-  store.commit();
-}
-
-// A picked row that is gone — deleted or archived — leaves the selection; the
-// rest survives.
-function pruneSelection() {
-  const bulk = state.ui.bulk;
-  if (!bulk.ids.length) return;
-  const find = bulk.kind === "list" ? findList : findItem;
-  setBulk(bulk.kind, bulk.ids.filter((id) => {
-    const row = find(id);
-    return Boolean(row) && !row.archived;
-  }));
-}
-
-// Items live in one list each: a selection spread over lists has no single top
-// or bottom.
-function spansLists(bulk) {
-  return bulk.kind === "item" && new Set(bulk.ids.map((id) => (findItem(id) ?? {}).checklistId)).size > 1;
-}
-
-function togglePick(kind, id) {
-  const bulk = state.ui.bulk;
-  const inBulk = bulk.kind === kind && bulk.ids.length > 0;
-  if (bulk.kind !== kind) {
-    state.ui.panel.collapsed = false;
+  // One pass per call: painters ask mark, not this.
+  function liveIds(at) {
+    const rows = at === "list" ? getState().checklists : getState().items;
+    const ids = new Set();
+    for (const row of rows) {
+      if (!row.archived) ids.add(row.id);
+    }
+    return ids;
   }
-  const ids = inBulk ? bulk.ids : [];
-  const picked = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
-  setBulk(kind, picked);
-  // Inside a running selection only this row and the panel change; starting or
-  // ending one repaints every row.
-  if (inBulk && state.ui.bulk.kind === kind) {
-    store.commit(kind, id);
-  } else {
-    store.commit();
+
+  function anyLive() {
+    if (kind === null) return false;
+    const live = liveIds(kind);
+    return [...picked].some((id) => live.has(id));
   }
+
+  // All picks gone -> ends Bulk mode; render asks before painting row marks.
+  function current() {
+    if (kind === null) return null;
+    const live = liveIds(kind);
+    const ids = [...picked].filter((id) => live.has(id));
+    if (ids.length === 0) {
+      end();
+      return null;
+    }
+    return { kind, ids };
+  }
+
+  // null = other kind picked: the row keeps its own control.
+  // No liveness check: only live rows get painted.
+  const mark = (at, id) => (at === kind ? picked.has(id) : null);
+
+  // "all" when every row changed (first, last, kind switch); else "row".
+  function pick(at, id) {
+    if (at !== kind) {
+      kind = at;
+      picked.clear();
+      picked.add(id);
+      getState().ui.panel.collapsed = false;
+      return "all";
+    }
+    if (picked.delete(id)) {
+      if (anyLive()) return "row";
+      end();
+      return "all";
+    }
+    const was = anyLive();
+    picked.add(id);
+    return was ? "row" : "all";
+  }
+
+  // From the row menu: flush the editor, then this row alone.
+  function start(at, id) {
+    editor.flush();
+    kind = at;
+    picked.clear();
+    picked.add(id);
+    getState().ui.editing = null;
+    getState().ui.panel.collapsed = false;
+  }
+
+  function end() {
+    kind = null;
+    picked.clear();
+  }
+
+  // Needs somewhere to go: rows of one list, edge not already held.
+  function canMove(at, ids, where) {
+    return ids.length > 0 && !(at === "item" && spansLists(ids)) && !order.atEdge(at, ids, where);
+  }
+
+  function spansLists(ids) {
+    const wanted = new Set(ids);
+    const lists = new Set();
+    for (const row of getState().items) {
+      if (wanted.has(row.id)) lists.add(row.checklistId);
+    }
+    return lists.size > 1;
+  }
+
+  return { current, mark, pick, start, end, canMove };
 }
+
+const selection = createSelection({ getState: () => state, order, editor });
 
 /* --- row view --- */
 
 // One row: identity, parts, painting. The template's shape lives here.
-function createRowView({ getState, search, askFocus }) {
+function createRowView({ getState, search, selection, askFocus }) {
   // Kind from shape: an item names its list.
   const kindOf = (row) => (row.checklistId === undefined ? "list" : "item");
   // Rows are reused, not rebuilt: resolve parts once per node.
@@ -3639,9 +3666,7 @@ function createRowView({ getState, search, askFocus }) {
     paintText(p.title, cl.title || t("new_list_ph"), search.rangesFor(cl.id));
     p.goto.hidden = search.rangesFor(cl.id) === null;
     labelNode(p.goto, "a_goto");
-    const bulk = getState().ui.bulk;
-    showPick(toggle, p.pick, bulk.kind === "list" ? bulk.ids.includes(cl.id) : null,
-      cl.title || t("new_list_ph"));
+    showPick(toggle, p.pick, selection.mark("list", cl.id), cl.title || t("new_list_ph"));
     paintRowEditor(node, "list", cl.id, cl.title);
   }
 
@@ -3655,9 +3680,7 @@ function createRowView({ getState, search, askFocus }) {
     labelNode(p.menu, "a_menu");
     p.goto.hidden = search.rangesFor(item.id) === null;
     labelNode(p.goto, "a_goto");
-    const bulk = getState().ui.bulk;
-    showPick(p.mark, p.pick, bulk.kind === "item" ? bulk.ids.includes(item.id) : null,
-      item.text || t("new_item_ph"));
+    showPick(p.mark, p.pick, selection.mark("item", item.id), item.text || t("new_item_ph"));
     paintRowEditor(node, "item", item.id, item.text);
   }
 
@@ -3710,6 +3733,7 @@ function createRowView({ getState, search, askFocus }) {
 const rowView = createRowView({
   getState: () => state,
   search,
+  selection,
   askFocus: () => {
     needFocus = true;
   },
@@ -3789,6 +3813,7 @@ function restoreFocus() {
 function render() {
   captureFocus();
   search.refresh();
+  selection.current();
   renderChrome();
   renderLists();
   renderPager();
@@ -3903,7 +3928,7 @@ function panelGroup(labelKey, buttons) {
 }
 
 function renderPanel() {
-  const bulk = state.ui.bulk;
+  const sel = selection.current();
   const all = visibleChecklists();
   const collapsed = state.ui.panel.collapsed;
   const grip = panelButton(collapsed ? "grip-vertical" : "grip-horizontal",
@@ -3915,18 +3940,16 @@ function renderPanel() {
       panelButton("expand", "expand_all", "expand-all", !all.some((c) => !c.expanded)),
       panelButton("collapse", "collapse_all", "collapse-all", !all.some((c) => c.expanded)),
     ]));
-    if (bulk.kind !== null) {
-      const any = bulk.ids.length > 0;
-      const remove = panelButton("trash", "a_delete", "bulk-delete", !any);
+    if (sel) {
+      const remove = panelButton("trash", "a_delete", "bulk-delete", false);
       remove.classList.add("btn--danger");
       nodes.push(panelSeparator(), panelGroup("panel_group_remove", [
         remove,
-        panelButton("archive", "a_archive", "bulk-archive", !any),
+        panelButton("archive", "a_archive", "bulk-archive", false),
       ]));
-      const mixed = spansLists(bulk);
       nodes.push(panelSeparator(), panelGroup("panel_group_move", [
-        panelButton("top", "a_top", "bulk-top", !any || mixed || order.atEdge(bulk.kind, bulk.ids, "top")),
-        panelButton("bottom", "a_bottom", "bulk-bottom", !any || mixed || order.atEdge(bulk.kind, bulk.ids, "bottom")),
+        panelButton("top", "a_top", "bulk-top", !selection.canMove(sel.kind, sel.ids, "top")),
+        panelButton("bottom", "a_bottom", "bulk-bottom", !selection.canMove(sel.kind, sel.ids, "bottom")),
       ]));
       nodes.push(panelSeparator(), panelButton("close", "a_cancel", "bulk-cancel", false));
     }
@@ -3934,7 +3957,7 @@ function renderPanel() {
   const panel = byId("panel");
   panel.replaceChildren(...nodes);
   panel.classList.toggle("is-collapsed", collapsed);
-  panel.classList.toggle("is-hidden", all.length === 0 && bulk.kind === null);
+  panel.classList.toggle("is-hidden", all.length === 0 && sel === null);
   positionPanel();
 }
 
@@ -4276,6 +4299,11 @@ function openEntityMenu(kind, id, anchor) {
     closeModal();
     fn();
   };
+  const runBulk = () => {
+    closeModal();
+    selection.start(kind, id);
+    store.commit();
+  };
   const askArchive = run(() => ask(kind, [id], "archive", anchor));
   const askDelete = run(() => ask(kind, [id], "delete", anchor));
   const list = el("div", "menu-list");
@@ -4283,10 +4311,10 @@ function openEntityMenu(kind, id, anchor) {
     menuItem("archive", t("a_archive"), askArchive),
     menuItem("trash", t("a_delete"), askDelete, true),
     menuSep(),
-    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top")), false, order.atEdge(kind, [id], "top")),
-    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom")), false, order.atEdge(kind, [id], "bottom")),
+    menuItem("top", t("a_top"), run(() => moveTo(kind, [id], "top")), false, !selection.canMove(kind, [id], "top")),
+    menuItem("bottom", t("a_bottom"), run(() => moveTo(kind, [id], "bottom")), false, !selection.canMove(kind, [id], "bottom")),
     menuSep(),
-    menuItem("bulk", t("bulk"), run(() => startBulk(kind, id))),
+    menuItem("bulk", t("bulk"), runBulk),
   );
   openModal({ title: text, body: list, anchor });
 }
@@ -5145,7 +5173,7 @@ function armHover(drag, head, onHold) {
 
 // A held row: aim a drop marker, expand a closed list under the hold, land the
 // group. The bag lives here; only the screen knows where the marker got to.
-function createRowDrag({ getState, render, search, autoScroll, order, store, findList, screen }) {
+function createRowDrag({ getState, render, search, autoScroll, order, store, findList, selection, screen }) {
   let drag = null;
 
   function placeGap() {
@@ -5187,8 +5215,8 @@ function createRowDrag({ getState, render, search, autoScroll, order, store, fin
   // query's, not the user's. True once the hold became a drag.
   function start(hit) {
     if (search.active) return false;
-    const bulk = getState().ui.bulk;
-    const ids = bulk.kind === hit.kind && bulk.ids.includes(hit.id) ? [...bulk.ids] : [hit.id];
+    const sel = selection.current();
+    const ids = sel && sel.kind === hit.kind && sel.ids.includes(hit.id) ? sel.ids : [hit.id];
     const picked = new Set(ids);
     const source = hit.kind === "list" ? getState().checklists : getState().items;
     const rows = source.filter((x) => picked.has(x.id)).map((x) => rowById(hit.kind, x.id)).filter(Boolean);
@@ -5413,6 +5441,7 @@ const rowDrag = createRowDrag({
   render,
   search,
   findList,
+  selection,
   autoScroll,
   screen: createDragScreen,
 });
@@ -5699,7 +5728,10 @@ const ROW_ACTS = {
     }
   },
   "toggle-done": (kind, id) => flipFlag("item", id, "done"),
-  pick: togglePick,
+  pick: (kind, id) => {
+    if (selection.pick(kind, id) === "all") store.commit();
+    else store.commit(kind, id);
+  },
   edit: (kind, id) => editor.open(kind, id),
   "add-item": (kind, id) => addItem(id),
   menu: (kind, id, row, trigger) => openEntityMenu(kind, id, trigger),
@@ -5718,20 +5750,23 @@ const PANEL_ACTS = {
   },
   "expand-all": () => setExpandedAll(true),
   "collapse-all": () => setExpandedAll(false),
-  "bulk-cancel": () => cancelBulk(),
+  "bulk-cancel": () => {
+    selection.end();
+    store.commit();
+  },
 };
 
 const BULK_ACTS = {
-  "bulk-top": (bulk) => moveTo(bulk.kind, bulk.ids, "top"),
-  "bulk-bottom": (bulk) => moveTo(bulk.kind, bulk.ids, "bottom"),
-  "bulk-archive": (bulk, button) => ask(bulk.kind, [...bulk.ids], "archive", button),
-  "bulk-delete": (bulk, button) => ask(bulk.kind, [...bulk.ids], "delete", button),
+  "bulk-top": (sel) => moveTo(sel.kind, sel.ids, "top"),
+  "bulk-bottom": (sel) => moveTo(sel.kind, sel.ids, "bottom"),
+  "bulk-archive": (sel, button) => ask(sel.kind, sel.ids, "archive", button),
+  "bulk-delete": (sel, button) => ask(sel.kind, sel.ids, "delete", button),
 };
 
 // Bulk actions need a selection; without one they are dead buttons.
 function onPanelAct(act, button) {
-  const bulk = state.ui.bulk;
-  (PANEL_ACTS[act] ?? (bulk.ids.length > 0 ? BULK_ACTS[act] : undefined))?.(bulk, button);
+  const sel = selection.current();
+  (PANEL_ACTS[act] ?? (sel ? BULK_ACTS[act] : undefined))?.(sel, button);
 }
 
 /* --- wiring --- */

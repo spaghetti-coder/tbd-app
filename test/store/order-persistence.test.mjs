@@ -6,7 +6,7 @@ import { ids, item, list, plain } from "../../testkit/fixtures.mjs";
 import { storeHarness } from "../../testkit/store-fake.mjs";
 
 const ACTIONS = [
-  "removeEntity", "pruneSelection", "setBulk", "restore", "dropItemsInto", "archiveItemQuiet",
+  "removeEntity", "restore", "dropItemsInto", "archiveItemQuiet",
   "archiveChecklistQuiet", "findList", "findItem", "entityText", "withoutArchived",
 ];
 

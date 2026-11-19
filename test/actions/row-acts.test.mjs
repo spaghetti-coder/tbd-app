@@ -5,13 +5,14 @@ import test from "node:test";
 import { sliceVm } from "../../testkit/html-source.mjs";
 import { searchStub, storeStub } from "../../testkit/fixtures.mjs";
 
-function harness({ checklists = [], items = [], editing, search = searchStub() } = {}) {
+function harness({ checklists = [], items = [], editing, search = searchStub(), scope = "row" } = {}) {
   const calls = [];
   const { onRowAct } = sliceVm(["flipFlag", "patch", "findList", "findItem", "ROW_ACTS", "onRowAct"], {
     state: { checklists, items, ui: { editing } },
     search,
     store: storeStub(calls),
-    togglePick: (kind, id) => calls.push(`togglePick:${kind}:${id}`),
+    // Stub scope: the pick -> commit mapping is under test.
+    selection: { pick: (kind, id) => { calls.push(`pick:${kind}:${id}`); return scope; } },
     editor: { open: (kind, id) => calls.push(`open:${kind}:${id}`) },
     addItem: (id) => calls.push(`addItem:${id}`),
     openEntityMenu: (kind, id, trigger) => calls.push(`openEntityMenu:${kind}:${id}:${trigger.name}`),
@@ -63,11 +64,18 @@ test("pick, edit, add-item and menu forward their arguments", () => {
   onRowAct("add-item", "list", "c1", row, TRIGGER);
   onRowAct("menu", "item", "i1", row, TRIGGER);
   assert.deepEqual(calls, [
-    "togglePick:item:i1",
+    "pick:item:i1",
+    "commit:item:i1",
     "open:list:c1",
     "addItem:c1",
     "openEntityMenu:item:i1:trigger",
   ]);
+});
+
+test("a pick that changes every row repaints them all", () => {
+  const { calls, onRowAct, row } = harness({ scope: "all" });
+  onRowAct("pick", "item", "i1", row, TRIGGER);
+  assert.deepEqual(calls, ["pick:item:i1", "commit"]);
 });
 
 test("save routes to the editor commit", () => {

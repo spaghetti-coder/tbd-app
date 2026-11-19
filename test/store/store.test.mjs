@@ -32,7 +32,7 @@ test("a save carries unseen rows, the order they imply & a ui doc with only the 
   assert.deepEqual(plain(batch.docs), [
     { key: "order:lists", value: ["c1"] },
     { key: "order:c1", value: ["i1"] },
-    { key: "ui", value: { ...state.ui, search: { text: "milk" }, bulk: { kind: null, ids: [] } } },
+    { key: "ui", value: { ...state.ui, search: { text: "milk" } } },
   ]);
   assert.deepEqual(h.echo.posts, ["tab"], "the other tabs hear about the write");
 });
@@ -176,7 +176,7 @@ test("the ui doc goes out only when it differs", async () => {
   const doc = uiDocOf(h.storage.batches[1]);
   assert.equal(doc.value.theme, "dark");
   assert.deepEqual(plain(doc.value.search), { text: "" }, "only the query text outlives the tab");
-  assert.deepEqual(plain(doc.value.bulk), { kind: null, ids: [] });
+  assert.equal("bulk" in doc.value, false, "the picks are not in the document at all");
 });
 
 test("erase clears the store and stops this tab writing back", async () => {
